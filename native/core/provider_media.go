@@ -92,7 +92,7 @@ func providerSourceForURL(raw string) string {
 
 func (d *Downloader) providerURLCandidates(raw string) []string {
 	source := providerSourceForURL(raw)
-	if source == "" || source == sourceHuangju || source == sourceYeguo {
+	if source == "" || source == sourceHuangju || source == sourceYeguo || source == sourceLujj31 {
 		return []string{raw}
 	}
 	parsed, _ := url.Parse(raw)
