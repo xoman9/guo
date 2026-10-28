@@ -17,5 +17,7 @@ void main() {
       expect(name.contains('+18'), false);
     }
     expect(SourceSite.hongguo.name, '红果');
+    expect(SourceSite.byId('lujj31').id, 'lujj31');
+    expect(SourceSite.isRestricted('lujj31'), isFalse);
   });
 }
