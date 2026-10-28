@@ -140,6 +140,7 @@ void main() {
       expect(store.themeColor, ThemeColor.orange);
       expect(store.sourceEnabled('hongguo'), isTrue);
       expect(store.sourceEnabled('huangdou'), isFalse);
+      expect(store.sourceEnabled('lujj31'), isFalse);
 
       await store.setThemeMode('dark');
       expect(_snapshotValues(store).keys, isNot(contains('sourceGateEnabled')));
