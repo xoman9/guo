@@ -24,6 +24,9 @@ func (d *Downloader) lujj31Request(ctx context.Context, params url.Values) (map[
 	if len(body) > 4<<20 {
 		return nil, errors.New("lujj31 返回的目录资料过大")
 	}
+	if strings.TrimSpace(body) == "" {
+		return nil, errors.New("lujj31 站点回应为空，无法读取分类或剧集，请确认网址与实际接口")
+	}
 	var response map[string]any
 	if err := json.Unmarshal([]byte(body), &response); err != nil {
 		return nil, errors.New("lujj31 未返回标准 MacCMS JSON；需要确认网站实际接口")
