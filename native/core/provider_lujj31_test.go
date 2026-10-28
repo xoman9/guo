@@ -70,7 +70,7 @@ func TestLujj31RejectsNonMediaAndIncorrectIdentity(t *testing.T) {
 
 func TestLujj31EmptyResponseIsAnExplicitError(t *testing.T) {
 	d := sourceFixtureDownloader(t, func(request *http.Request) (*http.Response, error) {
-		return sourceFixtureResponse(request, http.StatusOK, "")
+		return sourceFixtureResponse(request, http.StatusOK, ""), nil
 	})
 	_, err := d.fetchLujj31Categories(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "回应为空") {
