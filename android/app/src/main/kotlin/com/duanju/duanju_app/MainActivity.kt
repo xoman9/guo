@@ -5,6 +5,8 @@ import io.flutter.embedding.android.FlutterSurfaceView
 import android.app.UiModeManager
 import android.app.ActivityManager
 import android.app.PictureInPictureParams
+import android.os.Environment
+import android.provider.DocumentsContract
 import android.os.Build
 import android.os.Bundle
 import android.os.BatteryManager
@@ -40,6 +42,8 @@ private const val SURFACE_RESIZE_REDRAW_WAIT_MS = 100L
 private const val ORIENTATION_SETTLE_MS = 800L
 
 class MainActivity : FlutterActivity() {
+    private var folderChoiceResult: MethodChannel.Result? = null
+    private val folderChoiceRequestCode = 8831
     private var headroomReadAt = 0L
     private var thermalHeadroom: Double? = null
     private var deviceChannel: MethodChannel? = null
@@ -238,6 +242,67 @@ class MainActivity : FlutterActivity() {
             .also { channel ->
                 channel.setMethodCallHandler { call, result ->
                     when (call.method) {
+                        "selectDownloadDirectory" -> {
+                            if (folderChoiceResult != null) {
+                                result.error("picker_busy", "已有資料夾選擇器開啟", null)
+                            } else {
+                                folderChoiceResult = result
+                                try {
+                                    startActivityForResult(
+                                        Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                                                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                                        },
+                                        folderChoiceRequestCode
+                                    )
+                                } catch (error: Exception) {
+                                    folderChoiceResult = null
+                                    result.error("folder_picker", "無法啟動系統資料夾選擇器", null)
+                                }
+                            }
+                        }
+                        "sharedDownloadDirectory" -> {
+                            val root = Environment.getExternalStorageDirectory()
+                            val target = java.io.File(root, "Download/guo")
+                            result.success(target.absolutePath)
+                        }
+                        "sharedStorageAccess" -> {
+                            result.success(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                Environment.isExternalStorageManager()
+                            } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                                checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+                                    PackageManager.PERMISSION_GRANTED
+                            } else true)
+                        }
+                        "requestSharedStorageAccess" -> {
+                            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                                if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+                                    PackageManager.PERMISSION_GRANTED) {
+                                    requestPermissions(arrayOf(
+                                        android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                                    ), 9812)
+                                    result.success(false)
+                                } else result.success(true)
+                            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                                !Environment.isExternalStorageManager()) {
+                                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                    Uri.parse("package:$packageName"))
+                                try {
+                                    startActivity(intent)
+                                    result.success(false)
+                                } catch (failure: Exception) {
+                                    try {
+                                        startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                                        result.success(false)
+                                    } catch (fallback: Exception) {
+                                        result.error("storage_permission", "无法开启所有文件访问权限设置", null)
+                                    }
+                                }
+                            } else result.success(true)
+                        }
+
                         "deviceInfo" -> {
                             val version = packageManager.getPackageInfo(packageName, 0).versionName
                             result.success(mapOf("television" to isTelevisionDevice(), "version" to version))
@@ -438,6 +503,43 @@ class MainActivity : FlutterActivity() {
             "pictureInPictureChanged",
             mapOf("active" to isInPictureInPictureMode)
         )
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != folderChoiceRequestCode) return
+        val pending = folderChoiceResult ?: return
+        folderChoiceResult = null
+        val uri = data?.data
+        if (resultCode != RESULT_OK || uri == null) {
+            pending.success(null)
+            return
+        }
+        try {
+            if (uri.authority != "com.android.externalstorage.documents") {
+                pending.error("unsupported_volume", "目前只支援裝置內部共用儲存空間", null)
+                return
+            }
+            val id = DocumentsContract.getTreeDocumentId(uri)
+            if (!id.startsWith("primary:")) {
+                pending.error("unsupported_volume", "暫不支援選擇外接 SD 卡", null)
+                return
+            }
+            val relative = id.removePrefix("primary:")
+            val root = Environment.getExternalStorageDirectory().canonicalFile
+            val folder = java.io.File(root, relative).canonicalFile
+            if (folder != root && !folder.path.startsWith(root.path + java.io.File.separator)) {
+                pending.error("unsafe_directory", "無效的資料夾路徑", null)
+                return
+            }
+            if (!folder.isDirectory) {
+                pending.error("invalid_directory", "所選目錄不存在", null)
+                return
+            }
+            pending.success(folder.absolutePath)
+        } catch (error: Exception) {
+            pending.error("folder_picker", "無法解析所選資料夾：${error.message}", null)
+        }
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
