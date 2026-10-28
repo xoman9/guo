@@ -1,0 +1,20 @@
+name: Probe lujj31 website structure
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/probe_lujj31.py'
+      - '.github/workflows/probe-lujj31.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-site-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe DNS and public website endpoints (read-only)
+        run: python3 scripts/probe_lujj31.py
