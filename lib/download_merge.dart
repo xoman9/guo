@@ -44,7 +44,8 @@ class DownloadMerger extends ChangeNotifier {
   final MediaExecutor executor;
   String status = '';
   double progress = 0;
-  bool busy = false, _cancelled = false, _disposed = false;
+  bool busy = false, _cancelled = false, _disposed = false, _cleaning = false;
+  bool get cancellable => busy && !_cleaning;
 
   void _check() {
     if (_cancelled) throw AppFailure('已取消合并，原分集已保留');
@@ -57,6 +58,7 @@ class DownloadMerger extends ChangeNotifier {
   }
 
   Future<void> cancel() async {
+    if (_cleaning) return;
     _cancelled = true;
     await executor.cancel();
   }
@@ -215,8 +217,22 @@ class DownloadMerger extends ChangeNotifier {
       _check();
       if (await target.length() != await merged.length())
         throw AppFailure('保存不完整，原分集已保留');
+      final saved = await target.open(mode: FileMode.append);
+      try {
+        await saved.flush();
+      } finally {
+        await saved.close();
+      }
+      _check();
       completed = true;
-      _update('合并完成，原分集已保留', 1);
+      _cleaning = true;
+      _update('成品已保存，正在清理原分集与下载文件', .98);
+      try {
+        await repository.cleanupMergedDownloads(jobs, target.path);
+      } catch (error) {
+        throw AppFailure('合并成品已保存于 ${target.path}；清理未完成：$error');
+      }
+      _update('合并完成，原分集与下载文件已清理', 1);
       return target.path;
     } finally {
       try {
@@ -228,6 +244,7 @@ class DownloadMerger extends ChangeNotifier {
         try {
           if (leased) await repository.workLease('media', 'end');
         } finally {
+          _cleaning = false;
           busy = false;
           if (!_disposed) notifyListeners();
         }

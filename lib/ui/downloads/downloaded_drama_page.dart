@@ -129,11 +129,14 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
                 const SizedBox(height: 12),
                 Text(merger.status),
                 const SizedBox(height: 8),
-                const Text('成品保存为「剧名-合.mp4」，原分集不会删除。'),
+                const Text('成品验证并保存成功后，会删除所选原分集及下载产生的文件与空资料夹；失败或取消时保留原分集。'),
               ],
             ),
             actions: [
-              TextButton(onPressed: merger.cancel, child: const Text('取消合并')),
+              TextButton(
+                onPressed: merger.cancellable ? merger.cancel : null,
+                child: const Text('取消合并'),
+              ),
             ],
           ),
         ),
@@ -142,6 +145,7 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
     String? output, failure;
     try {
       output = await merger.merge(jobs);
+      await widget.downloads.refresh();
     } catch (error) {
       failure = '$error';
     } finally {

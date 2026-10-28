@@ -127,6 +127,10 @@ abstract class AppRepository {
   Future<DownloadConversion> beginConversion(String id) async =>
       throw AppFailure('当前环境不支持处理下载');
   Future<void> finishConversion(String id, String result) async {}
+  Future<void> cleanupMergedDownloads(
+    List<DownloadJob> jobs,
+    String output,
+  ) async => throw AppFailure('当前环境不支持合并后清理');
   Future<DownloadBatchResult> controlDownloadBatch(
     String command,
     List<String> ids,
@@ -532,6 +536,7 @@ class NativeRepository extends AppRepository {
             'downloads',
             'controlDownloads',
             'controlDownloadBatch',
+            'cleanupMergedDownloads',
             'beginConversion',
             'storage',
             'downloadDirectory',
@@ -550,7 +555,9 @@ class NativeRepository extends AppRepository {
             () => jsonDecode(_nativeRequest(body)) as Map<String, dynamic>,
           ).timeout(
             Duration(
-              seconds: action == 'moveDownloads'
+              seconds: action == 'cleanupMergedDownloads'
+                  ? 300
+                  : action == 'moveDownloads'
                   ? 620
                   : action == 'danmaku'
                   ? 15
@@ -797,6 +804,33 @@ class NativeRepository extends AppRepository {
           .toList(),
     });
     return intValue(result['added']);
+  }
+
+  @override
+  Future<void> cleanupMergedDownloads(
+    List<DownloadJob> jobs,
+    String output,
+  ) async {
+    _downloadPermission();
+    for (final job in jobs) {
+      _authorize(job.drama.source, download: true);
+    }
+    final response = DownloadBatchResult.fromJson(
+      await _call({
+        'action': 'cleanupMergedDownloads',
+        'mergedFile': output,
+        'jobIds': jobs.map((job) => job.id).toList(),
+        'expected': {
+          for (final job in jobs)
+            job.id:
+                '${job.created}-${job.revision}-${job.bytes}-${job.actualQuality}',
+        },
+      }),
+    );
+    if (response.failures.isNotEmpty ||
+        response.completed.length != jobs.map((job) => job.id).toSet().length) {
+      throw AppFailure('部分原分集未能清理，请在下载页重试删除');
+    }
   }
 
   @override

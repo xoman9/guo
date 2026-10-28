@@ -94,6 +94,8 @@ type nativeDrama struct {
 }
 
 type nativeInput struct {
+	Expected        map[string]string       `json:"expected"`
+	MergedFile      string                  `json:"mergedFile"`
 	SystemProxy     nativeSystemProxy       `json:"systemProxy"`
 	Settings        nativeResourceSettings  `json:"settings"`
 	JobIDs          []string                `json:"jobIds"`
@@ -358,6 +360,8 @@ func nativeDispatch(input nativeInput) (any, error) {
 		return engine.resourceSettings(), nil
 	case "saveResourceSettings":
 		return engine.saveResourceSettings(input.Settings)
+	case "cleanupMergedDownloads":
+		return engine.downloads.cleanupMergedDownloads(input.JobIDs, input.Expected, input.MergedFile)
 	case "controlDownloadBatch":
 		return engine.downloads.controlBatch(ctx, input.JobIDs, input.Command)
 	case "preload":
