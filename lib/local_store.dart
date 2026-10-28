@@ -134,7 +134,8 @@ class LocalStore extends ChangeNotifier {
   ];
 
   bool sourceEnabled(String source) =>
-      _sourceSwitches[source] ?? !SourceSite.isRestricted(source);
+      _sourceSwitches[source] ??
+      (source != 'lujj31' && !SourceSite.isRestricted(source));
 
   void _loadSourceSwitches() {
     try {
