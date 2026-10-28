@@ -69,7 +69,7 @@ jobs:
           grep -q "package: name='com.duanju.duanju_app'" apk-badging.txt
           grep -q "native-code: 'arm64-v8a'" apk-badging.txt
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk"
-          unzip -l "$apk" | grep -q 'lib/arm64-v8a/libduanju_core.so'
+          unzip -Z1 "$apk" | grep -Fx 'lib/arm64-v8a/libduanju_core.so'
           mkdir -p dist/lujj31-preview
           cp "$apk" dist/lujj31-preview/zhenguojian-lujj31-preview-1.0.3+103-arm64-v8a.apk
           sha256sum dist/lujj31-preview/*.apk > dist/lujj31-preview/SHA256SUMS.txt
