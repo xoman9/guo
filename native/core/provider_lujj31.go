@@ -141,7 +141,7 @@ func lujj31Chapters(sourceID, entries, referer string) []Chapter {
 				title = fmt.Sprintf("第%d集", number)
 			}
 			chapters = append(chapters, Chapter{
-				ID: providerChapterID(sourceLujj31, sourceID, strconv.Itoa(number)),
+				ID:     providerChapterID(sourceLujj31, sourceID, strconv.Itoa(number)),
 				Source: sourceLujj31, Title: truncate(strings.TrimSpace(title), 128),
 				CurrentEpisode: rawEpisode(number), VideoURL: mediaURL, Referer: referer,
 			})
