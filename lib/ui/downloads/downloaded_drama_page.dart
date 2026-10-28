@@ -129,7 +129,9 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
                 const SizedBox(height: 12),
                 Text(merger.status),
                 const SizedBox(height: 8),
-                const Text('成品验证并保存成功后，会删除所选原分集及下载产生的文件与空资料夹；失败或取消时保留原分集。'),
+                const Text(
+                  '成品验证并保存成功后，会删除所选原分集及下载产生的文件与空资料夹。合并失败或取消不清理；清理失败会保留成品并提示。',
+                ),
               ],
             ),
             actions: [
