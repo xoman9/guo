@@ -14,6 +14,11 @@ func TestLujj31SourceRegistration(t *testing.T) {
 	if providerSourceForURL("https://lujj31.lol/") != sourceLujj31 {
 		t.Fatal("lujj31 host is not associated with its source")
 	}
+	address := "https://lujj31.lol/api.php/provide/vod/?ac=list"
+	candidates := (&Downloader{cfg: defaultConfig()}).providerURLCandidates(address)
+	if len(candidates) != 1 || candidates[0] != address {
+		t.Fatalf("lujj31 request URL was unexpectedly rewritten: %v", candidates)
+	}
 }
 
 func TestLujj31MacCMSFixture(t *testing.T) {
