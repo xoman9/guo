@@ -59,9 +59,21 @@ func (manager *nativeDownloads) cleanupMergedDownloads(ids []string, expected ma
 			result.Failures[id] = job.Error
 			continue
 		}
-		parent := filepath.Dir(manager.jobDirectory(job.nativeDownloadJob))
-		if parent != manager.root {
-			_ = os.Remove(parent)
+		for _, parent := range []string{filepath.Dir(manager.jobDirectory(job.nativeDownloadJob)), filepath.Dir(manager.outputFile(job.Output))} {
+			for parent != manager.root {
+				relative, err := filepath.Rel(manager.root, parent)
+				if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+					break
+				}
+				if err := os.Remove(parent); err != nil && !os.IsNotExist(err) {
+					break
+				}
+				next := filepath.Dir(parent)
+				if next == parent {
+					break
+				}
+				parent = next
+			}
 		}
 		delete(manager.jobs, id)
 		result.Completed = append(result.Completed, id)

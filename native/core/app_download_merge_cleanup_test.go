@@ -70,3 +70,24 @@ func TestMergedCleanupRejectsChangedVersionsAndMissingOutput(t *testing.T) {
 		t.Fatal("source removed on validation failure")
 	}
 }
+
+func TestMergedCleanupPrunesEmptySourceParents(t *testing.T) {
+	manager := downloadTestManager(t)
+	drama := nativeDrama{ID: "hongguo:992", Source: "hongguo", Title: "分组清理"}
+	id := convertingFixture(t, manager, drama, 1, true)
+	convertFixture(t, manager, id)
+	merged := filepath.Join(manager.root, "分组清理-合.mp4")
+	os.WriteFile(merged, []byte("output"), 0600)
+	manager.engine.workLease("media", "start")
+	defer manager.engine.workLease("media", "end")
+	expected := map[string]string{id: nativeMergedSourceVersion(manager.jobs[id].nativeDownloadJob)}
+	if _, err := manager.cleanupMergedDownloads([]string{id}, expected, merged); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(manager.root, "hongguo")); !os.IsNotExist(err) {
+		t.Fatal("empty source parent directory remained")
+	}
+	if _, err := os.Stat(merged); err != nil {
+		t.Fatal("merged output removed")
+	}
+}
