@@ -47,11 +47,11 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - name: Validate download directories and conversion cleanup
         working-directory: native
-        run: go test -race ./core -run 'Test(DownloadDirectory|DownloadReadable|Converted|NativeDownloadConversion|DownloadMigration|Migration|StorageLease|PathsOverlap)' -count=1
+        run: go test -race ./core -run 'Test(MergedCleanup|DownloadDirectory|DownloadReadable|Converted|NativeDownloadConversion|DownloadMigration|Migration|StorageLease|PathsOverlap)' -count=1
       - name: Analyze changed download code
-        run: dart analyze lib/download_merge.dart lib/core_bridge.dart lib/ui/settings/storage_view.dart lib/ui/downloads/downloaded_drama_page.dart test/download_merge_test.dart
+        run: dart analyze lib/download_merge.dart lib/core_bridge.dart lib/ui/settings/storage_view.dart lib/ui/downloads/downloaded_drama_page.dart test/download_merge_test.dart lib/models.dart test/source_labels_test.dart
       - name: Test download and merge behavior
-        run: flutter test --no-pub --dart-define=DISABLE_REMOTE_IMAGES=true --dart-define=ALL_SOURCES=true test/download_merge_test.dart test/download_converter_test.dart test/download_collections_test.dart test/download_overview_test.dart
+        run: flutter test --no-pub --dart-define=DISABLE_REMOTE_IMAGES=true --dart-define=ALL_SOURCES=true test/download_merge_test.dart test/download_converter_test.dart test/download_collections_test.dart test/download_overview_test.dart test/source_labels_test.dart
       - run: python scripts/build_native.py --platform android --abi arm64-v8a --all-sources
       - name: Build coexist release APK
         env:
