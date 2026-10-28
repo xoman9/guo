@@ -89,11 +89,16 @@ class _StorageViewState extends State<StorageView> {
     return false;
   }
 
-  Future<void> _change({bool sharedDefault = false}) async {
+  Future<void> _change({
+    bool sharedDefault = false,
+    bool appPrivate = false,
+  }) async {
     if (_busy) return;
     try {
       String? selected;
-      if (Platform.isAndroid) {
+      if (appPrivate) {
+        selected = '${(await getApplicationSupportDirectory()).path}/downloads';
+      } else if (Platform.isAndroid) {
         if (!await _authorizeSharedStorage()) return;
         const channel = MethodChannel('duanju/device');
         selected = await channel.invokeMethod<String>(
@@ -105,7 +110,7 @@ class _StorageViewState extends State<StorageView> {
           selected = '$selected/guo-downloads';
       }
       if (selected == null || !mounted) return;
-      if (sharedDefault || Platform.isIOS)
+      if (sharedDefault || appPrivate || Platform.isIOS)
         await Directory(selected).create(recursive: true);
       if (!mounted) return;
       final confirmed = await showDialog<bool>(
@@ -283,6 +288,13 @@ class _StorageViewState extends State<StorageView> {
                 },
               ),
             ],
+            const Divider(indent: 16, endIndent: 16),
+            SettingsTile(
+              title: '使用原应用下载目录',
+              subtitle: '切回应用内部 downloads，保留共享资料夹的文件',
+              enabled: admin && !_busy,
+              onTap: () => _change(appPrivate: true),
+            ),
             const Divider(indent: 16, endIndent: 16),
             SettingsTile(
               title: '更改并迁移目录',
