@@ -12,6 +12,7 @@ val dartDefines = providers.gradleProperty("dart-defines").orNull.orEmpty()
         val decoded = String(Base64.getDecoder().decode(it), Charsets.UTF_8)
         decoded.substringBefore("=") to decoded.substringAfter("=", "")
     }
+val coexist = dartDefines["COEXIST"] == "true"
 val allSources = dartDefines["ALL_SOURCES"] == "true"
 
 val releaseKey = rootProject.file("key.properties")
@@ -39,12 +40,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.duanju.duanju_app"
+        applicationId = if (coexist) "com.xoman9.guo.coexist" else "com.duanju.duanju_app"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        manifestPlaceholders["appLabel"] = if (allSources) "真果鉴" else "红果鉴"
+        manifestPlaceholders["appLabel"] = (if (allSources) "真果鉴" else "红果鉴") + (if (coexist) " 共存版" else "")
         manifestPlaceholders["appBanner"] = if (allSources) "@drawable/tv_banner_all_sources" else "@drawable/tv_banner"
     }
 
