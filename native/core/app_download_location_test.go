@@ -142,3 +142,24 @@ func TestConvertedOutputKeepsRawWhenIndexSaveFails(t *testing.T) {
 	}
 	convertFixture(t, manager, id)
 }
+
+func TestDownloadReadableLayoutReusesLegacyMP4Folder(t *testing.T) {
+	manager := downloadTestManager(t)
+	drama := nativeDrama{ID: "hongguo:902", Source: "hongguo", Title: "旧剧名"}
+	id := convertingFixture(t, manager, drama, 1, false)
+	output := convertFixture(t, manager, id)
+	manager.resolve = func(ctx context.Context, job nativeDownloadJob) (providerMedia, error) {
+		<-ctx.Done()
+		return providerMedia{}, ctx.Err()
+	}
+	input := downloadTestInput(1)
+	input.Drama = drama
+	input.Entries[0].Index = 2
+	if _, err := manager.enqueue(input); err != nil {
+		t.Fatal(err)
+	}
+	job := manager.jobs[nativeDownloadID(drama.ID, 2)]
+	if filepath.ToSlash(filepath.Dir(output))+"/0002" != job.Folder {
+		t.Fatalf("legacy drama was split into a new folder: %s", job.Folder)
+	}
+}
