@@ -14,13 +14,6 @@ HOST = "lujj31.lol"
 ORIGIN = "https://" + HOST
 AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36"
 
-try:
-    ips = sorted({row[4][0] for row in socket.getaddrinfo(HOST, 443, type=socket.SOCK_STREAM)})
-    print("DNS resolved:", ips[:8])
-except OSError as exc:
-    print("DNS failed:", type(exc).__name__, str(exc)[:150])
-
-
 def probe(path):
     target = ORIGIN + path
     print("\nCHECK path:", path)
@@ -38,6 +31,7 @@ def probe(path):
         final = urlsplit(response.url)
         print("STATUS:", response.status, "FINAL HOST:", final.hostname, "PATH:", final.path)
         print("CONTENT TYPE:", content_type, "SAMPLED BYTES:", len(body))
+        print("SERVER:", response.headers.get("Server", "(unknown)"), "LENGTH:", response.headers.get("Content-Length", "(absent)"), "TRANSFER:", response.headers.get("Transfer-Encoding", "(absent)"))
         try:
             parsed = json.loads(body)
             if isinstance(parsed, dict):
@@ -71,6 +65,15 @@ def probe(path):
         print("Example link PATHS only:", path_shapes)
 
 
-probe("/")
-probe("/api.php/provide/vod/?ac=list")
-probe("/api.php/provide/vod/?ac=detail&pg=1")
+for HOST in ("lujj31.lol", "www.lujj31.lol", "lujj31.buzz"):
+    ORIGIN = "https://" + HOST
+    print("\\n=== HOST:", HOST, "===")
+    try:
+        ips = sorted({row[4][0] for row in socket.getaddrinfo(HOST, 443, type=socket.SOCK_STREAM)})
+        print("DNS resolved:", ips[:8])
+    except OSError as exc:
+        print("DNS failed:", type(exc).__name__, str(exc)[:150])
+    probe("/")
+    probe("/api.php/provide/vod/?ac=list")
+    if HOST == "lujj31.lol":
+        probe("/api.php/provide/vod/?ac=detail&pg=1")
