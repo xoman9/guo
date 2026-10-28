@@ -111,6 +111,8 @@ abstract class AppRepository {
   Future<Map<String, dynamic>> storage() async => {};
   Future<String> downloadDirectory() async =>
       (await storage())['directory'] as String? ?? '';
+  Future<void> changeDownloadDirectory(String directory) async =>
+      throw AppFailure('当前环境不支持切换下载资料夹');
   Future<void> moveDownloads(String directory) async =>
       throw AppFailure('当前环境不支持迁移');
   Future<int> workLease(String id, String command) async => 0;
@@ -413,6 +415,24 @@ class NativeRepository extends AppRepository {
   }
 
   @override
+  Future<void> changeDownloadDirectory(String directory) async {
+    _downloadPermission();
+    if (access != null && !access!.profile.admin) {
+      throw AppFailure('仅管理员可更改下载目录');
+    }
+    await BackgroundDownloads.ensureStarted();
+    await workLease('storage', 'start');
+    try {
+      await _call({
+        'action': 'changeDownloadDirectory',
+        'directory': directory,
+      });
+    } finally {
+      await workLease('storage', 'end');
+    }
+  }
+
+  @override
   Future<void> moveDownloads(String directory) async {
     _downloadPermission();
     if (access != null && !access!.profile.admin) {
@@ -428,13 +448,18 @@ class NativeRepository extends AppRepository {
   }
 
   @override
-  Future<int> workLease(String id, String command) async => intValue(
-    (await _call({
-      'action': 'workLease',
-      'jobId': id,
-      'command': command,
-    }))['count'],
-  );
+  Future<int> workLease(String id, String command) async {
+    if (id == 'media' && command == 'start')
+      await BackgroundDownloads.ensureStarted();
+    return intValue(
+      (await _call({
+        'action': 'workLease',
+        'jobId': id,
+        'command': command,
+      }))['count'],
+    );
+  }
+
   int _playbackSequence = DateTime.now().microsecondsSinceEpoch;
 
   @override
@@ -511,6 +536,7 @@ class NativeRepository extends AppRepository {
             'storage',
             'downloadDirectory',
             'moveDownloads',
+            'changeDownloadDirectory',
             'workLease',
           }.contains(action)) {
         _downloadPermission();

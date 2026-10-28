@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../download_merge.dart';
 
 import '../../download_collections.dart';
 import '../../download_overview.dart';
@@ -29,6 +31,7 @@ class DownloadedDramaPage extends StatefulWidget {
 
 class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
   DownloadCollectionUpdater? _updater;
+  DownloadMerger? _merger;
   Set<String>? _selection;
   bool _busy = false;
   bool _playing = false;
@@ -36,6 +39,7 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _merger ??= DownloadMerger(AppScope.of(context).repository);
     _updater ??= DownloadCollectionUpdater(
       AppScope.of(context).repository,
       widget.store,
@@ -44,6 +48,7 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
 
   @override
   void dispose() {
+    _merger?.dispose();
     _updater?.dispose();
     super.dispose();
   }
@@ -92,6 +97,87 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
       });
     }
   }
+
+  Future<void> _merge(DownloadedDrama item, Set<String> selection) async {
+    if (_busy || selection.isEmpty) return;
+    final jobs = [
+      for (final job in item.episodes)
+        if (selection.contains(job.id)) job,
+    ];
+    try {
+      continuousDownloadJobs(jobs);
+    } catch (error) {
+      showMessage(context, '$error');
+      return;
+    }
+    final merger = _merger!;
+    setState(() => _busy = true);
+    final navigator = Navigator.of(context, rootNavigator: true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: ListenableBuilder(
+          listenable: merger,
+          builder: (context, _) => AlertDialog(
+            title: const Text('合并已下载分集'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(value: merger.progress),
+                const SizedBox(height: 12),
+                Text(merger.status),
+                const SizedBox(height: 8),
+                const Text('成品保存为「剧名-合.mp4」，原分集不会删除。'),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: merger.cancel, child: const Text('取消合并')),
+            ],
+          ),
+        ),
+      ),
+    );
+    String? output, failure;
+    try {
+      output = await merger.merge(jobs);
+    } catch (error) {
+      failure = '$error';
+    } finally {
+      navigator.pop();
+      if (mounted) setState(() => _busy = false);
+    }
+    if (!mounted) return;
+    if (failure != null) {
+      showMessage(context, failure);
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('合并完成'),
+        content: SelectableText(output!),
+        actions: [
+          TextButton(
+            onPressed: () => Clipboard.setData(ClipboardData(text: output!)),
+            child: const Text('复制路径'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('完成'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mergeButton(DownloadedDrama item, Set<String> selection) =>
+      _textButton(
+        '合并影片',
+        _busy || selection.isEmpty ? null : () => _merge(item, selection),
+        icon: Icons.merge_rounded,
+      );
 
   Future<void> _play(DownloadedDrama item, int index) async {
     if (_playing) return;
@@ -233,7 +319,13 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                 child: SizedBox(
                   height: 48,
-                  child: _deleteButton(item, selection),
+                  child: Row(
+                    children: [
+                      Expanded(child: _mergeButton(item, selection)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _deleteButton(item, selection)),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -284,6 +376,7 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
                     ),
                     if (editing) ...[
                       _selectAll(item, selection),
+                      _mergeButton(item, selection),
                       _deleteButton(item, selection),
                       _textButton(
                         '完成',

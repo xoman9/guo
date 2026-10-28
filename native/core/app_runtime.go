@@ -391,6 +391,8 @@ func nativeDispatch(input nativeInput) (any, error) {
 		return map[string]string{"directory": root}, nil
 	case "storage":
 		return engine.storage()
+	case "changeDownloadDirectory":
+		return true, engine.changeDownloadDirectory(input.Directory)
 	case "moveDownloads":
 		return true, engine.moveDownloads(ctx, input.Directory)
 	case "workLease":

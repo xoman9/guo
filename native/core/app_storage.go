@@ -56,6 +56,85 @@ func nativeDownloadLocation(directory string) string {
 	return filepath.Join(directory, "downloads")
 }
 
+func (engine *nativeEngine) changeDownloadDirectory(target string) error {
+	if !filepath.IsAbs(target) {
+		return errors.New("请选择有效的下载资料夹")
+	}
+	target, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		return errors.New("无法打开所选资料夹")
+	}
+	if filepath.Dir(target) == target {
+		return errors.New("请选择独立的下载资料夹，不能使用磁盘根目录")
+	}
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	manager := engine.downloads
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if manager.closed || manager.moving || engine.work["media"] || len(manager.converting) > 0 {
+		return errors.New("请等待下载后处理完成后再切换资料夹")
+	}
+	if target == manager.root {
+		return nil
+	}
+	if nativePathsOverlap(manager.root, target) {
+		return errors.New("新目录不能与原下载目录互相包含")
+	}
+	if len(manager.active) > 0 {
+		return errors.New("请先暂停全部下载，等待任务停止后重试")
+	}
+	for _, job := range manager.jobs {
+		if job.State == "queued" || job.State == "downloading" {
+			return errors.New("请先暂停全部下载任务")
+		}
+	}
+	if manager.loadErr != nil {
+		return manager.loadErr
+	}
+	owner := engine.directory
+	marker := filepath.Join(target, ".guo-download-owner")
+	body, markerErr := os.ReadFile(marker)
+	if markerErr == nil && string(body) != owner {
+		return errors.New("所选资料夹属于另一个应用，请选择独立资料夹")
+	}
+	if markerErr != nil && !os.IsNotExist(markerErr) {
+		return errors.New("无法检查资料夹归属")
+	}
+	if _, err := os.Lstat(filepath.Join(target, "index.json")); err == nil {
+		if string(body) != owner && target != filepath.Join(engine.directory, "downloads") {
+			return errors.New("所选资料夹已有其他下载索引，请选择独立资料夹")
+		}
+	} else if !os.IsNotExist(err) {
+		return errors.New("无法检查下载索引")
+	}
+	probe, err := os.CreateTemp(target, ".guo-write-check-*")
+	if err != nil {
+		return errors.New("所选资料夹没有写入权限")
+	}
+	probe.Close()
+	os.Remove(probe.Name())
+	candidate := &nativeDownloads{root: target, jobs: map[string]*nativeDownloadRecord{}}
+	if err := candidate.load(); err != nil {
+		return err
+	}
+	if err := manager.saveLocked(); err != nil {
+		return err
+	}
+	if err := nativeDownloadWrite(filepath.Join(manager.root, ".guo-download-owner"), []byte(owner)); err != nil {
+		return err
+	}
+	if err := nativeDownloadWrite(marker, []byte(owner)); err != nil {
+		return err
+	}
+	data, _ := json.Marshal(map[string]string{"directory": target})
+	if err := nativeDownloadWrite(filepath.Join(engine.directory, "download-location.json"), data); err != nil {
+		return err
+	}
+	manager.root, manager.jobs, manager.loadErr = target, candidate.jobs, nil
+	return nil
+}
+
 func nativeCopyTree(ctx context.Context, source, target string) error {
 	return filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
@@ -133,7 +212,7 @@ func (engine *nativeEngine) moveDownloads(ctx context.Context, parent string) er
 		manager.mu.Unlock()
 		return errors.New("下载目录正在处理，请稍后重试")
 	}
-	if len(manager.converting) > 0 {
+	if len(manager.converting) > 0 || engine.work["media"] {
 		manager.mu.Unlock()
 		return errors.New("请等待下载的分集处理完成后再迁移")
 	}
@@ -207,14 +286,14 @@ func (engine *nativeEngine) workLease(id, command string) (int, error) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	if id != "" {
-		if id != "storage" {
+		if id != "storage" && id != "media" {
 			return 0, errors.New("无效的本地任务")
 		}
 		if command != "start" && command != "end" {
 			return 0, errors.New("无效的本地任务操作")
 		}
 		if command == "start" {
-			if engine.work[id] || manager.moving {
+			if engine.work[id] || manager.moving || id == "storage" && engine.work["media"] || id == "media" && engine.work["storage"] {
 				return 0, errors.New("已有本地任务正在运行，请稍后重试")
 			}
 			engine.work[id] = true
@@ -222,5 +301,6 @@ func (engine *nativeEngine) workLease(id, command string) (int, error) {
 			delete(engine.work, id)
 		}
 	}
+	manager.mediaBusy = engine.work["media"]
 	return len(engine.work) + len(manager.converting), nil
 }

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -59,6 +60,7 @@ type nativeDownloads struct {
 	engine      *nativeEngine
 	jobs        map[string]*nativeDownloadRecord
 	active      map[string]context.CancelFunc
+	mediaBusy   bool
 	converting  map[string]bool
 	closed      bool
 	moving      bool
@@ -121,7 +123,7 @@ func (manager *nativeDownloads) load() error {
 			return errors.New("下载记录条目无效，原索引和文件已保留")
 		}
 		seen[record.ID] = true
-		if record.Folder != "" && record.Folder != record.Drama.Source+"/"+record.ID {
+		if !nativeDownloadFolderValid(record.nativeDownloadJob) {
 			return errors.New("下载目录记录无效，原文件已保留")
 		}
 		if record.File != "" && record.File != "media.mp4" && record.File != "index.m3u8" {
@@ -303,9 +305,8 @@ func (manager *nativeDownloads) enqueueContext(ctx context.Context, input native
 		manager.jobs[id] = &nativeDownloadRecord{nativeDownloadJob: nativeDownloadJob{
 			ID: id, Drama: input.Drama, Chapter: entry.Chapter, Index: entry.Index,
 			Quality: input.Quality, State: "queued", Created: time.Now().UnixMilli()}}
-		if manager.bySource {
-			manager.jobs[id].Folder = input.Drama.Source + "/" + id
-		}
+		folder := manager.dramaFolderLocked(input.Drama)
+		manager.jobs[id].Folder = filepath.ToSlash(filepath.Join(folder, fmt.Sprintf("%04d", entry.Index)))
 		added = append(added, id)
 		tasks++
 	}
@@ -325,6 +326,9 @@ func (manager *nativeDownloads) control(id, action string) error {
 	}
 	if manager.closed || manager.moving {
 		return errors.New("下载目录正在迁移或队列已关闭，请稍后重试")
+	}
+	if action == "remove" && manager.mediaBusy {
+		return errors.New("请等待影片合并完成后再删除分集")
 	}
 	previous := map[string]nativeDownloadRecord{}
 	cancelIDs := []string{}
@@ -536,8 +540,9 @@ func (manager *nativeDownloads) localPlan(drama string, index int) (nativePlan, 
 		return nativePlan{}, false, nil
 	}
 	path := filepath.Join(manager.jobDirectory(record.nativeDownloadJob), record.File)
+	key := record.Key
 	if record.Output != "" {
-		path = manager.outputFile(record.Output)
+		path, key = manager.outputFile(record.Output), ""
 	}
 	if !manager.localFilesValid(*record) {
 		record.State, record.Error = "failed", "本地文件缺失，请重新下载"
@@ -545,7 +550,7 @@ func (manager *nativeDownloads) localPlan(drama string, index int) (nativePlan, 
 		_ = manager.saveLocked()
 		return nativePlan{}, true, errNativeLocalFile
 	}
-	return nativePlan{URL: path, Key: record.Key, Local: true, Quality: record.ActualQuality,
+	return nativePlan{URL: path, Key: key, Local: true, Quality: record.ActualQuality,
 		Qualities: []int{}, Headers: map[string]string{}, RouteCount: 1}, true, nil
 }
 
@@ -565,4 +570,32 @@ func (manager *nativeDownloads) close() {
 
 func nativeDownloadError(status int) error {
 	return fmt.Errorf("媒体服务器返回 HTTP %d，请稍后重试", status)
+}
+
+func nativeDownloadFolderValid(job nativeDownloadJob) bool {
+	if job.Folder == "" || job.Folder == job.Drama.Source+"/"+job.ID {
+		return true
+	}
+	parts := strings.Split(job.Folder, "/")
+	if len(parts) == 3 && parts[0] == job.Drama.Source {
+		parts = parts[1:]
+	}
+	return len(parts) == 2 && nativeDownloadNameValid(parts[0]) && (parts[1] == fmt.Sprintf("%04d", job.Index) || parts[1] == job.ID)
+}
+
+func (manager *nativeDownloads) dramaFolderLocked(drama nativeDrama) string {
+	for _, job := range manager.jobs {
+		if job.Drama.ID == drama.ID && job.Folder != "" && job.Folder != job.Drama.Source+"/"+job.ID {
+			return filepath.ToSlash(filepath.Dir(job.Folder))
+		}
+	}
+	base := nativeDownloadFolderName(drama.Title)
+	if manager.bySource {
+		base = drama.Source + "/" + base
+	}
+	folder := base
+	for n := 2; manager.outputFolderTakenLocked(drama.ID, folder); n++ {
+		folder = fmt.Sprintf("%s (%d)", base, n)
+	}
+	return folder
 }
