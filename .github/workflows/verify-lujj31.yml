@@ -1,0 +1,33 @@
+name: Verify lujj31 source
+
+on:
+  pull_request:
+    paths:
+      - 'native/core/provider_lujj31*'
+      - 'native/core/provider_huangguo.go'
+      - 'native/core/provider_media.go'
+      - 'native/core/app_categories.go'
+      - 'native/core/app_runtime.go'
+      - '.github/workflows/verify-lujj31.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  go-source-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - name: Test lujj31 integration
+        working-directory: native
+        run: |
+          gofmt -l core/provider_lujj31.go core/provider_lujj31_test.go | tee /tmp/unformatted
+          test ! -s /tmp/unformatted
+          go test ./core -run 'TestLujj31' -count=1 -v
+          go test ./core -count=1
