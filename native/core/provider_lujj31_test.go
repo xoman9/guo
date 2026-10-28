@@ -67,3 +67,13 @@ func TestLujj31RejectsNonMediaAndIncorrectIdentity(t *testing.T) {
 		t.Fatal("incorrect chapter identity was accepted")
 	}
 }
+
+func TestLujj31EmptyResponseIsAnExplicitError(t *testing.T) {
+	d := sourceFixtureDownloader(t, func(request *http.Request) (*http.Response, error) {
+		return sourceFixtureResponse(request, http.StatusOK, "")
+	})
+	_, err := d.fetchLujj31Categories(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "回应为空") {
+		t.Fatalf("empty site response must not look like a working catalog: %v", err)
+	}
+}
