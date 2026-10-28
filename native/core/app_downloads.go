@@ -585,6 +585,11 @@ func nativeDownloadFolderValid(job nativeDownloadJob) bool {
 
 func (manager *nativeDownloads) dramaFolderLocked(drama nativeDrama) string {
 	for _, job := range manager.jobs {
+		if job.Drama.ID == drama.ID && job.Output != "" {
+			return filepath.ToSlash(filepath.Dir(job.Output))
+		}
+	}
+	for _, job := range manager.jobs {
 		if job.Drama.ID == drama.ID && job.Folder != "" && job.Folder != job.Drama.Source+"/"+job.ID {
 			return filepath.ToSlash(filepath.Dir(job.Folder))
 		}

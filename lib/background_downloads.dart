@@ -100,7 +100,7 @@ class DownloadTaskHandler extends TaskHandler {
             : work > 0 && converting > 0
             ? '$converting 集正在处理'
             : work > 0
-            ? '正在迁移下载目录'
+            ? '正在处理本地视频或下载目录'
             : '下载已完成或暂停',
       );
     } catch (_) {
