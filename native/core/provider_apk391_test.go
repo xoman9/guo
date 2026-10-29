@@ -411,3 +411,20 @@ func TestApk391NingguoPosterMatchesFilmAnchor(t *testing.T) {
   if got!=want{t.Fatalf("film %d poster %q != %q",i,got,want)}
  }
 }
+
+func TestApk391NingguoPosterRemainsAfterDetailNavigation(t *testing.T) {
+ const source="ningguo"
+ const id="987654321"
+ const cover="https://img.example.org/correct-poster.jpg"
+ apk391RememberCover(source,id,cover)
+ t.Cleanup(func(){apk391CatalogCovers.Delete(source+":"+id)})
+ d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
+  if req.URL.Path=="/index.php/vod/detail/id/"+id+".html" {
+   return sourceFixtureResponse(req,http.StatusOK,`<html><body><h1>已確認的影片</h1><img src="https://img.example.org/other-film.jpg"><script>var player_aaaa={"flag":"hls","encrypt":0,"url":"https://example.org/video.m3u8"};</script><a href="/index.php/vod/play/id/987654321/sid/1/nid/1.html">播放</a></body></html>`),nil
+  }
+  return sourceFixtureResponse(req,http.StatusNotFound,"missing"),nil
+ })
+ drama,_,err:=d.fetchApk391Detail(context.Background(),source,id)
+ if err!=nil{t.Fatalf("detail unavailable: %v",err)}
+ if drama.Cover!=cover||drama.CoverURL!=cover{t.Fatalf("detail replaced catalog poster: %+v",drama)}
+}
