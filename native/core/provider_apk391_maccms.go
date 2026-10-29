@@ -719,7 +719,11 @@ func (d *Downloader) resolveApk391Media(ctx context.Context,task Task)(providerM
  // from a catalog, despite having a valid source-scoped chapter ID.
  // Reconstruct only this known original play route, never accept a URL
  // pointing to another film or an external host.
- if source=="zaoguo" && strings.TrimSpace(task.Chapter.PageURL)=="" {
+ if source=="zaoguo" && (page=="" || apk391VideoID(page)!=id) {
+  // The saved chapter URL can be the legacy detail URL, a relative URL
+  // resolved against the wrong directory, or a non-HTTP play token.
+  // Rebuild exclusively from the verified source-scoped drama ID.
+  // Never fetch or trust the mismatched page URL.
   page=apk391SameSite(source,fmt.Sprintf("/cn/home/web/index.php/vod/play/id/%s/sid/1/nid/1.html",id))
  }
  if page==""||apk391VideoID(page)!=id{return providerMedia{},errors.New("分集播放页来源不一致")}
