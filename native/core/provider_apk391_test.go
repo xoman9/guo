@@ -77,13 +77,15 @@ func TestApk391MacCMSCardsSameOriginAndDetail(t *testing.T) {
  }
 }
 
-func TestApk391ChengguoPendingCustomCatalogHasExplicitError(t *testing.T){
- d:=sourceFixtureDownloader(t,func(r *http.Request)(*http.Response,error){
-  t.Fatalf("unsupported category should not fetch unrelated custom API: %s",r.URL)
-  return sourceFixtureResponse(r,http.StatusInternalServerError,""),nil
- })
- _,_,err:=d.fetchApk391CatalogPage(context.Background(),"chengguodj",1,"","")
- if err==nil||!strings.Contains(err.Error(),"尚未"){t.Fatalf("custom source should explain limitation, got %v",err)}
+func TestApk391ChengguoRealSlugAndCategoryCards(t *testing.T) {
+ if !apk391ValidCategory("chengguodj","yuanchuang")||!apk391ValidCategory("chengguodj","manju"){t.Fatal("missing verified Chengguo categories")}
+ if apk391ValidCategory("chengguodj","fake"){t.Fatal("unknown category accepted")}
+ htmlText:=`<html><body><section><div><a href="/drama/dj-874b37a0"><img src="https://images.example.org/cover.jpg"></a><h3>正常短劇片名</h3></div></section></body></html>`
+ doc,err:=nethtml.Parse(strings.NewReader(htmlText));if err!=nil{t.Fatal(err)}
+ cards:=chengguoCards(doc)
+ if len(cards)!=1||cards[0].SourceID!="dj-874b37a0"||cards[0].Title!="正常短劇片名"{
+  t.Fatalf("unexpected Chengguo catalog cards: %+v",cards)
+ }
 }
 
 func TestApk391CatalogDoesNotDisplayCategoryNamesAsMovies(t *testing.T) {
