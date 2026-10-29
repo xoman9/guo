@@ -136,3 +136,57 @@ func (d *Downloader) fetchXiongguoDetail(ctx context.Context,id string)(Drama,[]
  item:=Drama{ID:providerDramaID("xiongguo",id),Source:"xiongguo",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,EpisodeCount:1,TotalEpisode:1,ChannelName:"熊果"}
  return item,[]Chapter{chapter},nil
 }
+
+func (d *Downloader) resolveXiongguoMedia(ctx context.Context,task Task)(providerMedia,error){
+ source,id,ok:=splitProviderDramaID(task.DramaID)
+ if !ok||source!="xiongguo"||!apk391Numeric.MatchString(id)||
+  !strings.HasPrefix(task.Chapter.ID,providerChapterID(source,id,"")){
+  return providerMedia{},errors.New("熊果播放分集编号无效")
+ }
+ mid:=xiongguoStored(&xiongguoFilmMid,id)
+ if mid==""{mid="1"}
+ ctx,cancel:=context.WithTimeout(ctx,10*time.Second);defer cancel()
+ post:=func(path string,payload interface{})([]byte,error){
+  body,_:=json.Marshal(payload)
+  req,err:=http.NewRequestWithContext(ctx,http.MethodPost,"https://spiderscloudcn2.51111666.com/"+path,bytes.NewReader(body))
+  if err!=nil{return nil,err}
+  req.Header.Set("Content-Type","application/json")
+  req.Header.Set("User-Agent",lujj31UserAgent)
+  req.Header.Set("Referer",apk391BaseURL(source)+"/home.html")
+  res,err:=(&http.Client{Timeout:9*time.Second}).Do(req)
+  if err!=nil{return nil,err}
+  defer res.Body.Close()
+  if res.StatusCode!=http.StatusOK{return nil,fmt.Errorf("熊果播放 API HTTP %d",res.StatusCode)}
+  return io.ReadAll(io.LimitReader(res.Body,4<<20))
+ }
+ detailRaw,err:=post("forward",map[string]interface{}{"command":"WEB_GET_INFO_DETAIL","id":id,"type_Mid":mid,"languageType":"CN"})
+ if err!=nil{return providerMedia{},err}
+ var detail struct{Data struct{Result struct{
+  ID json.Number `json:"id"`
+  URL string `json:"vod_url"`
+  Server json.Number `json:"vod_server_id"`
+ } `json:"result"`} `json:"data"`}
+ decoder:=json.NewDecoder(bytes.NewReader(detailRaw));decoder.UseNumber()
+ if err:=decoder.Decode(&detail);err!=nil{return providerMedia{},err}
+ info:=detail.Data.Result
+ if info.ID.String()!=""&&info.ID.String()!=id{return providerMedia{},errors.New("熊果播放影片编号不符")}
+ token:=strings.TrimSpace(info.URL)
+ if token==""{return providerMedia{},errors.New("熊果播放缺少 vod_url")}
+ mediaURL:=token
+ if !isProviderHTTPMediaURL(mediaURL){
+  initRaw,err:=post("getDataInit",map[string]interface{}{"name":"John","age":31,"city":"New York"})
+  if err!=nil{return providerMedia{},err}
+  var init struct{Data struct{Links map[string]struct{
+   Link1 string `json:"LINK_1"`
+   Link2 string `json:"LINK_2"`
+  } `json:"macVodLinkMap"`} `json:"data"`}
+  if err:=json.Unmarshal(initRaw,&init);err!=nil{return providerMedia{},err}
+  server:=info.Server.String()
+  links,ok:=init.Data.Links[server]
+  if !ok{return providerMedia{},errors.New("熊果播放线路服务器不存在")}
+  mediaURL=links.Link1+token
+  if !isProviderHTTPMediaURL(mediaURL){mediaURL=links.Link2+token}
+ }
+ if !isProviderHTTPMediaURL(mediaURL){return providerMedia{},errors.New("熊果播放地址无法转换为有效媒体 URL")}
+ return d.prepareWebProviderMedia(ctx,providerMedia{URL:mediaURL,Referer:apk391BaseURL(source)+"/home.html"},"熊果")
+}
