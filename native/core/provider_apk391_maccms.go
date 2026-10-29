@@ -285,7 +285,37 @@ func apk391LiguoCards(doc *nethtml.Node) []Drama {
  return out
 }
 
+// Zaoguo's site labels the sidebar as 目录: these are video categories.
+// Its MacCMS deployment uses /cn/home/web/index.php/vod/type/id/<category>.html
+// and card links in the /cn/home/web/index.php/vod/play/id/<id>/sid/1/nid/1.html form.
+func apk391ZaoguoCards(doc *nethtml.Node) []Drama {
+ spec,_:=apk391Spec("zaoguo")
+ seen:=map[string]bool{};out:=[]Drama{}
+ for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"&&lujj31HasClass(n,"thumbnail")}) {
+  link:=apk391SameSite("zaoguo",providerHTMLAttr(a,"href"))
+  id:=apk391VideoID(link)
+  if id==""||seen[id]{continue}
+  title:=""
+  for _,n:=range providerHTMLNodes(a,func(n *nethtml.Node)bool{return lujj31HasClass(n,"video-title")}) {
+   if t:=strings.TrimSpace(providerHTMLText(n));t!=""&&!apk391BadTitle("zaoguo",t){title=truncate(t,512);break}
+  }
+  if title=="" {title=strings.TrimSpace(providerHTMLAttr(a,"title"))}
+  if title==""||apk391BadTitle("zaoguo",title){continue}
+  cover:=""
+  for _,img:=range providerHTMLNodes(a,func(n *nethtml.Node)bool{return n.Data=="img"}) {
+   raw:=firstNonEmpty(providerHTMLAttr(img,"data-original"),providerHTMLAttr(img,"data-src"),providerHTMLAttr(img,"src"))
+   if raw!="" {cover=lujj31PosterAddress(raw,link);if cover!=""{break}}
+  }
+  if cover==""{continue}
+  seen[id]=true
+  out=append(out,Drama{ID:providerDramaID("zaoguo",id),Source:"zaoguo",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
+  if len(out)>=150{break}
+ }
+ return out
+}
+
 func apk391Cards(doc *nethtml.Node,source string)[]Drama{
+ if source=="zaoguo"{if rows:=apk391ZaoguoCards(doc);len(rows)>0{return rows}}
  if source=="liguo"{if cards:=apk391LiguoCards(doc);len(cards)>0{return cards}}
  if source=="luguo"{if items:=apk391LuguoCards(doc);len(items)>0{return items}}
  spec,ok:=apk391Spec(source);if !ok{return nil}
@@ -463,6 +493,21 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
   return nil,false,fmt.Errorf("%s 原生 %s 目录 API 尚未恢复，不会用其他来源假冒",spec.Name,spec.Kind)
  }
  routes:=[]string{}
+ if source=="zaoguo" && query=="" {
+  path:="/cn/home/web/"
+  if category!="" {
+   path=fmt.Sprintf("/cn/home/web/index.php/vod/type/id/%s.html",category)
+   if page>1 {path=fmt.Sprintf("/cn/home/web/index.php/vod/type/id/%s/page/%d.html",category,page)}
+  }else if page>1{
+   // Homepage pagination is not attested in the supplied directory page.
+   return []Drama{},false,nil
+  }
+  doc,_,err:=d.apk391Page(ctx,source,path)
+  if err!=nil{return nil,false,err}
+  items:=apk391ZaoguoCards(doc)
+  if len(items)==0{return nil,false,fmt.Errorf("棗果目录页面无有效影片卡片: %s",path)}
+  return items,apk391HasNextPage(doc,page),nil
+ }
  if source=="liguo" && query=="" {
   if page>1{return []Drama{},false,nil} // No pagination link in supplied homepage.
   path:="/"
@@ -524,6 +569,7 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
 // maccmsDetailCandidates branch shared by luguo and liguo (0x2e3ed18).
 // Keep other channels' existing fallback behavior untouched.
 func apk391DetailRoutes(source,id string) []string {
+ if source=="zaoguo"{return []string{fmt.Sprintf("/cn/home/web/index.php/vod/play/id/%s/sid/1/nid/1.html",id)}}
  if source=="luguo"||source=="liguo" {
   return []string{fmt.Sprintf("/vodplay/%s-1-1/",id),
    fmt.Sprintf("/vodplay/%s-1-1.html",id)}
