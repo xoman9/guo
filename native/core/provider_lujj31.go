@@ -117,6 +117,86 @@ func (d *Downloader) fetchLujj31Categories(ctx context.Context) ([]nativeCategor
 	return categories[1:], nil
 }
 
+// oktv's MacCMS cover extractor handles lazy-loaded <img> and CSS
+// background-image posters on both images and anchors (myui/macplus).
+var lujj31BackgroundURL = regexp.MustCompile(`(?i)background(?:-image)?\s*:\s*url\(\s*['"]?([^'")]+)`)
+
+func lujj31PosterAddress(raw, page string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.HasPrefix(raw, "data:") || strings.HasPrefix(raw, "blob:") {
+		return ""
+	}
+	address := providerCoverAddress(raw, page)
+	if address == "" {
+		return ""
+	}
+	parsed, err := url.Parse(address)
+	if err != nil || !validNativeCoverURL(parsed) {
+		return ""
+	}
+	path := strings.ToLower(parsed.Path)
+	for _, placeholder := range []string{"/loading.gif", "/load.gif", "/lazyload.gif", "/noimage", "/nopic", "/placeholder"} {
+		if strings.Contains(path, placeholder) {
+			return ""
+		}
+	}
+	return address
+}
+
+func lujj31StylePoster(raw, page string) string {
+	if match := lujj31BackgroundURL.FindStringSubmatch(raw); len(match) > 1 {
+		return lujj31PosterAddress(match[1], page)
+	}
+	return ""
+}
+
+func lujj31CardPoster(card *html.Node, page string) string {
+	nodes := providerHTMLNodes(card, func(n *html.Node) bool {
+		return n.Data == "img" || n.Data == "a" || n.Data == "div"
+	})
+	// Prefer actual lazy-load attributes and CSS over generic placeholders.
+	for _, node := range nodes {
+		for _, name := range []string{"data-original", "data-src", "data-background", "data-lazy"} {
+			if cover := lujj31PosterAddress(providerHTMLAttr(node, name), page); cover != "" {
+				return cover
+			}
+		}
+		if cover := lujj31StylePoster(providerHTMLAttr(node, "style"), page); cover != "" {
+			return cover
+		}
+	}
+	for _, node := range nodes {
+		if node.Data == "img" {
+			if cover := lujj31PosterAddress(providerHTMLAttr(node, "src"), page); cover != "" {
+				return cover
+			}
+		}
+	}
+	return ""
+}
+
+func lujj31DetailPoster(doc *html.Node, page string) string {
+	for _, node := range providerHTMLNodes(doc, func(n *html.Node) bool { return n.Data == "meta" }) {
+		name := strings.ToLower(strings.TrimSpace(providerHTMLAttr(node, "property")))
+		if name == "" {
+			name = strings.ToLower(strings.TrimSpace(providerHTMLAttr(node, "name")))
+		}
+		if name == "og:image" || name == "og:image:url" || name == "twitter:image" {
+			if cover := lujj31PosterAddress(providerHTMLAttr(node, "content"), page); cover != "" {
+				return cover
+			}
+		}
+	}
+	for _, name := range []string{"module-item-pic", "detail-pic", "video-info-pic", "pic"} {
+		if node := providerHTMLFirstClass(doc, name); node != nil {
+			if cover := lujj31CardPoster(node, page); cover != "" {
+				return cover
+			}
+		}
+	}
+	return lujj31CardPoster(doc, page)
+}
+
 func lujj31CardTitle(node *html.Node) string {
 	for _, attr := range []string{"title", "alt"} {
 		for _, item := range providerHTMLNodes(node, func(n *html.Node) bool { return n.Data == "img" || n.Data == "a" }) {
@@ -177,18 +257,7 @@ func lujj31Cards(doc *html.Node, base string) []Drama {
 		if title == "" {
 			continue
 		}
-		cover := ""
-		for _, img := range providerHTMLNodes(card, func(n *html.Node) bool { return n.Data == "img" }) {
-			for _, attr := range []string{"data-original", "data-src", "src"} {
-				cover = providerCoverAddress(providerHTMLAttr(img, attr), selected)
-				if cover != "" {
-					break
-				}
-			}
-			if cover != "" {
-				break
-			}
-		}
+		cover := lujj31CardPoster(card, selected)
 		seen[id] = true
 		items = append(items, Drama{ID: providerDramaID(sourceLujj31, id), Source: sourceLujj31, SourceID: id, Title: title, Name: title, Cover: cover, CoverURL: cover, ChannelName: "桃果"})
 		if len(items) >= 200 {
@@ -318,7 +387,8 @@ func lujj31DetailFromHTML(doc *html.Node, base, id string) (Drama, []Chapter, er
 	for _, e := range episodes {
 		chapters = append(chapters, Chapter{ID: providerChapterID(sourceLujj31, id, fmt.Sprintf("%d-%d", e.sid, e.nid)), Source: sourceLujj31, Title: e.title, CurrentEpisode: rawEpisode(e.nid), PageURL: e.url, VideoURL: "lujj31-play://" + e.url, Referer: base + "/"})
 	}
-	return Drama{ID: providerDramaID(sourceLujj31, id), Source: sourceLujj31, SourceID: id, Title: title, Name: title, TotalEpisode: len(chapters), EpisodeCount: len(chapters), ChannelName: "桃果"}, chapters, nil
+	cover := lujj31DetailPoster(doc, base)
+	return Drama{ID: providerDramaID(sourceLujj31, id), Source: sourceLujj31, SourceID: id, Title: title, Name: title, Cover: cover, CoverURL: cover, TotalEpisode: len(chapters), EpisodeCount: len(chapters), ChannelName: "桃果"}, chapters, nil
 }
 
 func (d *Downloader) fetchLujj31Detail(ctx context.Context, id string) (Drama, []Chapter, error) {
