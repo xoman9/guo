@@ -15,6 +15,11 @@ on:
       - 'native/core/app_categories.go'
       - 'native/core/app_runtime.go'
       - 'lib/models.dart'
+      - 'lib/ui/widgets/source_bar.dart'
+      - 'lib/ui/widgets/page_header.dart'
+      - 'native/core/app_catalog_cache.go'
+      - 'test/source_bar_test.dart'
+      - 'test/yanguo_cover_merge_test.dart'
   workflow_dispatch:
 
 permissions:
@@ -67,7 +72,7 @@ jobs:
           fi
       - run: flutter pub get --enforce-lockfile
       - name: Verify adult bulk toggle and source labels
-        run: flutter test --dart-define=ALL_SOURCES=true test/source_bulk_switch_test.dart test/source_labels_test.dart
+        run: flutter test --dart-define=ALL_SOURCES=true test/source_bulk_switch_test.dart test/source_labels_test.dart test/source_bar_test.dart test/yanguo_cover_merge_test.dart
       - name: Verify Go providers and native core
         working-directory: native
         run: |
