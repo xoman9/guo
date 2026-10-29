@@ -18,7 +18,7 @@ import (
 // Specialty APIs retain explicit unsupported responses until their original
 // request/response protocol is reconstructed. No source is pre-cached.
 var (
- apk391IDPattern = regexp.MustCompile("(?i)/(?:voddetail|vodplay|detail|play|id)/([0-9]{1,9})(?:[-./?]|$)")
+ apk391IDPattern = regexp.MustCompile("(?i)/(?:voddetail|vodplay|detail|play)/([0-9]{1,9})(?:[-./?]|$)")
  apk391SlashID = regexp.MustCompile("(?i)/(?:vod/)?(?:detail|play)/id/([0-9]{1,9})(?:[-./?]|$)")
  apk391CatPattern=regexp.MustCompile("(?i)/(?:vodtype|vodshow|type|list)(?:/id)?[/_-]([0-9]{1,8})(?:[-./?]|$)")
  apk391Numeric=regexp.MustCompile("^[0-9]{1,9}$")
@@ -37,6 +37,12 @@ func apk391SameSite(source, target string) string {
 
 func apk391VideoID(target string) string {
  u,err:=url.Parse(target);if err!=nil{return ""}
+ path:=strings.ToLower(u.Path)
+ // MacCMS taxonomy routes contain /id/<category> too, and pagination
+ // links contain /page/<n>. Neither can be treated as a video.
+ for _,part:=range []string{"/vod/show/","/vod/type/","/vodshow/","/vodtype/","/category/","/categories/","/page/"} {
+  if strings.Contains(path,part){return ""}
+ }
  for _,rx:=range []*regexp.Regexp{apk391SlashID,apk391IDPattern}{
   if m:=rx.FindStringSubmatch(u.Path);len(m)>1{return m[1]}
  }
