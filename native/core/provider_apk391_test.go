@@ -469,3 +469,20 @@ func TestApk391XiongguoVerifiedHeaderCategories(t *testing.T) {
  for id,name:=range want{if got[id]!=name{t.Fatalf("category %s name %q, expected %q",id,got[id],name)}}
  if apk391ValidCategory("xiongguo","290"){t.Fatal("unrelated advertising category should be rejected")}
 }
+
+func TestApk391MangguoDetailRetainsCatalogTitle(t *testing.T) {
+ const source="mangguo"
+ const id="987654321"
+ const original="芒果片單已確認的正確片名"
+ apk391RememberTitle(source,id,original)
+ t.Cleanup(func(){apk391CatalogNames.Delete(source+":"+id)})
+ d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
+  if req.URL.Path=="/index.php/vod/detail/id/"+id+".html" {
+   return sourceFixtureResponse(req,http.StatusOK,`<html><body><h1>不相關的其他影片</h1><a href="/index.php/vod/play/id/987654321/sid/1/nid/1.html">第1集</a></body></html>`),nil
+  }
+  return sourceFixtureResponse(req,http.StatusNotFound,"missing"),nil
+ })
+ drama,_,err:=d.fetchApk391Detail(context.Background(),source,id)
+ if err!=nil{t.Fatal(err)}
+ if drama.Title!=original||drama.Name!=original{t.Fatalf("detail overwrote original catalog title: %+v",drama)}
+}
