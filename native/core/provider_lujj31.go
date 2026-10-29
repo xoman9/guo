@@ -58,7 +58,7 @@ func (d *Downloader) lujj31Page(ctx context.Context, path string) (*html.Node,st
  if address==""{return nil,"",errors.New("桃果网页地址无效")}
  document,actual,err:=d.fetchProviderPage(ctx,address,site+"/",lujj31UserAgent)
  if err!=nil{return nil,"",err}
- nodes:=providerHTMLNodes(document,func(n *html.Node)bool{return n.Type==html.TextNode && strings.TrimSpace(n.Data)!=""})
+ nodes:=providerHTMLNodes(document,func(n *html.Node)bool{return n.Data=="body" && n.FirstChild!=nil})
  if len(nodes)==0 {return nil,"",errors.New("桃果网站返回空白网页，未取得内容")}
  return document,actual,nil
 }
