@@ -675,6 +675,7 @@ func apk391DetailRoutes(source,id string) []string {
 func (d *Downloader) fetchApk391Detail(ctx context.Context,source,id string)(Drama,[]Chapter,error){
  spec,ok:=apk391Spec(source)
  if !ok||!apk391Numeric.MatchString(id){return Drama{},nil,errors.New("非法影片编号")}
+ if source=="xiongguo"{return d.fetchXiongguoDetail(ctx,id)}
  if spec.Kind!="maccms"{return Drama{},nil,fmt.Errorf("%s 需要专用详情接口",spec.Name)}
  paths:=apk391DetailRoutes(source,id)
  var failure error
