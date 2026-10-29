@@ -144,7 +144,7 @@ func apk391NingguoPoster(anchor *nethtml.Node,link string) string {
 }
 
 func apk391ScopedPoster(anchor *nethtml.Node, source, link string) string {
- if source=="ningguo"{return apk391NingguoPoster(anchor,link)}
+ if source=="ningguo"||source=="mangguo"{return apk391NingguoPoster(anchor,link)}
  if poster:=lujj31CardPoster(anchor,link);poster!="" {return poster}
  id:=apk391VideoID(link)
  for parent,depth:=anchor.Parent,0;parent!=nil&&depth<3;parent,depth=parent.Parent,depth+1 {
@@ -230,7 +230,7 @@ func apk391RememberedTitle(source,id string)string {
 }
 
 func apk391RememberCover(source,id,cover string) {
- if (source=="zaoguo"||source=="juguo"||source=="ningguo") && apk391Numeric.MatchString(id) && isProviderHTTPMediaURL(cover){
+ if (source=="zaoguo"||source=="juguo"||source=="ningguo"||source=="mangguo") && apk391Numeric.MatchString(id) && isProviderHTTPMediaURL(cover){
   apk391CatalogCovers.Store(source+":"+id,cover)
  }
 }
@@ -398,7 +398,7 @@ func apk391Cards(doc *nethtml.Node,source string)[]Drama{
   // Only verified per-ID detail metadata may appear in the Luguo catalog.
   if apk391RequiresDetail(source) {continue}
   seen[id]=true
-  if source=="ningguo"{apk391RememberCover(source,id,cover)}
+  if source=="ningguo"||source=="mangguo"{apk391RememberCover(source,id,cover)}
   items=append(items,Drama{ID:providerDramaID(source,id),Source:source,SourceID:id,
    Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
   if len(items)>=150{break}
@@ -442,7 +442,7 @@ func apk391DetailPoster(doc *nethtml.Node,page,source string)string{
  // Ningguo detail pages can embed images from unrelated recommendations.
  // Prefer its verified list poster; when no list poster exists, accept only
  // explicitly declared detail-cover metadata, not arbitrary page images.
- if source=="ningguo"{
+ if source=="ningguo"||source=="mangguo"{
   for _,node:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="meta"}){
    property:=strings.ToLower(firstNonEmpty(providerHTMLAttr(node,"property"),providerHTMLAttr(node,"name")))
    if property=="og:image"||property=="og:image:url"||property=="twitter:image"{
