@@ -55,6 +55,15 @@ func chengguoCards(doc *nethtml.Node) []Drama {
  }
  return results
 }
+func chengguoHasNext(doc *nethtml.Node,page int)bool {
+ want:=fmt.Sprintf("/browse/page-%d",page+1)
+ for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}){
+  if u:=apk391SameSite("chengguodj",providerHTMLAttr(a,"href"));u!=""{
+   parsed,err:=url.Parse(u);if err==nil&&strings.TrimRight(parsed.Path,"/")==want{return true}
+  }
+ }
+ return false
+}
 func (d *Downloader) fetchChengguoCatalog(ctx context.Context,page int,category,query string)([]Drama,bool,error){
  if page<1||page>100000||len(query)>256||!apk391ValidCategory("chengguodj",category){return nil,false,errors.New("橙果分页或分类参数无效")}
  path:="/browse"
@@ -66,5 +75,5 @@ func (d *Downloader) fetchChengguoCatalog(ctx context.Context,page int,category,
  if err!=nil{return nil,false,err}
  cards:=chengguoCards(doc)
  if len(cards)==0{return nil,false,fmt.Errorf("橙果页面未取得有效短剧卡片: %s",path)}
- return cards,category==""&&apk391HasNextPage(doc,page),nil
+ return cards,category==""&&chengguoHasNext(doc,page),nil
 }
