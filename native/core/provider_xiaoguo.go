@@ -31,6 +31,9 @@ func xiaoguoCategoryID(href string) string {
  if u.Host!="" && !strings.EqualFold(u.Hostname(),"yese.co") && !strings.EqualFold(u.Hostname(),"www.yese.co"){return ""}
  path,err:=url.PathUnescape(u.EscapedPath())
  if err!=nil || !xiaoguoCategoryPath.MatchString(path) || strings.Contains(path,".."){return ""}
+ // Canonicalize the duplicate /index.php/vod/show and /vod/show links.
+ path=strings.TrimPrefix(path,"/index.php")
+ if strings.HasPrefix(path,"/vod/show/") && !strings.Contains(path,"/class/"){return ""}
  key:="p:"+base64.RawURLEncoding.EncodeToString([]byte(path))
  if len(key)>322{return ""}
  return key
@@ -76,7 +79,11 @@ func (d *Downloader) xiaoguoPage(ctx context.Context,path string)(*nethtml.Node,
 func xiaoguoCategoriesFromHTML(doc *nethtml.Node)[]nativeCategory {
  seenID,seenName:=map[string]bool{},map[string]bool{}
  categories:=[]nativeCategory{}
- for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}){
+ navs:=providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="nav" && lujj31HasClass(n,"app-nav")})
+ roots:=[]*nethtml.Node{doc}
+ if len(navs)>0{roots=navs}
+ for _,root:=range roots{
+ for _,a:=range providerHTMLNodes(root,func(n *nethtml.Node)bool{return n.Data=="a"}){
   id:=xiaoguoCategoryID(providerHTMLAttr(a,"href"))
   if id=="" || seenID[id]{continue}
   name:=strings.Join(strings.Fields(providerHTMLText(a))," ")
@@ -84,6 +91,8 @@ func xiaoguoCategoriesFromHTML(doc *nethtml.Node)[]nativeCategory {
   seenID[id],seenName[name]=true,true
   categories=append(categories,nativeCategory{ID:id,Name:name})
   if len(categories)>=50{break}
+ }
+ if len(categories)>=50{break}
  }
  return categories
 }
