@@ -195,6 +195,23 @@ func apk391CardTitle(anchor *nethtml.Node, source string) string {
 // Parse the actual luyitian.com wntheme15 card structure (user-supplied HTML).
 // The poster anchor contains badges/durations, while the REAL title is in
 // the sibling .detail h6.title anchor. Never merge metadata across cards.
+// Keep the verified catalog title while navigating to a play/detail page.
+// Some wntheme player pages omit a movie heading entirely; a synthetic
+// "影片 {id}" must never replace the catalog's real name.
+var apk391CatalogNames sync.Map // source:id -> catalog title
+
+func apk391RememberTitle(source,id,title string) {
+ title=strings.TrimSpace(title)
+ if (source=="luguo"||source=="liguo") && apk391Numeric.MatchString(id) && title!="" && !apk391BadTitle(source,title) && title!="影片 "+id {
+  apk391CatalogNames.Store(source+":"+id,truncate(title,512))
+ }
+}
+
+func apk391RememberedTitle(source,id string)string {
+ if title,ok:=apk391CatalogNames.Load(source+":"+id);ok {return title.(string)}
+ return ""
+}
+
 func apk391LuguoCards(doc *nethtml.Node) []Drama {
  spec,_:=apk391Spec("luguo")
  out:=[]Drama{};seen:=map[string]bool{}
@@ -230,6 +247,7 @@ func apk391LuguoCards(doc *nethtml.Node) []Drama {
   }
   if cover==""{continue}
   seen[id]=true
+  apk391RememberTitle("luguo",id,title)
   out=append(out,Drama{ID:providerDramaID("luguo",id),Source:"luguo",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
   if len(out)>=150{break}
  }
@@ -260,6 +278,7 @@ func apk391LiguoCards(doc *nethtml.Node) []Drama {
   }
   if cover==""{continue}
   seen[id]=true
+  apk391RememberTitle("liguo",id,title)
   out=append(out,Drama{ID:providerDramaID("liguo",id),Source:"liguo",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
   if len(out)>=150{break}
  }
@@ -551,10 +570,22 @@ func (d *Downloader) fetchApk391Detail(ctx context.Context,source,id string)(Dra
     CurrentEpisode:rawEpisode(1),PageURL:actual,VideoURL:"apk391-play://"+actual,
     Referer:apk391BaseURL(source)+"/"}}
   }
-  title:="影片 "+id
-  for _,h:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="h1"}){
-   if str:=strings.TrimSpace(providerHTMLText(h));str!="" && !apk391BadTitle(source,str) {title=truncate(str,512);break}
+  title:=apk391RememberedTitle(source,id)
+  if title=="" {
+   for _,h:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="h1"}){
+    if str:=strings.TrimSpace(providerHTMLText(h));str!="" && !apk391BadTitle(source,str) {title=truncate(str,512);break}
+   }
   }
+  if title=="" {
+   for _,meta:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="meta"}) {
+    name:=strings.ToLower(firstNonEmpty(providerHTMLAttr(meta,"property"),providerHTMLAttr(meta,"name")))
+    if name=="og:title"||name=="twitter:title" {
+     candidate:=strings.TrimSpace(providerHTMLAttr(meta,"content"))
+     if candidate!=""&&!apk391BadTitle(source,candidate){title=truncate(candidate,512);break}
+    }
+   }
+  }
+  if title==""{title="影片 "+id}
   // Keep the same per-film poster selection on the detail/return path:
   // a generic image from the page must not replace the verified catalog art.
   cover:=apk391DetailPoster(doc,actual,source)
