@@ -451,8 +451,9 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
   doc,_,err:=d.apk391Page(ctx,source,path)
   if err!=nil{return nil,false,err}
   cards:=apk391LiguoCards(doc)
-  if len(cards)==0{return nil,false,fmt.Errorf("荔果页面无有效影片卡片: %s",path)}
-  return cards,false,nil
+  if len(cards)>0{return cards,false,nil}
+  // Keep the legacy per-video fallback for older MacCMS layouts and test fixtures.
+  // If the website presents wntheme27 cards, use those directly without enrichment.
  }
  if source=="luguo" && query=="" {
   if category=="" && page==1 {routes=[]string{"/"}}
