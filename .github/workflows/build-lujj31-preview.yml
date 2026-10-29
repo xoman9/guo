@@ -1,4 +1,4 @@
-name: Build Tao-guo and Liuguo preview ARM64 APK
+name: Build Tao-guo, Liuguo and Xiaoguo preview ARM64 APK
 
 on:
   pull_request:
@@ -54,7 +54,7 @@ jobs:
         run: flutter test --dart-define=ALL_SOURCES=true test/source_bulk_switch_test.dart test/source_labels_test.dart
       - name: Verify Tao-guo and Liuguo unit tests
         working-directory: native
-        run: go test ./core -run 'Test(Lujj31|Liuguo)' -count=1 -v
+        run: go test ./core -run 'Test(Lujj31|Liuguo|Xiaoguo)' -count=1 -v
       - name: Build Go ARM64 library
         run: python scripts/build_native.py --platform android --abi arm64-v8a --all-sources
       - name: Build test-only Android APK
