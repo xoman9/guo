@@ -393,15 +393,20 @@ func TestApk391ZaoguoCatalogMetadataSurvivesDetail(t *testing.T) {
  if drama.Title!=title||drama.Cover!=cover{t.Fatalf("catalog info lost: %+v",drama)}
 }
 
-func TestApk391NingguoRejectsUnverifiedAdjacentCardTitle(t *testing.T) {
- fixture:=`<html><body><div class="row">
- <a href="/voddetail/987601.html" title="片單顯示的鄰片"><img src="https://img.example.org/wrong.jpg"></a>
- <a href="/voddetail/987602.html" title="其他影片"><img src="https://img.example.org/other.jpg"></a>
- </div></body></html>`
+func TestApk391NingguoPosterMatchesFilmAnchor(t *testing.T) {
+ fixture:=`<html><body><div class="row"><div class="grid">
+ <a href="/voddetail/987601.html" title="第一部"><img data-src="https://img.example.org/first.jpg"></a>
+ <a href="/voddetail/987602.html" title="第二部"><img data-src="https://img.example.org/second.jpg"></a>
+ </div></div></body></html>`
  doc,err:=nethtml.Parse(strings.NewReader(fixture));if err!=nil{t.Fatal(err)}
- if !apk391RequiresDetail("ningguo"){t.Fatal("ningguo must validate detail per original film")}
- if cards:=apk391Cards(doc,"ningguo");len(cards)!=0{
-  t.Fatalf("unverified Ningguo cards exposed as mismatched movies: %+v",cards)
+ if apk391RequiresDetail("ningguo"){t.Fatal("do not change valid Ningguo title/play flow")}
+ var anchors []*nethtml.Node
+ for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}){
+  if apk391VideoID(apk391SameSite("ningguo",providerHTMLAttr(a,"href")))!=""{anchors=append(anchors,a)}
  }
- if apk391RequiresDetail("zaoguo"){t.Fatal("unrelated source altered")}
+ if len(anchors)!=2{t.Fatalf("wrong film count: %d",len(anchors))}
+ for i,want:=range []string{"https://img.example.org/first.jpg","https://img.example.org/second.jpg"}{
+  got:=apk391ScopedPoster(anchors[i],"ningguo",apk391SameSite("ningguo",providerHTMLAttr(anchors[i],"href")))
+  if got!=want{t.Fatalf("film %d poster %q != %q",i,got,want)}
+ }
 }
