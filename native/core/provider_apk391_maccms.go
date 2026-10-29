@@ -202,7 +202,7 @@ var apk391CatalogNames sync.Map // source:id -> catalog title
 
 func apk391RememberTitle(source,id,title string) {
  title=strings.TrimSpace(title)
- if (source=="luguo"||source=="liguo") && apk391Numeric.MatchString(id) && title!="" && !apk391BadTitle(source,title) && title!="影片 "+id {
+ if (source=="luguo"||source=="liguo"||source=="juguo") && apk391Numeric.MatchString(id) && title!="" && !apk391BadTitle(source,title) && title!="影片 "+id {
   apk391CatalogNames.Store(source+":"+id,truncate(title,512))
  }
 }
@@ -314,7 +314,40 @@ func apk391ZaoguoCards(doc *nethtml.Node) []Drama {
  return out
 }
 
+// Juguo's actual video7 template keeps the poster and title in sibling
+// dt.preview-item and dd elements under a shared dl. The advertisement
+// entries use javascript: links and are intentionally skipped.
+func apk391JuguoCards(doc *nethtml.Node) []Drama {
+ spec,_:=apk391Spec("juguo")
+ seen:=map[string]bool{};out:=[]Drama{}
+ for _,item:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="dl"}) {
+  var link,id,title,cover string
+  for _,a:=range providerHTMLNodes(item,func(n *nethtml.Node)bool{return n.Data=="a"}) {
+   absolute:=apk391SameSite("juguo",providerHTMLAttr(a,"href"))
+   candidateID:=apk391VideoID(absolute)
+   if candidateID==""{continue}
+   if id!="" && id!=candidateID{continue}
+   id=candidateID;link=absolute
+   for _,h:=range providerHTMLNodes(a,func(n *nethtml.Node)bool{return n.Data=="h3"}) {
+    candidate:=strings.TrimSpace(providerHTMLText(h))
+    if candidate!=""&&!apk391BadTitle("juguo",candidate){title=truncate(candidate,512);break}
+   }
+   for _,img:=range providerHTMLNodes(a,func(n *nethtml.Node)bool{return n.Data=="img"}) {
+    raw:=firstNonEmpty(providerHTMLAttr(img,"data-original"),providerHTMLAttr(img,"data-src"))
+    if raw!="" {cover=lujj31PosterAddress(raw,link);break}
+   }
+  }
+  if id==""||title==""||cover==""||seen[id]{continue}
+  seen[id]=true
+  apk391RememberTitle("juguo",id,title)
+  out=append(out,Drama{ID:providerDramaID("juguo",id),Source:"juguo",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
+  if len(out)>=150{break}
+ }
+ return out
+}
+
 func apk391Cards(doc *nethtml.Node,source string)[]Drama{
+ if source=="juguo"{if cards:=apk391JuguoCards(doc);len(cards)>0{return cards}}
  if source=="zaoguo"{if rows:=apk391ZaoguoCards(doc);len(rows)>0{return rows}}
  if source=="liguo"{if cards:=apk391LiguoCards(doc);len(cards)>0{return cards}}
  if source=="luguo"{if items:=apk391LuguoCards(doc);len(items)>0{return items}}
@@ -493,6 +526,18 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
   return nil,false,fmt.Errorf("%s 原生 %s 目录 API 尚未恢复，不会用其他来源假冒",spec.Name,spec.Kind)
  }
  routes:=[]string{}
+ if source=="juguo" && query=="" {
+  path:="/vod/"
+  if category!="" {
+   path=fmt.Sprintf("/vodtype/%s/",category)
+   if page>1 {path=fmt.Sprintf("/vodtype/%s/page/%d/",category,page)}
+  }else if page>1{return []Drama{},false,nil}
+  doc,_,err:=d.apk391Page(ctx,source,path)
+  if err!=nil{return nil,false,err}
+  cards:=apk391JuguoCards(doc)
+  if len(cards)>0 {return cards,apk391HasNextPage(doc,page),nil}
+  return nil,false,fmt.Errorf("橘果页面无可核实的视频卡片: %s",path)
+ }
  if source=="zaoguo" && query=="" {
   path:="/cn/home/web/"
   if category!="" {
@@ -569,6 +614,7 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
 // maccmsDetailCandidates branch shared by luguo and liguo (0x2e3ed18).
 // Keep other channels' existing fallback behavior untouched.
 func apk391DetailRoutes(source,id string) []string {
+ if source=="juguo"{return []string{fmt.Sprintf("/voddetail/%s/",id),fmt.Sprintf("/vodplay/%s-1-1/",id)}}
  if source=="zaoguo"{return []string{fmt.Sprintf("/cn/home/web/index.php/vod/play/id/%s/sid/1/nid/1.html",id)}}
  if source=="luguo"||source=="liguo" {
   return []string{fmt.Sprintf("/vodplay/%s-1-1/",id),
