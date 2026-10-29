@@ -739,6 +739,7 @@ func (d *Downloader) fetchApk391Detail(ctx context.Context,source,id string)(Dra
 
 func (d *Downloader) resolveApk391Media(ctx context.Context,task Task)(providerMedia,error){
  source,id,ok:=splitProviderDramaID(task.DramaID)
+ if ok&&source=="xiongguo"{return d.resolveXiongguoMedia(ctx,task)}
  spec,exists:=apk391Spec(source)
  if !ok||!exists||spec.Kind!="maccms"||!apk391Numeric.MatchString(id)||
   !strings.HasPrefix(task.Chapter.ID,providerChapterID(source,id,"")){
