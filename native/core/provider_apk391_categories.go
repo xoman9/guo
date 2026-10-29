@@ -4,7 +4,7 @@ package core
 // tables and serve as a fallback pending the 0.2.391-specific mapping.
 // They are NOT claimed as verified live web categories.
 var apk391StaticCategoryFallback=map[string][]nativeCategory{
- "chengguo": {{ID:"1",Name:"日韩电影"},{ID:"2",Name:"欧美视频"},{ID:"3",Name:"国产高清"},{ID:"4",Name:"动漫精品"}},
+
  "yingguo": {{ID:"28",Name:"日本中字"},{ID:"20",Name:"国产精品"},{ID:"21",Name:"人妻"},{ID:"22",Name:"无码精品"},{ID:"23",Name:"欧美精品"},{ID:"24",Name:"动漫精品"},{ID:"25",Name:"综合三级"}},
  "luguo": {{ID:"26",Name:"国产精品"},{ID:"27",Name:"国产剧情"},{ID:"29",Name:"国产自拍"},{ID:"31",Name:"人妻"},{ID:"35",Name:"国产主播"},{ID:"44",Name:"素人"},{ID:"51",Name:"日本中字"},{ID:"101",Name:"有码精品"},{ID:"102",Name:"无码精品"},{ID:"103",Name:"动漫精品"}},
  "liguo": {{ID:"28",Name:"中文字幕"},{ID:"20",Name:"国产"},{ID:"21",Name:"日本有码"},{ID:"22",Name:"日本无码"},{ID:"23",Name:"欧美"},{ID:"24",Name:"动漫"}},
@@ -15,5 +15,5 @@ var apk391StaticCategoryFallback=map[string][]nativeCategory{
  "meiguo": {{ID:"4",Name:"精品推荐"},{ID:"1",Name:"国产乱伦"},{ID:"7",Name:"国产高清"},{ID:"2",Name:"制服诱惑"},{ID:"3",Name:"中文字幕"},{ID:"6",Name:"日韩专区"},{ID:"5",Name:"成人动漫"},{ID:"8",Name:"欧美极品"}},
  "youguo": {{ID:"20",Name:"巨乳"},{ID:"21",Name:"熟女人妻"},{ID:"22",Name:"日本AV"},{ID:"23",Name:"中文字幕"},{ID:"25",Name:"抖陰短片"},{ID:"26",Name:"翹臀美尻"},{ID:"27",Name:"高潮潮吹"},{ID:"28",Name:"歐美無碼"},{ID:"29",Name:"亂倫、誘惑"},{ID:"30",Name:"國產素人自拍"},{ID:"32",Name:"同性戀"},{ID:"33",Name:"AV女優無碼"},{ID:"34",Name:"制服誘惑"},{ID:"37",Name:"麻豆"},{ID:"38",Name:"SM調教"},{ID:"39",Name:"激情口交"},{ID:"40",Name:"野外性愛"},{ID:"41",Name:"多P群交"},{ID:"43",Name:"18+成人激情電影"},{ID:"45",Name:"AI換臉"}},
  "yanguo": {{ID:"44",Name:"日本"},{ID:"46",Name:"国产"},{ID:"50",Name:"传媒"},{ID:"48",Name:"主播"},{ID:"47",Name:"探花"},{ID:"45",Name:"乱伦"},{ID:"51",Name:"偷拍"},{ID:"49",Name:"吃瓜"},{ID:"53",Name:"字幕"},{ID:"61",Name:"日韩精选"},{ID:"62",Name:"口交"},{ID:"63",Name:"多P"},{ID:"64",Name:"VR"},{ID:"65",Name:"素人"},{ID:"66",Name:"学生"},{ID:"68",Name:"制服"},{ID:"70",Name:"反差"},{ID:"71",Name:"异域"},{ID:"72",Name:"AI短剧"}},
- "chaoguo": {{ID:"class:mainstream",Name:"主流剧情"},{ID:"class:adult",Name:"成人向"},{ID:"class:anime_ip",Name:"动漫风格"},{ID:"class:unknown",Name:"其他"},{ID:"tag:都市",Name:"都市"},{ID:"tag:高颜值",Name:"高颜值"},{ID:"tag:现代",Name:"现代"},{ID:"tag:剧情",Name:"剧情"},{ID:"tag:古风",Name:"古风"},{ID:"tag:校园",Name:"校园"},{ID:"tag:逆袭",Name:"逆袭"},{ID:"tag:职场",Name:"职场"},{ID:"tag:甜宠",Name:"甜宠"},{ID:"tag:穿越",Name:"穿越"},{ID:"tag:玄幻",Name:"玄幻"},{ID:"tag:重生",Name:"重生"}},
+
 }
