@@ -22,29 +22,32 @@ func chengguoSlug(link string) string {
  }
  return slug
 }
+// The /browse SSR output uses <article data-xpch="card-drama">. Its image
+// often stays a transparent lazy-loading GIF, while title and /drama link
+// are separate siblings. Never discard a verified film for missing cover.
 func chengguoCards(doc *nethtml.Node) []Drama {
  seen:=map[string]bool{}
  results:=[]Drama{}
- for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}) {
-  link:=apk391SameSite("chengguodj",providerHTMLAttr(a,"href"))
-  slug:=chengguoSlug(link);if slug==""||seen[slug]{continue}
-  title:=strings.TrimSpace(providerHTMLAttr(a,"title"))
-  cover:=""
-  for p,depth:=a,0;p!=nil&&depth<3;p,depth=p.Parent,depth+1 {
-   if title=="" {
-    for _,h:=range providerHTMLNodes(p,func(n *nethtml.Node)bool{return n.Data=="h3"||n.Data=="h2"}) {
-     if t:=strings.TrimSpace(providerHTMLText(h));t!="" {title=t;break}
-    }
-   }
-   if cover=="" {
-    for _,img:=range providerHTMLNodes(p,func(n *nethtml.Node)bool{return n.Data=="img"}) {
-     raw:=firstNonEmpty(providerHTMLAttr(img,"data-src"),providerHTMLAttr(img,"src"))
-     if v:=lujj31PosterAddress(raw,link);v!=""{cover=v;break}
-    }
-   }
-   if title!=""&&cover!=""{break}
+ for _,article:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{
+  return n.Data=="article"&&providerHTMLAttr(n,"data-xpch")=="card-drama"
+ }){
+  slug:=""
+  for _,a:=range providerHTMLNodes(article,func(n *nethtml.Node)bool{return n.Data=="a"}){
+   link:=apk391SameSite("chengguodj",providerHTMLAttr(a,"href"))
+   if id:=chengguoSlug(link);id!=""{slug=id;break}
   }
-  if title==""||cover==""||apk391BadTitle("chengguodj",title){continue}
+  if slug==""||seen[slug]{continue}
+  title:=""
+  for _,h:=range providerHTMLNodes(article,func(n *nethtml.Node)bool{return n.Data=="h3"}){
+   if text:=strings.TrimSpace(providerHTMLText(h));text!=""{title=text;break}
+  }
+  if title==""||apk391BadTitle("chengguodj",title){continue}
+  cover:=""
+  for _,img:=range providerHTMLNodes(article,func(n *nethtml.Node)bool{return n.Data=="img"}){
+   raw:=firstNonEmpty(providerHTMLAttr(img,"data-src"),providerHTMLAttr(img,"data-original"),providerHTMLAttr(img,"src"))
+   if strings.HasPrefix(raw,"data:")||raw==""{continue}
+   if resolved:=lujj31PosterAddress(raw,apk391BaseURL("chengguodj")+"/");resolved!=""{cover=resolved;break}
+  }
   seen[slug]=true
   title=truncate(title,512)
   results=append(results,Drama{ID:providerDramaID("chengguodj",slug),Source:"chengguodj",SourceID:slug,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:"橙果"})
@@ -54,13 +57,14 @@ func chengguoCards(doc *nethtml.Node) []Drama {
 }
 func (d *Downloader) fetchChengguoCatalog(ctx context.Context,page int,category,query string)([]Drama,bool,error){
  if page<1||page>100000||len(query)>256||!apk391ValidCategory("chengguodj",category){return nil,false,errors.New("橙果分页或分类参数无效")}
- path:="/"
+ path:="/browse"
  if category!=""{path="/"+category}
  if query!=""{return nil,false,errors.New("橙果搜索尚未接入")}
- if page>1{return []Drama{},false,nil} // 网站分页路径尚未验证，不猜测。
+ if page>1 && category==""{path=fmt.Sprintf("/browse/page-%d",page)}
+ if page>1 && category!=""{return []Drama{},false,nil} // Category paging not yet verified.
  doc,_,err:=d.apk391Page(ctx,"chengguodj",path)
  if err!=nil{return nil,false,err}
  cards:=chengguoCards(doc)
  if len(cards)==0{return nil,false,fmt.Errorf("橙果页面未取得有效短剧卡片: %s",path)}
- return cards,false,nil
+ return cards,category==""&&apk391HasNextPage(doc,page),nil
 }
