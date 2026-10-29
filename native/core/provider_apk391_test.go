@@ -27,6 +27,13 @@ func TestApk391NativeIdentityAndIsolation(t *testing.T) {
  if canonicalProviderSource("hsck.net")!="cangguo"||canonicalProviderSource("javbus.com")!="baguo" {
   t.Fatal("source aliases cannot replace native IDs")
  }
+ total := 0
+ groups := 0
+ for _,rows:=range apk391StaticCategoryFallback {
+   total+=len(rows)
+   if len(rows)>0{groups++}
+ }
+ if total<436 || groups<19 { t.Fatalf("missing APK static classifications: %d rows, %d groups",total,groups)}
  if len(apk391StaticCategoryFallback["luguo"])<5 {
   t.Fatal("historical categories missing")
  }
