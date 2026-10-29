@@ -161,29 +161,38 @@ func (d *Downloader) lujj31CloudParse(ctx context.Context, body, encrypted, page
 	if m := lujj31PlayerRawFrom.FindStringSubmatch(body); len(m) > 1 {
 		from = m[1]
 	}
-	if from == "" {
-		return ""
-	}
 	dir := "/static/player/"
 	if m := lujj31PlayerJSPath.FindStringSubmatch(body); len(m) > 1 {
 		dir = m[1]
 	} else if m := lujj31MaccmsPath.FindStringSubmatch(body); len(m) > 1 {
 		dir = strings.TrimRight(m[1], "/") + "/static/player/"
 	}
-	script := lujj31SameSite(base, base+dir+from+".js")
-	if script == "" {
-		return ""
+	// oktv probes the active player script first, then the two common
+	// MacCMS player scripts. Do not rely on a single /<from>.js endpoint.
+	paths := []string{}
+	if from != "" {
+		paths = append(paths, dir+from+".js")
 	}
+	paths = append(paths, "/static/player/m3u8.js", "/static/player/mac.js")
 	ua := context.WithValue(ctx, providerTextUserAgentKey{}, lujj31UserAgent)
-	js, err := d.fetchProviderText(ua, script, page)
-	if err != nil || len(js) > 512*1024 {
+	parseBase := ""
+	for _, path := range paths {
+		script := lujj31SameSite(base, base+path)
+		if script == "" {
+			continue
+		}
+		js, err := d.fetchProviderText(ua, script, page)
+		if err != nil || len(js) > 512*1024 {
+			continue
+		}
+		if iframe := lujj31IframeSrc.FindStringSubmatch(js); len(iframe) > 1 {
+			parseBase = strings.ReplaceAll(iframe[1], `\/`, "/")
+			break
+		}
+	}
+	if parseBase == "" {
 		return ""
 	}
-	iframe := lujj31IframeSrc.FindStringSubmatch(js)
-	if len(iframe) < 2 {
-		return ""
-	}
-	parseBase := strings.ReplaceAll(iframe[1], `\/`, "/")
 	if !strings.Contains(parseBase, "?") {
 		parseBase += "?url="
 	}
