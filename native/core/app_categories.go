@@ -36,6 +36,9 @@ func validNativeCategory(source, category string) bool {
 	if category == "" {
 		return true
 	}
+	if source == sourceXiaoguo {
+		return validXiaoguoCategory(category)
+	}
 	if len(category) > 128 || strings.ContainsAny(category, "|/\\\x00\r\n") {
 		return false
 	}
@@ -145,6 +148,12 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 	case sourceLiuguo:
 		var categories []nativeCategory
 		categories, err = d.fetchLiuguoCategories(ctx)
+		if err == nil {
+			all = append(all, categories...)
+		}
+	case sourceXiaoguo:
+		var categories []nativeCategory
+		categories, err = d.fetchXiaoguoCategories(ctx)
 		if err == nil {
 			all = append(all, categories...)
 		}
