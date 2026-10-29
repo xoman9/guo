@@ -237,7 +237,7 @@ func apk391LuguoCards(doc *nethtml.Node) []Drama {
 }
 
 func apk391Cards(doc *nethtml.Node,source string)[]Drama{
- if source=="luguo"{return apk391LuguoCards(doc)}
+ if source=="luguo"{if items:=apk391LuguoCards(doc);len(items)>0{return items}}
  spec,ok:=apk391Spec(source);if !ok{return nil}
  seen:=map[string]bool{};items:=[]Drama{}
  for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}){
@@ -269,7 +269,7 @@ func apk391Cards(doc *nethtml.Node,source string)[]Drama{
 type apk391Suspect struct{ id, page string }
 
 func apk391Suspects(doc *nethtml.Node,source string,already []Drama) []apk391Suspect {
- if source=="luguo"{return nil} // verified cards; no fabricated detail prefetch
+ if source=="luguo" && len(apk391LuguoCards(doc))>0{return nil} // verified cards; no detail prefetch
  seen:=map[string]bool{}
  for _,d:=range already{seen[d.SourceID]=true}
  out:=make([]apk391Suspect,0,8)
@@ -422,8 +422,9 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
  if len(routes)>0 {
   doc,_,err:=d.apk391Page(ctx,source,routes[0]);if err!=nil{return nil,false,err}
   cards:=apk391LuguoCards(doc)
-  if len(cards)==0{return nil,false,errors.New("露果页面没有可验证的影片卡片")}
-  return cards,false,nil
+  if len(cards)>0{return cards,false,nil}
+  // Older fixture/site templates may require the existing per-ID path.
+  // Continue to the legacy route loop instead of discarding valid links.
  }
  if query!=""{
   if page>1{return []Drama{},false,nil}
