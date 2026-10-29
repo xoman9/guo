@@ -19,8 +19,18 @@ func TestApk391NativeIdentityAndIsolation(t *testing.T) {
   if !isHuangguoProviderSource(spec.ID) || canonicalProviderSource(spec.ID)!=spec.ID{
    t.Fatalf("registered source not recognized: %+v",spec)
   }
-  if apk391BaseURL(spec.ID)=="" || providerSourceForURL("https://"+spec.Host+"/")!=spec.ID{
-   t.Fatalf("host/source mapping lost: %+v",spec)
+  if apk391BaseURL(spec.ID)=="" || apk391SourceForHost(spec.Host)!=spec.ID{
+   t.Fatalf("APK source registry host mapping lost: %+v",spec)
+  }
+  // llsp.me already belongs to the completed Liuguo playback core.
+  // Luguo shares this host and must use its explicit source ID rather than
+  // changing the global URL classifier and breaking existing Liuguo.
+  if spec.ID=="luguo" {
+   if providerSourceForURL("https://"+spec.Host+"/")!="liuguo" {
+    t.Fatalf("original Liuguo URL ownership changed: %+v",spec)
+   }
+  }else if providerSourceForURL("https://"+spec.Host+"/")!=spec.ID{
+   t.Fatalf("global host/source mapping lost: %+v",spec)
   }
  }
  for _,id:=range []string{"lujj31","liuguo","xiaoguo","hongguo","chaoguo","chengguo"}{
