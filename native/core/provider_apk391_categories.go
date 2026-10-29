@@ -4,6 +4,7 @@ package core
 // tables and serve as a fallback pending the 0.2.391-specific mapping.
 // They are NOT claimed as verified live web categories.
 var apk391StaticCategoryFallback=map[string][]nativeCategory{
+ "chengguodj": {{ID:"yuanchuang",Name:"橙果原創"},{ID:"aiduanju",Name:"AI短劇"},{ID:"zhenren",Name:"真人短劇"},{ID:"mogai",Name:"AI魔改"},{ID:"aimanju",Name:"AI漫劇"}},
  "xiongguo": {
   {ID:"1",Name:"傳媒"},{ID:"6",Name:"91傳媒"},{ID:"7",Name:"精東傳媒"},{ID:"8",Name:"麻豆傳媒"},{ID:"9",Name:"麻豆映畫"},{ID:"10",Name:"麻豆貓爪"},{ID:"11",Name:"蜜桃傳媒"},{ID:"12",Name:"天美傳媒"},{ID:"13",Name:"星空傳媒"},
   {ID:"2",Name:"視頻"},{ID:"14",Name:"自拍偷拍"},{ID:"15",Name:"日韓視頻"},{ID:"16",Name:"歐美性愛"},{ID:"17",Name:"智能換臉"},{ID:"18",Name:"經典三級"},{ID:"19",Name:"網紅主播"},{ID:"20",Name:"台灣辣妹"},{ID:"21",Name:"onlyfans"},
