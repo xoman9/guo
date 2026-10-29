@@ -1,9 +1,10 @@
-name: Verify lujj31 source
+name: Verify Tao-guo and Liuguo sources
 
 on:
   pull_request:
     paths:
       - 'native/core/provider_lujj31*'
+      - 'native/core/provider_liuguo*'
       - 'native/core/provider_huangguo.go'
       - 'native/core/provider_media.go'
       - 'native/core/app_categories.go'
@@ -27,6 +28,6 @@ jobs:
       - name: Test lujj31 integration
         working-directory: native
         run: |
-          test -z "$(gofmt -l core/provider_lujj31.go core/provider_lujj31_player.go core/provider_lujj31_test.go)"
-          go test ./core -run 'TestLujj31' -count=1 -v
+          test -z "$(gofmt -l core/provider_lujj31.go core/provider_lujj31_player.go core/provider_lujj31_test.go core/provider_liuguo.go core/provider_liuguo_test.go)"
+          go test ./core -run 'Test(Lujj31|Liuguo)' -count=1 -v
           go test ./core -count=1
