@@ -1,0 +1,100 @@
+name: Build coexist ARM64 APK
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/build-coexist-arm64.yml'
+      - 'android/app/build.gradle.kts'
+      - 'lib/ui/settings/storage_view.dart'
+      - 'native/core/provider_xiaoguo*'
+      - 'native/core/provider_liuguo*'
+      - 'native/core/provider_lujj31*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coexist-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-coexist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      GOPROXY: https://proxy.golang.org,direct
+      GOSUMDB: sum.golang.org
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.4'
+          channel: stable
+          cache: true
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+      - run: sdkmanager 'ndk;28.2.13676358'
+      - name: Configure signing for coexist build
+        env:
+          KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -n "$KEY" ]; then
+            printf '%s' "$KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "Release signing configured for coexist APK."
+          else
+            echo "::warning::No fixed release signing key: using a temporary debug certificate. The coexist APK installs beside the original app, but later builds signed with a different key cannot replace this coexist APK."
+          fi
+      - run: flutter pub get --enforce-lockfile
+      - name: Verify adult bulk toggle and source labels
+        run: flutter test --dart-define=ALL_SOURCES=true test/source_bulk_switch_test.dart test/source_labels_test.dart
+      - name: Verify Go providers and native core
+        working-directory: native
+        run: |
+          go test ./core -run 'Test(Lujj31|Liuguo|Xiaoguo)' -count=1
+          go test ./core -count=1
+      - name: Build native Go ARM64 library
+        run: python scripts/build_native.py --platform android --abi arm64-v8a --all-sources
+      - name: Build coexist Android ARM64 APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          flutter build apk --release --split-per-abi --target-platform android-arm64 --no-pub --dart-define=ALL_SOURCES=true --dart-define=COEXIST=true
+      - name: Verify coexist identity, entry point, architecture and signature
+        run: |
+          set -euo pipefail
+          apk=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$aapt" dump badging "$apk" | tee apk-badging.txt
+          grep -Fq "package: name='com.duanju.duanju_app.coexist'" apk-badging.txt
+          grep -Fq "application-label:'真果鉴-共存'" apk-badging.txt
+          grep -Fq "launchable-activity: name='com.duanju.duanju_app.MainActivity'" apk-badging.txt
+          grep -Fq "native-code: 'arm64-v8a'" apk-badging.txt
+          "$apksigner" verify --verbose --print-certs "$apk"
+          unzip -Z1 "$apk" | grep -Fx 'lib/arm64-v8a/libduanju_core.so'
+          mkdir -p dist/coexist
+          cp "$apk" dist/coexist/zhenguojian-coexist-1.0.3+103-arm64-v8a.apk
+          sha256sum dist/coexist/*.apk > dist/coexist/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zhenguojian-coexist-arm64
+          path: dist/coexist/
+          retention-days: 14
+          if-no-files-found: error
