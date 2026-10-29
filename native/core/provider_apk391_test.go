@@ -445,3 +445,13 @@ func TestApk391MangguoDetailRetainsCatalogCover(t *testing.T) {
  if err!=nil{t.Fatal(err)}
  if movie.Cover!=poster||movie.CoverURL!=poster{t.Fatalf("incorrect cover after entering detail: %+v",movie)}
 }
+
+func TestApk391XiongguoUserConfirmedHost(t *testing.T) {
+ spec,ok:=apk391Spec("xiongguo")
+ if !ok||spec.Kind!="api"||spec.Host!="www.xm66xm.com"{
+  t.Fatalf("Xiongguo must retain dedicated API type and confirmed host: %+v",spec)
+ }
+ if got:=apk391BaseURL("xiongguo");got!="https://www.xm66xm.com"{
+  t.Fatalf("unexpected Xiongguo base URL: %s",got)
+ }
+}
