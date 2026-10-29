@@ -47,6 +47,8 @@ func (d *Downloader) providerBaseURL(source string) string {
 		configured, fallback = d.cfg.HanxiaoquanURL, hanxiaoquanSiteBaseURL
 	case sourceLujj31:
 		fallback = lujj31BaseURL
+	case sourceLiuguo:
+		fallback = liuguoBaseURL
 	default:
 		fallback = "https://d2pypzndaqisk.cloudfront.net"
 	}
@@ -85,6 +87,8 @@ func providerSourceForURL(raw string) string {
 		return sourceHanxiaoquan
 	case host == "lujj31.lol" || host == "www.lujj31.lol":
 		return sourceLujj31
+	case host == "llsp.me" || host == "www.llsp.me":
+		return sourceLiuguo
 	default:
 		return ""
 	}
@@ -92,7 +96,7 @@ func providerSourceForURL(raw string) string {
 
 func (d *Downloader) providerURLCandidates(raw string) []string {
 	source := providerSourceForURL(raw)
-	if source == "" || source == sourceHuangju || source == sourceYeguo || source == sourceLujj31 {
+	if source == "" || source == sourceHuangju || source == sourceYeguo || source == sourceLujj31 || source == sourceLiuguo {
 		return []string{raw}
 	}
 	parsed, _ := url.Parse(raw)
@@ -148,6 +152,9 @@ func (d *Downloader) resolveProviderMedia(ctx context.Context, task Task) (provi
 	}
 	if chapter.Source == sourceLujj31 {
 		return d.resolveLujj31Media(ctx, task)
+	}
+	if chapter.Source == sourceLiuguo {
+		return d.resolveLiuguoMedia(ctx, task)
 	}
 	if strings.HasPrefix(chapter.VideoURL, "hongguo-cenc://") {
 		return d.resolveHongguoMedia(ctx, task)
