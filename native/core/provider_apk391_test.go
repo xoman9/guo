@@ -339,3 +339,21 @@ func TestApk391LuguoAndLiguoDetailPreserveCatalogTitle(t *testing.T) {
   })
  }
 }
+
+func TestApk391ZaoguoDirectoryIsCategories(t *testing.T) {
+ cats:=apk391StaticCategoryFallback["zaoguo"]
+ if len(cats)!=16{t.Fatalf("expected 16 directory categories, got %d",len(cats))}
+ if !apk391ValidCategory("zaoguo","24") {t.Fatal("missing directory category 24")}
+ const id="1197978"
+ fixture:=`<html><body><div class="panel-heading"><h3 class="panel-title">目录</h3></div><ul class="navigation"><li><a href="/cn/home/web/index.php/vod/type/id/22.html">美女直播</a></li></ul>
+ <ul class="videos"><li><div class="video"><a class="thumbnail" href="/cn/home/web/index.php/vod/play/id/1197978/sid/1/nid/1.html" title="有效片名"><div class="video-thumb"><img src="https://img.example.org/film.jpg" alt="有效片名"></div><span class="video-title">有效片名</span><span class="video-overlay">精品推荐</span></a></div></li></ul>
+ <ul class="pagination"><li><a href="/cn/home/web/index.php/vod/type/id/22/page/2.html">下一页</a></li></ul></body></html>`
+ doc,err:=nethtml.Parse(strings.NewReader(fixture));if err!=nil{t.Fatal(err)}
+ rows:=apk391ZaoguoCards(doc)
+ if len(rows)!=1||rows[0].SourceID!=id||rows[0].Title!="有效片名"||rows[0].Cover!="https://img.example.org/film.jpg" {
+  t.Fatalf("wrong zaoguo video card: %+v",rows)
+ }
+ if !apk391HasNextPage(doc,1){t.Fatal("actual /page/2.html not identified")}
+ paths:=apk391DetailRoutes("zaoguo",id)
+ if len(paths)!=1||paths[0]!="/cn/home/web/index.php/vod/play/id/1197978/sid/1/nid/1.html"{t.Fatalf("unexpected zaoguo detail route %+v",paths)}
+}
