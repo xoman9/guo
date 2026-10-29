@@ -17,7 +17,8 @@ class SourceSite {
       id == 'guipian' ||
       id == 'hanxiaoquan' ||
       id == 'lujj31' ||
-      id == 'liuguo';
+      id == 'liuguo' ||
+      id == 'xiaoguo';
   bool get searchSuggestions => id == 'hongguo';
   String get groupId => switch (id) {
     'huangguo-video' || 'huangguoai' || 'cloudfront' => 'huangguo',
@@ -51,6 +52,7 @@ class SourceSite {
   static const restrictedValues = [
     SourceSite('lujj31', '桃果 🔞', '网页分类 · 视频详情 · 播放线路'),
     SourceSite('liuguo', '榴果 🔞', '即時分類 · 影片 · 播放線路'),
+    SourceSite('xiaoguo', '宵果 🔞', '即時分類 · 線上搜尋 · 播放線路'),
     SourceSite('huangdou', '黄豆 🔞', '精选短剧'),
     SourceSite('huangju', '剧果 🔞', '热门 · 最新 · 分类短剧'),
     SourceSite('yeguo', '野果 🔞', '分类短剧 · 在线搜索'),
