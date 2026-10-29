@@ -65,10 +65,12 @@ func (d *Downloader) apk391Page(ctx context.Context,source,path string)(*nethtml
 func (d *Downloader) fetchApk391Categories(ctx context.Context,source string)([]nativeCategory,error){
  spec,ok:=apk391Spec(source)
  if !ok{return nil,errors.New("未知站源")}
- if spec.Kind!="maccms"{return nil,fmt.Errorf("%s 需要独立 %s 分类协议，尚未完成移植",spec.Name,spec.Kind)}
+ // Extracted native category tables are useful even when a custom
+ // website/API adapter is not yet available for live catalog playback.
  if choices:=apk391StaticCategoryFallback[source];len(choices)>0{
   return append([]nativeCategory(nil),choices...),nil
  }
+ if spec.Kind!="maccms"{return nil,fmt.Errorf("%s 需要独立 %s 分类协议，尚未完成移植",spec.Name,spec.Kind)}
  doc,_,err:=d.apk391Page(ctx,source,"/")
  if err!=nil{return nil,err}
  seen:=map[string]bool{};items:=[]nativeCategory{}
