@@ -99,7 +99,8 @@ func isHuangguoProviderSource(source string) bool {
 	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan, sourceLujj31, sourceLiuguo, sourceXiaoguo:
 		return true
 	default:
-		return false
+		_, registered := apk391Spec(source)
+		return registered
 	}
 }
 
@@ -134,7 +135,9 @@ func canonicalProviderSource(source string) string {
 	case "xiaoguo", "yese.co", "www.yese.co":
 		return sourceXiaoguo
 	default:
-		return strings.TrimSpace(source)
+		original := strings.TrimSpace(source)
+		if id := apk391SourceForHost(strings.ToLower(original)); id != "" { return id }
+		return original
 	}
 }
 
@@ -263,6 +266,10 @@ func (d *Downloader) GetHuangguoChapters(ctx context.Context, source, sourceID s
 	case sourceCloudFront:
 		return d.fetchLegacyChapters(ctx, sourceID)
 	default:
+		if _,ok:=apk391Spec(source);ok{
+			item,parts,err:=d.fetchApk391Detail(ctx,source,sourceID)
+			return item.DisplayTitle(),parts,err
+		}
 		return "", nil, fmt.Errorf("unsupported provider source: %s", source)
 	}
 }
