@@ -200,13 +200,22 @@ func xiaoguoSinglePlayback(doc *nethtml.Node, base, id, page string) (Drama, []C
 		return Drama{}, nil, false
 	}
 	found := false
-	for _, script := range providerHTMLNodes(doc, func(n *nethtml.Node) bool { return n.Data == "script" }) {
-		if lujj31PlayerData.MatchString(providerHTMLText(script)) {
-			found = true
+	for _, script := range providerHTMLNodes(doc, func(n *nethtml.Node) bool { return n.Type == nethtml.ElementNode && n.Data == "script" }) {
+		// providerHTMLText intentionally filters <script> text. Examine
+		// raw script text nodes instead, without changing shared HTML helpers.
+		for child := script.FirstChild; child != nil; child = child.NextSibling {
+			if child.Type == nethtml.TextNode && lujj31PlayerData.MatchString(child.Data) {
+				found = true
+				break
+			}
+		}
+		if found {
 			break
 		}
 	}
-	if !found { return Drama{}, nil, false }
+	if !found {
+		return Drama{}, nil, false
+	}
 	title := "影片 " + id
 	for _, heading := range providerHTMLNodes(doc, func(n *nethtml.Node) bool { return n.Data == "h1" }) {
 		if value := strings.TrimSpace(providerHTMLText(heading)); value != "" {
