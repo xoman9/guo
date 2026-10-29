@@ -153,10 +153,14 @@ func lujj31SafeParseEndpoint(raw string) bool {
 // Ports oktv's MacCMS cloud parser: player/<from>.js declares an iframe
 // parser endpoint; the resulting page may declare var video_url or an HLS link.
 func (d *Downloader) lujj31CloudParse(ctx context.Context, body, encrypted, page string) string {
+	return d.maccmsSiteCloudParse(ctx, d.providerBaseURL(sourceLujj31), body, encrypted, page)
+}
+
+// Shared, source-scoped implementation for Tao-guo and Liuguo's oktv cloud player.
+func (d *Downloader) maccmsSiteCloudParse(ctx context.Context, base, body, encrypted, page string) string {
 	if encrypted == "" || isProviderHTTPMediaURL(encrypted) {
 		return ""
 	}
-	base := d.providerBaseURL(sourceLujj31)
 	from := ""
 	if m := lujj31PlayerRawFrom.FindStringSubmatch(body); len(m) > 1 {
 		from = m[1]
