@@ -439,6 +439,18 @@ func apk391Suspects(doc *nethtml.Node,source string,already []Drama) []apk391Sus
 // For Luguo use poster metadata from the actual detail page, never an
 // unrelated thumbnail somewhere else in that page's general document tree.
 func apk391DetailPoster(doc *nethtml.Node,page,source string)string{
+ // Ningguo detail pages can embed images from unrelated recommendations.
+ // Prefer its verified list poster; when no list poster exists, accept only
+ // explicitly declared detail-cover metadata, not arbitrary page images.
+ if source=="ningguo"{
+  for _,node:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="meta"}){
+   property:=strings.ToLower(firstNonEmpty(providerHTMLAttr(node,"property"),providerHTMLAttr(node,"name")))
+   if property=="og:image"||property=="og:image:url"||property=="twitter:image"{
+    if poster:=lujj31PosterAddress(providerHTMLAttr(node,"content"),page);poster!=""{return poster}
+   }
+  }
+  return ""
+ }
  if !apk391RequiresDetail(source){return lujj31DetailPoster(doc,page)}
  for _,node:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="meta"}) {
   property:=strings.ToLower(firstNonEmpty(providerHTMLAttr(node,"property"),providerHTMLAttr(node,"name")))
