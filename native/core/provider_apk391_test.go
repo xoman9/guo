@@ -373,3 +373,22 @@ func TestApk391JuguoVideo7CardsAndCategories(t *testing.T) {
  }
  if got:=apk391DetailRoutes("juguo","1979090")[0];got!="/voddetail/1979090/"{t.Fatalf("wrong Juguo detail URL %q",got)}
 }
+
+func TestApk391ZaoguoCatalogMetadataSurvivesDetail(t *testing.T) {
+ const source="zaoguo"
+ const id="987654321"
+ const title="CEMD749 原始影片片名"
+ const cover="https://img.example.org/zaoguo-cover.jpg"
+ apk391RememberTitle(source,id,title)
+ apk391RememberCover(source,id,cover)
+ t.Cleanup(func(){apk391CatalogNames.Delete(source+":"+id);apk391CatalogCovers.Delete(source+":"+id)})
+ d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
+  if req.URL.Path=="/cn/home/web/index.php/vod/play/id/"+id+"/sid/1/nid/1.html"{
+   return sourceFixtureResponse(req,http.StatusOK,`<html><body><h1>影片 987654321</h1><script>var player_aaaa={"flag":"hls","encrypt":0,"url":"https://example.org/video.m3u8"};</script><a href="/cn/home/web/index.php/vod/play/id/987654321/sid/1/nid/1.html">第1集</a></body></html>`),nil
+  }
+  return sourceFixtureResponse(req,http.StatusNotFound,"missing"),nil
+ })
+ drama,_,err:=d.fetchApk391Detail(context.Background(),source,id)
+ if err!=nil{t.Fatalf("fetch detail: %v",err)}
+ if drama.Title!=title||drama.Cover!=cover{t.Fatalf("catalog info lost: %+v",drama)}
+}
