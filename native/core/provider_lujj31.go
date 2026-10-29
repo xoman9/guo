@@ -79,7 +79,7 @@ func (d *Downloader) fetchLujj31Categories(ctx context.Context)([]nativeCategory
   if len(categories)>=40{break}
  }
  if len(categories)<2{return nil,errors.New("桃果首页未识别到分类导航")}
- return categories,nil
+ return categories[1:],nil
 }
 
 func lujj31CardTitle(node *html.Node) string {
