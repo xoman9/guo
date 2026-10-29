@@ -501,5 +501,5 @@ func TestChengguoBrowseArticleLazyPosters(t *testing.T) {
   if got[i].SourceID!=id{t.Fatalf("film %d ID mismatch: %s",i,got[i].SourceID)}
  }
  if got[0].Cover!=""||got[1].Cover!=""{t.Fatalf("transparent placeholders leaked as posters: %+v",got)}
- if !apk391HasNextPage(doc,1){t.Fatal("missing verified browse/page-2 continuation")}
+ if !chengguoHasNext(doc,1){t.Fatal("missing verified browse/page-2 continuation")}
 }
