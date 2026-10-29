@@ -278,14 +278,18 @@ func apk391HasNextPage(doc *nethtml.Node,page int) bool {
   rel:=strings.ToLower(providerHTMLAttr(a,"rel"))
   href:=strings.ToLower(providerHTMLAttr(a,"href"))
   if href=="" || href=="#" || strings.HasPrefix(href,"javascript:"){continue}
-  if strings.Contains(rel,"next") || strings.Contains(label,"next") ||
-   text=="下一页" || text=="下一頁" || text=="下页" || text=="下頁" ||
-   strings.EqualFold(text,"next") || text==target ||
-   strings.Contains(href,"/page/"+target) ||
+  // A "Next" label is not sufficient: sites often return the same page
+  // with an unchanged link, producing an infinite loading loop.
+  isTarget:=strings.Contains(href,"/page/"+target+".") ||
+   strings.Contains(href,"/page/"+target+"/") ||
+   strings.HasSuffix(href,"/page/"+target) ||
    strings.Contains(href,"-"+target+".html") ||
-   strings.Contains(href,"page="+target) {
-   return true
-  }
+   strings.Contains(href,"page="+target)
+  hasPageNumber:=regexp.MustCompile(`(?i)(/page/[0-9]+|-[0-9]+\.html|[?&]page=[0-9]+)`).MatchString(href)
+  if hasPageNumber {if isTarget{return true};continue}
+  if strings.Contains(rel,"next")||strings.Contains(label,"next") ||
+   text=="下一页"||text=="下一頁"||text=="下页"||text=="下頁"||
+   strings.EqualFold(text,"next") {return true}
  }
  return false
 }
