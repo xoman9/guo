@@ -90,6 +90,24 @@ func (d *Downloader) apk391Page(ctx context.Context,source,path string)(*nethtml
  if link==""{return nil,"",errors.New("非法或跨站页面")}
  base:=apk391BaseURL(source)
  doc,actual,err:=d.fetchProviderPage(ctx,link,base+"/",lujj31UserAgent)
+ // The original v0.2.391 binary embeds both bare and www hostnames for
+ // Luguo and Liguo. Some upstreams return 404 at one of the two hosts.
+ // Retry the identical path on the alternate original host, only on HTTP 404.
+ if err!=nil && apk391RequiresDetail(source) && strings.Contains(err.Error(),"404") {
+  parsed,parseErr:=url.Parse(link)
+  if parseErr==nil {
+   if strings.HasPrefix(parsed.Hostname(),"www.") {
+    parsed.Host=strings.TrimPrefix(parsed.Host,"www.")
+   }else{
+    parsed.Host="www."+parsed.Host
+   }
+   if alternate:=apk391SameSite(source,parsed.String());alternate!="" && alternate!=link {
+    if retryDoc,retryActual,retryErr:=d.fetchProviderPage(ctx,alternate,base+"/",lujj31UserAgent);retryErr==nil{
+     doc,actual,err=retryDoc,retryActual,nil
+    }
+   }
+  }
+ }
  if err!=nil{return nil,"",err}
  if len(providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="body"&&n.FirstChild!=nil}))==0{
   return nil,"",errors.New("网页未返回有效正文")
