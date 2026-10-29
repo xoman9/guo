@@ -290,7 +290,7 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
  for _,path:=range routes{
   doc,_,err:=d.apk391Page(ctx,source,path)
   if err!=nil{failure=err;continue}
-  rows:=apk391EnrichSuspects(ctx,source,doc,apk391Cards(doc,source))
+  rows:=d.apk391EnrichSuspects(ctx,source,doc,apk391Cards(doc,source))
   if len(rows)>0{return rows,len(rows)>0&&query=="",nil}
   failure=fmt.Errorf("%s 网页无影片：%s",spec.Name,path)
  }
