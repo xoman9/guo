@@ -4,6 +4,11 @@ package core
 // tables and serve as a fallback pending the 0.2.391-specific mapping.
 // They are NOT claimed as verified live web categories.
 var apk391StaticCategoryFallback=map[string][]nativeCategory{
+ "xiongguo": {
+  {ID:"1",Name:"傳媒"},{ID:"6",Name:"91傳媒"},{ID:"7",Name:"精東傳媒"},{ID:"8",Name:"麻豆傳媒"},{ID:"9",Name:"麻豆映畫"},{ID:"10",Name:"麻豆貓爪"},{ID:"11",Name:"蜜桃傳媒"},{ID:"12",Name:"天美傳媒"},{ID:"13",Name:"星空傳媒"},
+  {ID:"2",Name:"視頻"},{ID:"14",Name:"自拍偷拍"},{ID:"15",Name:"日韓視頻"},{ID:"16",Name:"歐美性愛"},{ID:"17",Name:"智能換臉"},{ID:"18",Name:"經典三級"},{ID:"19",Name:"網紅主播"},{ID:"20",Name:"台灣辣妹"},{ID:"21",Name:"onlyfans"},
+  {ID:"3",Name:"電影"},{ID:"22",Name:"中文字幕"},{ID:"23",Name:"經典素人"},{ID:"24",Name:"高清無碼"},{ID:"25",Name:"美顏巨乳"},{ID:"26",Name:"絲襪制服"},{ID:"27",Name:"SM系列"},{ID:"28",Name:"歐美系列"},{ID:"29",Name:"H動畫"},
+ },
 
  "yingguo": {{ID:"28",Name:"日本中字"},{ID:"20",Name:"国产精品"},{ID:"21",Name:"人妻"},{ID:"22",Name:"无码精品"},{ID:"23",Name:"欧美精品"},{ID:"24",Name:"动漫精品"},{ID:"25",Name:"综合三级"}},
  "luguo": {{ID:"26",Name:"国产精品"},{ID:"27",Name:"国产剧情"},{ID:"29",Name:"国产自拍"},{ID:"31",Name:"人妻"},{ID:"35",Name:"国产主播"},{ID:"44",Name:"素人"},{ID:"51",Name:"日本中字"},{ID:"101",Name:"有码精品"},{ID:"102",Name:"无码精品"},{ID:"103",Name:"动漫精品"}},
