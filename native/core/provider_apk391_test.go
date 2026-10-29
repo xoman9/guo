@@ -77,15 +77,14 @@ func TestApk391MacCMSCardsSameOriginAndDetail(t *testing.T) {
  }
 }
 
-func TestApk391UnverifiedCustomSourceHasExplicitError(t *testing.T){
+func TestApk391ChengguoPendingCustomCatalogHasExplicitError(t *testing.T){
  d:=sourceFixtureDownloader(t,func(r *http.Request)(*http.Response,error){
-  t.Fatalf("should not call unknown custom API: %s",r.URL)
+  t.Fatalf("unsupported category should not fetch unrelated custom API: %s",r.URL)
   return sourceFixtureResponse(r,http.StatusInternalServerError,""),nil
  })
- _,_,err:=d.fetchApk391CatalogPage(context.Background(),"xiongguo",1,"","")
+ _,_,err:=d.fetchApk391CatalogPage(context.Background(),"chengguodj",1,"","")
  if err==nil||!strings.Contains(err.Error(),"尚未"){t.Fatalf("custom source should explain limitation, got %v",err)}
 }
-
 
 func TestApk391CatalogDoesNotDisplayCategoryNamesAsMovies(t *testing.T) {
  source:="yanguo"
