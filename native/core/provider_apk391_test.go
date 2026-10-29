@@ -343,11 +343,12 @@ func TestApk391LuguoAndLiguoDetailPreserveCatalogTitle(t *testing.T) {
 func TestApk391ZaoguoDirectoryIsCategories(t *testing.T) {
  cats:=apk391StaticCategoryFallback["zaoguo"]
  if len(cats)!=16{t.Fatalf("expected 16 directory categories, got %d",len(cats))}
+ if apk391BaseURL("zaoguo")!="https://www.yhsp9.homes"{t.Fatal("Zaoguo host mismatch")}
  if !apk391ValidCategory("zaoguo","24") {t.Fatal("missing directory category 24")}
  const id="1197978"
- fixture:=`<html><body><div class="panel-heading"><h3 class="panel-title">目录</h3></div><ul class="navigation"><li><a href="/cn/home/web/index.php/vod/type/id/22.html">美女直播</a></li></ul>
- <ul class="videos"><li><div class="video"><a class="thumbnail" href="/cn/home/web/index.php/vod/play/id/1197978/sid/1/nid/1.html" title="有效片名"><div class="video-thumb"><img src="https://img.example.org/film.jpg" alt="有效片名"></div><span class="video-title">有效片名</span><span class="video-overlay">精品推荐</span></a></div></li></ul>
- <ul class="pagination"><li><a href="/cn/home/web/index.php/vod/type/id/22/page/2.html">下一页</a></li></ul></body></html>`
+ fixture:=`<html><body><div class="panel-heading"><h3 class="panel-title">目录</h3></div><ul class="navigation"><li><a href="/yhsp/index.php/vod/type/id/22.html">美女直播</a></li></ul>
+ <ul class="videos"><li><div class="video"><a class="thumbnail" href="/yhsp/index.php/vod/play/id/1197978/sid/1/nid/1.html" title="有效片名"><div class="video-thumb"><img src="https://img.example.org/film.jpg" alt="有效片名"></div><span class="video-title">有效片名</span><span class="video-overlay">精品推荐</span></a></div></li></ul>
+ <ul class="pagination"><li><a href="/yhsp/index.php/vod/type/id/22/page/2.html">下一页</a></li></ul></body></html>`
  doc,err:=nethtml.Parse(strings.NewReader(fixture));if err!=nil{t.Fatal(err)}
  rows:=apk391ZaoguoCards(doc)
  if len(rows)!=1||rows[0].SourceID!=id||rows[0].Title!="有效片名"||rows[0].Cover!="https://img.example.org/film.jpg" {
@@ -355,7 +356,7 @@ func TestApk391ZaoguoDirectoryIsCategories(t *testing.T) {
  }
  if !apk391HasNextPage(doc,1){t.Fatal("actual /page/2.html not identified")}
  paths:=apk391DetailRoutes("zaoguo",id)
- if len(paths)!=1||paths[0]!="/cn/home/web/index.php/vod/play/id/1197978/sid/1/nid/1.html"{t.Fatalf("unexpected zaoguo detail route %+v",paths)}
+ if len(paths)!=1||paths[0]!="/yhsp/index.php/vod/play/id/1197978/sid/1/nid/1.html"{t.Fatalf("unexpected zaoguo detail route %+v",paths)}
 }
 
 func TestApk391JuguoVideo7CardsAndCategories(t *testing.T) {
@@ -383,8 +384,8 @@ func TestApk391ZaoguoCatalogMetadataSurvivesDetail(t *testing.T) {
  apk391RememberCover(source,id,cover)
  t.Cleanup(func(){apk391CatalogNames.Delete(source+":"+id);apk391CatalogCovers.Delete(source+":"+id)})
  d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
-  if req.URL.Path=="/cn/home/web/index.php/vod/play/id/"+id+"/sid/1/nid/1.html"{
-   return sourceFixtureResponse(req,http.StatusOK,`<html><body><h1>影片 987654321</h1><script>var player_aaaa={"flag":"hls","encrypt":0,"url":"https://example.org/video.m3u8"};</script><a href="/cn/home/web/index.php/vod/play/id/987654321/sid/1/nid/1.html">第1集</a></body></html>`),nil
+  if req.URL.Path=="/yhsp/index.php/vod/play/id/"+id+"/sid/1/nid/1.html"{
+   return sourceFixtureResponse(req,http.StatusOK,`<html><body><h1>影片 987654321</h1><script>var player_aaaa={"flag":"hls","encrypt":0,"url":"https://example.org/video.m3u8"};</script><a href="/yhsp/index.php/vod/play/id/987654321/sid/1/nid/1.html">第1集</a></body></html>`),nil
   }
   return sourceFixtureResponse(req,http.StatusNotFound,"missing"),nil
  })
