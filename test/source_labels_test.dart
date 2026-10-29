@@ -11,6 +11,7 @@ void main() {
       'huangguo-video',
       'huangguoai',
       'cloudfront',
+      'lujj31',
     ]) {
       final name = SourceSite.byId(id).name;
       expect(name.runes.last, 0x1f51e);
@@ -18,6 +19,6 @@ void main() {
     }
     expect(SourceSite.hongguo.name, '红果');
     expect(SourceSite.byId('lujj31').id, 'lujj31');
-    expect(SourceSite.isRestricted('lujj31'), isFalse);
+    expect(SourceSite.isRestricted('lujj31'), isTrue);
   });
 }
