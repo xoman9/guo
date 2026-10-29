@@ -11,7 +11,7 @@ var apk391Sources = []apk391SourceSpec{
  {"youguo","柚果","maccms","youavhub.com"},
  {"meiguo","美果","maccms","shiresm.lol"},
  {"yingguo","樱果","maccms","missav.app"},
- {"luguo","露果","maccms","luyitian.com"},
+ {"luguo","露果","maccms","www.llsp.me"},
  {"liguo","荔果","maccms","ririlu.cc"},
  {"juguo","橘果","maccms","bulunhufait.buzz"},
  {"zaoguo","枣果","maccms","yhsp5.yachts"},
