@@ -230,7 +230,7 @@ func apk391RememberedTitle(source,id string)string {
 }
 
 func apk391RememberCover(source,id,cover string) {
- if (source=="zaoguo"||source=="juguo") && apk391Numeric.MatchString(id) && isProviderHTTPMediaURL(cover){
+ if (source=="zaoguo"||source=="juguo"||source=="ningguo") && apk391Numeric.MatchString(id) && isProviderHTTPMediaURL(cover){
   apk391CatalogCovers.Store(source+":"+id,cover)
  }
 }
@@ -398,6 +398,7 @@ func apk391Cards(doc *nethtml.Node,source string)[]Drama{
   // Only verified per-ID detail metadata may appear in the Luguo catalog.
   if apk391RequiresDetail(source) {continue}
   seen[id]=true
+  if source=="ningguo"{apk391RememberCover(source,id,cover)}
   items=append(items,Drama{ID:providerDramaID(source,id),Source:source,SourceID:id,
    Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
   if len(items)>=150{break}
