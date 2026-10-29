@@ -24,5 +24,9 @@ void main() {
     expect(SourceSite.isRestricted('lujj31'), isTrue);
     expect(SourceSite.isRestricted('liuguo'), isTrue);
     expect(SourceSite.isRestricted('xiaoguo'), isTrue);
+    expect(SourceSite.values.any((site) => site.id == 'chaoguo'), isFalse);
+    expect(SourceSite.values.any((site) => site.id == 'chengguo'), isFalse);
+    // Chengguodj is a separate source and must not be removed by mistake.
+    expect(SourceSite.values.any((site) => site.id == 'chengguodj'), isTrue);
   });
 }
