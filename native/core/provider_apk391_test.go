@@ -359,7 +359,7 @@ func TestApk391ZaoguoDirectoryIsCategories(t *testing.T) {
 }
 
 func TestApk391JuguoVideo7CardsAndCategories(t *testing.T) {
- if apk391BaseURL("juguo")!="https://bulunhome.cc" {t.Fatal("stale Juguo domain")}
+ if apk391BaseURL("juguo")!="https://bulunhufait.buzz" {t.Fatal("stale Juguo domain")}
  if !apk391ValidCategory("juguo","372")||!apk391ValidCategory("juguo","423"){t.Fatal("missing observed video7 categories")}
  fixture:=`<html><body><div class="menu"><a href="/vodtype/372/">欧美性爱</a></div>
  <div class="mod index-list"><div class="row col5 clearfix">
