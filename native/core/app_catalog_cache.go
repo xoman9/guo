@@ -41,7 +41,7 @@ func (engine *nativeEngine) loadCatalogCache() {
 	if json.Unmarshal(body, &disk) == nil && (disk.Version == 2 || disk.Version == 3) {
         // Tao-guo is live-only; ignore any catalog saved by older builds.
         for key := range disk.Catalogs {
-            if key == sourceLujj31 || strings.HasPrefix(key, sourceLujj31+"|") {
+            if key == sourceLujj31 || strings.HasPrefix(key, sourceLujj31+"|") || key == sourceLiuguo || strings.HasPrefix(key, sourceLiuguo+"|") {
                 delete(disk.Catalogs, key)
             }
         }
