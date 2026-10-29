@@ -8,6 +8,8 @@ import (
  "regexp"
  "strconv"
  "strings"
+ "sync"
+ "time"
 
  nethtml "golang.org/x/net/html"
 )
@@ -168,6 +170,95 @@ func apk391Cards(doc *nethtml.Node,source string)[]Drama{
  return items
 }
 
+// The 0.2.391 list sometimes uses a taxonomy label as an item's title and
+// provides only a placeholder cover. Check ONLY these uncertain items against
+// their own detail pages, on demand, with a strict concurrency/time budget.
+// This does not preload, save, or walk the full catalog.
+type apk391Suspect struct{ id, page string }
+
+func apk391Suspects(doc *nethtml.Node,source string,already []Drama) []apk391Suspect {
+ seen:=map[string]bool{}
+ for _,d:=range already{seen[d.SourceID]=true}
+ out:=make([]apk391Suspect,0,8)
+ for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}) {
+  if apk391InsideNavigation(a){continue}
+  page:=apk391SameSite(source,providerHTMLAttr(a,"href"))
+  id:=apk391VideoID(page)
+  if id==""||seen[id]{continue}
+  rawTitle:=strings.TrimSpace(providerHTMLAttr(a,"title"))
+  if rawTitle==""{rawTitle=strings.TrimSpace(providerHTMLText(a))}
+  if rawTitle==""{continue}
+  posterNode:=a
+  if a.Parent!=nil{posterNode=a.Parent}
+  cover:=lujj31CardPoster(posterNode,page)
+  if !apk391CategoryLabel(source,rawTitle) && cover!=""{continue}
+  seen[id]=true
+  out=append(out,apk391Suspect{id:id,page:page})
+  if len(out)>=12{break}
+ }
+ return out
+}
+
+func (d *Downloader) apk391EnrichOne(ctx context.Context,source string,entry apk391Suspect)(Drama,bool) {
+ doc,actual,err:=d.apk391Page(ctx,source,entry.page)
+ if err!=nil || apk391SameSite(source,actual)=="" || apk391VideoID(actual)!=entry.id{return Drama{},false}
+ title:=""
+ for _,tag:=range []string{"h1","h2"} {
+  for _,n:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data==tag}) {
+   if text:=strings.TrimSpace(providerHTMLText(n));text!=""&&!apk391CategoryLabel(source,text) {
+    title=text
+    break
+   }
+  }
+  if title!=""{break}
+ }
+ if title=="" {
+  for _,n:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="meta"}) {
+   name:=strings.ToLower(firstNonEmpty(providerHTMLAttr(n,"property"),providerHTMLAttr(n,"name")))
+   if name=="og:title"||name=="twitter:title" {
+    if t:=strings.TrimSpace(providerHTMLAttr(n,"content"));t!=""&&!apk391CategoryLabel(source,t){
+     title=t
+     break
+    }
+   }
+  }
+ }
+ cover:=lujj31DetailPoster(doc,actual)
+ if title==""||cover=="" {return Drama{},false}
+ spec:=apk391ByID[source]
+ return Drama{ID:providerDramaID(source,entry.id),Source:source,SourceID:entry.id,
+  Title:truncate(title,512),Name:truncate(title,512),Cover:cover,CoverURL:cover,ChannelName:spec.Name},true
+}
+
+func (d *Downloader) apk391EnrichSuspects(ctx context.Context,source string,doc *nethtml.Node,real []Drama) []Drama {
+ suspects:=apk391Suspects(doc,source,real)
+ if len(suspects)==0{return real}
+ limited,cancel:=context.WithTimeout(ctx,7*time.Second)
+ defer cancel()
+ results:=make([]Drama,len(suspects))
+ valid:=make([]bool,len(suspects))
+ slots:=make(chan struct{},4)
+ var wg sync.WaitGroup
+ for i,entry:=range suspects{
+  if limited.Err()!=nil{break}
+  wg.Add(1)
+  go func(index int,item apk391Suspect){
+   defer wg.Done()
+   select{
+   case slots<-struct{}{}:
+    defer func(){<-slots}()
+   case <-limited.Done():return
+   }
+   results[index],valid[index]=d.apk391EnrichOne(limited,source,item)
+  }(i,entry)
+ }
+ wg.Wait()
+ for i:=range results {
+  if valid[i] {real=append(real,results[i])}
+ }
+ return real
+}
+
 func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,page int,category,query string)([]Drama,bool,error){
  spec,ok:=apk391Spec(source)
  if !ok{return nil,false,errors.New("未注册的来源")}
@@ -199,7 +290,7 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
  for _,path:=range routes{
   doc,_,err:=d.apk391Page(ctx,source,path)
   if err!=nil{failure=err;continue}
-  rows:=apk391Cards(doc,source)
+  rows:=apk391EnrichSuspects(ctx,source,doc,apk391Cards(doc,source))
   if len(rows)>0{return rows,len(rows)>0&&query=="",nil}
   failure=fmt.Errorf("%s 网页无影片：%s",spec.Name,path)
  }
