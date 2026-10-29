@@ -1,0 +1,105 @@
+name: Release original-package ARM64 APK
+
+on:
+  push:
+    paths:
+      - '.github/workflows/release-original-arm64.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: original-arm64-release
+  cancel-in-progress: false
+
+jobs:
+  release-arm64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out approved fix
+        uses: actions/checkout@v4
+        with:
+          ref: aee26c461ee3959e995e65bb47cc2dbd9767dbfd
+          persist-credentials: false
+      - name: Verify source and target identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "aee26c461ee3959e995e65bb47cc2dbd9767dbfd"
+          grep -Fx 'version: 1.0.4+104' pubspec.yaml
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.4'
+          channel: stable
+          cache: true
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+      - run: sdkmanager 'ndk;28.2.13676358'
+      - name: Require fixed release signing key and expected certificate
+        env:
+          KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          EXPECTED: ${{ vars.ANDROID_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          test -n "$KEY" || { echo "::error::Missing ANDROID_KEYSTORE_BASE64"; exit 1; }
+          test -n "$EXPECTED" || { echo "::error::Missing ANDROID_CERT_SHA256"; exit 1; }
+          printf '%s' "$KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+      - run: flutter pub get --enforce-lockfile
+      - name: Verify Flutter and Go providers
+        run: |
+          flutter test --dart-define=ALL_SOURCES=true test/source_bulk_switch_test.dart test/source_labels_test.dart test/source_bar_test.dart test/yanguo_cover_merge_test.dart
+          (cd native && go test ./core -count=1)
+      - name: Build native Go ARM64 library
+        run: python scripts/build_native.py --platform android --abi arm64-v8a --all-sources
+      - name: Build signed ORIGINAL package APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build apk --release --split-per-abi --target-platform android-arm64 --no-pub --dart-define=ALL_SOURCES=true
+      - name: Verify package, release certificate, version and architecture
+        env:
+          EXPECTED: ${{ vars.ANDROID_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          apk=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          aapt="$ANDROID_HOME/build-tools/36.0.0/aapt"
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$aapt" dump badging "$apk" | tee badging.txt
+          grep -Fq "package: name='com.duanju.duanju_app'" badging.txt
+          grep -Fq "versionCode='104'" badging.txt
+          grep -Fq "versionName='1.0.4'" badging.txt
+          grep -Fq "native-code: 'arm64-v8a'" badging.txt
+          "$apksigner" verify --verbose --print-certs "$apk" | tee cert.txt
+          expected=$(printf '%s' "$EXPECTED" | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+          actual=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' cert.txt | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+          test -n "$actual" && test "$expected" = "$actual" || { echo "::error::Release certificate mismatch; APK cannot update existing package"; exit 1; }
+          unzip -Z1 "$apk" | grep -Fx 'lib/arm64-v8a/libduanju_core.so'
+          mkdir -p dist
+          cp "$apk" dist/zhenguojian-1.0.4+104-arm64-v8a.apk
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt)
+      - name: Publish GitHub Release with downloadable APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="app-v1.0.4-104"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release already exists: $tag"
+            exit 1
+          fi
+          gh release create "$tag" dist/*.apk dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target aee26c461ee3959e995e65bb47cc2dbd9767dbfd --title "真果鑑 1.0.4+104 ARM64 (可覆蓋原版)" --notes "Original package: com.duanju.duanju_app. Requires the same original signing certificate. Includes 熊果 detail/play interface and 橙果 browse list updates. Build verified; source playback requires device testing."
