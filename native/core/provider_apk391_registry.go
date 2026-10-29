@@ -7,11 +7,9 @@ import "strings"
 type apk391SourceSpec struct{ ID, Name, Kind, Host string }
 
 var apk391Sources = []apk391SourceSpec{
- {"chaoguo","超果","web","shanekids.com"},
  {"yanguo","艳果","maccms","xqxq1.cc"},
  {"youguo","柚果","maccms","youavhub.com"},
  {"meiguo","美果","maccms","shiresm.lol"},
- {"chengguo","城果","maccms","qingyiduz.xyz"},
  {"yingguo","樱果","maccms","missav.app"},
  {"luguo","露果","maccms","luyitian.com"},
  {"liguo","荔果","maccms","ririlu.cc"},
