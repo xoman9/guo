@@ -236,7 +236,38 @@ func apk391LuguoCards(doc *nethtml.Node) []Drama {
  return out
 }
 
+// The user-supplied ririlu.cc homepage uses wntheme27: each anchor.card
+// owns its img[data-src] and .desc, unlike Luguo's sibling title node.
+func apk391LiguoCards(doc *nethtml.Node) []Drama {
+ spec,_:=apk391Spec("liguo")
+ out:=[]Drama{};seen:=map[string]bool{}
+ for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"&&lujj31HasClass(n,"card")}) {
+  link:=apk391SameSite("liguo",providerHTMLAttr(a,"href"))
+  id:=apk391VideoID(link)
+  if id==""||seen[id]{continue}
+  title:=""
+  for _,desc:=range providerHTMLNodes(a,func(n *nethtml.Node)bool{return lujj31HasClass(n,"desc")}) {
+   candidate:=strings.TrimSpace(providerHTMLText(desc))
+   if candidate!=""&&!apk391BadTitle("liguo",candidate){title=truncate(candidate,512);break}
+  }
+  if title==""{continue}
+  cover:=""
+  for _,img:=range providerHTMLNodes(a,func(n *nethtml.Node)bool{return n.Data=="img"}) {
+   raw:=firstNonEmpty(providerHTMLAttr(img,"data-src"),providerHTMLAttr(img,"data-original"))
+   if raw==""{continue}
+   cover=lujj31PosterAddress(raw,link)
+   if cover!=""{break}
+  }
+  if cover==""{continue}
+  seen[id]=true
+  out=append(out,Drama{ID:providerDramaID("liguo",id),Source:"liguo",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
+  if len(out)>=150{break}
+ }
+ return out
+}
+
 func apk391Cards(doc *nethtml.Node,source string)[]Drama{
+ if source=="liguo"{if cards:=apk391LiguoCards(doc);len(cards)>0{return cards}}
  if source=="luguo"{if items:=apk391LuguoCards(doc);len(items)>0{return items}}
  spec,ok:=apk391Spec(source);if !ok{return nil}
  seen:=map[string]bool{};items:=[]Drama{}
@@ -269,7 +300,7 @@ func apk391Cards(doc *nethtml.Node,source string)[]Drama{
 type apk391Suspect struct{ id, page string }
 
 func apk391Suspects(doc *nethtml.Node,source string,already []Drama) []apk391Suspect {
- if source=="luguo" && len(apk391LuguoCards(doc))>0{return nil} // verified cards; no detail prefetch
+ if (source=="luguo" && len(apk391LuguoCards(doc))>0)||(source=="liguo" && len(apk391LiguoCards(doc))>0){return nil} // verified cards; no detail prefetch
  seen:=map[string]bool{}
  for _,d:=range already{seen[d.SourceID]=true}
  out:=make([]apk391Suspect,0,8)
@@ -413,6 +444,16 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
   return nil,false,fmt.Errorf("%s 原生 %s 目录 API 尚未恢复，不会用其他来源假冒",spec.Name,spec.Kind)
  }
  routes:=[]string{}
+ if source=="liguo" && query=="" {
+  if page>1{return []Drama{},false,nil} // No pagination link in supplied homepage.
+  path:="/"
+  if category!=""{path=fmt.Sprintf("/vodshow/%s-----------/",category)}
+  doc,_,err:=d.apk391Page(ctx,source,path)
+  if err!=nil{return nil,false,err}
+  cards:=apk391LiguoCards(doc)
+  if len(cards)==0{return nil,false,fmt.Errorf("荔果页面无有效影片卡片: %s",path)}
+  return cards,false,nil
+ }
  if source=="luguo" && query=="" {
   if category=="" && page==1 {routes=[]string{"/"}}
   if category!="" && page==1 {routes=[]string{fmt.Sprintf("/vodtype/%s/",category)}}
