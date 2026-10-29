@@ -278,3 +278,16 @@ func TestApk391RejectsDurationAndPopularTagsAsFilmTitles(t *testing.T){
   if !apk391BadTitle("liguo",title){t.Fatalf("unfiltered bogus film title %q",title)}
  }
 }
+
+func TestApk391Original391FilmDetailRoutes(t *testing.T) {
+ for _,source:=range []string{"luguo","liguo"} {
+  got:=apk391DetailRoutes(source,"602")
+  if len(got)!=2||got[0]!="/vodplay/602-1-1/"||got[1]!="/vodplay/602-1-1.html" {
+   t.Fatalf("%s must use original 0.2.391 detail routes: %+v",source,got)
+  }
+ }
+ other:=apk391DetailRoutes("yanguo","602")
+ if len(other)!=4||other[0]!="/index.php/vod/detail/id/602.html" {
+  t.Fatalf("unrelated channel routes changed: %+v",other)
+ }
+}
