@@ -97,11 +97,11 @@ func apk391CategoryLabel(source, value string) bool {
  value = strings.Join(strings.Fields(value), "")
  if value == "" { return true }
  switch value {
- case "全部", "首页", "首頁", "分类", "分類", "更多", "最新", "最新上傳", "最新上传":
+ case "全部", "首页", "首頁", "分类", "分類", "更多", "最新", "最新上傳", "最新上传", "國產自拍", "国产自拍", "国产传媒", "國產傳媒", "探花系列", "人妻熟女":
   return true
  }
  for _,category := range apk391StaticCategoryFallback[source] {
-  if strings.Join(strings.Fields(category.Name),"") == value { return true }
+  if strings.EqualFold(strings.Join(strings.Fields(category.Name),""),value) { return true }
  }
  return false
 }
@@ -162,6 +162,9 @@ func apk391Cards(doc *nethtml.Node,source string)[]Drama{
   // Recovered source landing pages mix navigation, video links and categories.
   // Cards without real cover evidence frequently are category navigation.
   if cover==""{continue}
+  // Luguo can place a category label on an otherwise valid poster. Confirm
+  // the video title through the matching detail page first.
+  if source=="luguo" && apk391CategoryLabel(source,title) {continue}
   seen[id]=true
   items=append(items,Drama{ID:providerDramaID(source,id),Source:source,SourceID:id,
    Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
@@ -194,7 +197,7 @@ func apk391Suspects(doc *nethtml.Node,source string,already []Drama) []apk391Sus
   if !apk391CategoryLabel(source,rawTitle) && cover!=""{continue}
   seen[id]=true
   out=append(out,apk391Suspect{id:id,page:page})
-  if len(out)>=12{break}
+  if len(out)>=8{break}
  }
  return out
 }
@@ -233,11 +236,11 @@ func (d *Downloader) apk391EnrichOne(ctx context.Context,source string,entry apk
 func (d *Downloader) apk391EnrichSuspects(ctx context.Context,source string,doc *nethtml.Node,real []Drama) []Drama {
  suspects:=apk391Suspects(doc,source,real)
  if len(suspects)==0{return real}
- limited,cancel:=context.WithTimeout(ctx,7*time.Second)
+ limited,cancel:=context.WithTimeout(ctx,2*time.Second)
  defer cancel()
  results:=make([]Drama,len(suspects))
  valid:=make([]bool,len(suspects))
- slots:=make(chan struct{},4)
+ slots:=make(chan struct{},3)
  var wg sync.WaitGroup
  for i,entry:=range suspects{
   if limited.Err()!=nil{break}
@@ -259,7 +262,32 @@ func (d *Downloader) apk391EnrichSuspects(ctx context.Context,source string,doc 
  return real
 }
 
+// Return true only when the response advertises a real next page. Some
+// sites serve the same HTML for every page, otherwise causing endless spins.
+func apk391HasNextPage(doc *nethtml.Node,page int) bool {
+ target:=strconv.Itoa(page+1)
+ for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}) {
+  text:=strings.TrimSpace(providerHTMLText(a))
+  label:=strings.ToLower(providerHTMLAttr(a,"aria-label"))
+  rel:=strings.ToLower(providerHTMLAttr(a,"rel"))
+  href:=strings.ToLower(providerHTMLAttr(a,"href"))
+  if href=="" || href=="#" || strings.HasPrefix(href,"javascript:"){continue}
+  if strings.Contains(rel,"next") || strings.Contains(label,"next") ||
+   text=="下一页" || text=="下一頁" || text=="下页" || text=="下頁" ||
+   strings.EqualFold(text,"next") || text==target ||
+   strings.Contains(href,"/page/"+target) ||
+   strings.Contains(href,"-"+target+".html") ||
+   strings.Contains(href,"page="+target) {
+   return true
+  }
+ }
+ return false
+}
+
 func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,page int,category,query string)([]Drama,bool,error){
+ // Bound external requests and optional detail checks, preventing long spins.
+ ctx,cancel:=context.WithTimeout(ctx,7*time.Second)
+ defer cancel()
  spec,ok:=apk391Spec(source)
  if !ok{return nil,false,errors.New("未注册的来源")}
  if page<1||page>100000||len(query)>256||!apk391ValidCategory(source,category){
@@ -287,11 +315,15 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
   }
  }
  var failure error
+ // The third fallback may block for a long time and usually mirrors the
+ // other MacCMS paths; avoid repeating it in the same page request.
+ if len(routes)>2 {routes=routes[:2]}
  for _,path:=range routes{
+  if err:=ctx.Err();err!=nil{return nil,false,fmt.Errorf("%s 分页请求超时，请重试: %w",spec.Name,err)}
   doc,_,err:=d.apk391Page(ctx,source,path)
   if err!=nil{failure=err;continue}
   rows:=d.apk391EnrichSuspects(ctx,source,doc,apk391Cards(doc,source))
-  if len(rows)>0{return rows,len(rows)>0&&query=="",nil}
+  if len(rows)>0{return rows,query=="" && apk391HasNextPage(doc,page),nil}
   failure=fmt.Errorf("%s 网页无影片：%s",spec.Name,path)
  }
  if failure==nil{failure=errors.New("无可用页面地址")}
