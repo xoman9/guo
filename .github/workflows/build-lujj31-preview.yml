@@ -1,4 +1,4 @@
-name: Build Tao-guo, Liuguo and Xiaoguo preview ARM64 APK
+name: Build guo coexist ARM64 preview APK
 
 on:
   pull_request:
@@ -57,27 +57,29 @@ jobs:
         run: go test ./core -run 'Test(Lujj31|Liuguo|Xiaoguo)' -count=1 -v
       - name: Build Go ARM64 library
         run: python scripts/build_native.py --platform android --abi arm64-v8a --all-sources
-      - name: Build test-only Android APK
+      - name: Build coexist test-only Android APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: flutter build apk --release --split-per-abi --target-platform android-arm64 --no-pub --dart-define=ALL_SOURCES=true
+        run: flutter build apk --release --split-per-abi --target-platform android-arm64 --no-pub --dart-define=ALL_SOURCES=true --dart-define=COEXIST=true
       - name: Inspect APK package, ABI and signature
         run: |
           set -euo pipefail
           apk=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | tee apk-badging.txt
-          grep -q "package: name='com.duanju.duanju_app'" apk-badging.txt
+          grep -q "package: name='com.duanju.duanju_app.coexist'" apk-badging.txt
+          grep -Fq "application-label:'真果鉴-共存'" apk-badging.txt
+          grep -Fq "launchable-activity: name='com.duanju.duanju_app.MainActivity'" apk-badging.txt
           grep -q "native-code: 'arm64-v8a'" apk-badging.txt
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk"
           unzip -Z1 "$apk" | grep -Fx 'lib/arm64-v8a/libduanju_core.so'
-          mkdir -p dist/lujj31-preview
-          cp "$apk" dist/lujj31-preview/zhenguojian-lujj31-preview-1.0.3+103-arm64-v8a.apk
-          sha256sum dist/lujj31-preview/*.apk > dist/lujj31-preview/SHA256SUMS.txt
+          mkdir -p dist/coexist
+          cp "$apk" dist/coexist/zhenguojian-coexist-1.0.3+103-arm64-v8a.apk
+          sha256sum dist/coexist/*.apk > dist/coexist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: zhenguojian-lujj31-preview-arm64
-          path: dist/lujj31-preview/
+          name: zhenguojian-coexist-arm64
+          path: dist/coexist/
           retention-days: 14
           if-no-files-found: error
