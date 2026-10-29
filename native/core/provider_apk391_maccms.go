@@ -400,14 +400,25 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
  return nil,false,failure
 }
 
+// The two routes below are extracted from the original 0.2.391 ARM64
+// maccmsDetailCandidates branch shared by luguo and liguo (0x2e3ed18).
+// Keep other channels' existing fallback behavior untouched.
+func apk391DetailRoutes(source,id string) []string {
+ if source=="luguo"||source=="liguo" {
+  return []string{fmt.Sprintf("/vodplay/%s-1-1/",id),
+   fmt.Sprintf("/vodplay/%s-1-1.html",id)}
+ }
+ return []string{fmt.Sprintf("/index.php/vod/detail/id/%s.html",id),
+  fmt.Sprintf("/voddetail/%s.html",id),
+  fmt.Sprintf("/vodplay/%s-1-1.html",id),
+  fmt.Sprintf("/index.php/vod/play/id/%s/sid/1/nid/1.html",id)}
+}
+
 func (d *Downloader) fetchApk391Detail(ctx context.Context,source,id string)(Drama,[]Chapter,error){
  spec,ok:=apk391Spec(source)
  if !ok||!apk391Numeric.MatchString(id){return Drama{},nil,errors.New("非法影片编号")}
  if spec.Kind!="maccms"{return Drama{},nil,fmt.Errorf("%s 需要专用详情接口",spec.Name)}
- paths:=[]string{fmt.Sprintf("/index.php/vod/detail/id/%s.html",id),
-  fmt.Sprintf("/voddetail/%s.html",id),
-  fmt.Sprintf("/vodplay/%s-1-1.html",id),
-  fmt.Sprintf("/index.php/vod/play/id/%s/sid/1/nid/1.html",id)}
+ paths:=apk391DetailRoutes(source,id)
  var failure error
  for _,path:=range paths{
   doc,actual,err:=d.apk391Page(ctx,source,path)
