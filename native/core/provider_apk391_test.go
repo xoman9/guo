@@ -455,3 +455,17 @@ func TestApk391XiongguoUserConfirmedHost(t *testing.T) {
   t.Fatalf("unexpected Xiongguo base URL: %s",got)
  }
 }
+
+func TestApk391XiongguoVerifiedHeaderCategories(t *testing.T) {
+ cats:=apk391StaticCategoryFallback["xiongguo"]
+ if len(cats)!=27{t.Fatalf("expected 3 sections and 24 video categories, got %d",len(cats))}
+ want:=map[string]string{"1":"傳媒","2":"視頻","3":"電影","6":"91傳媒","13":"星空傳媒","14":"自拍偷拍","21":"onlyfans","22":"中文字幕","29":"H動畫"}
+ got:=map[string]string{}
+ for _,cat:=range cats {
+  if !apk391ValidCategory("xiongguo",cat.ID){t.Fatalf("invalid verified category %s",cat.ID)}
+  if _,exists:=got[cat.ID];exists{t.Fatalf("duplicate category ID %s",cat.ID)}
+  got[cat.ID]=cat.Name
+ }
+ for id,name:=range want{if got[id]!=name{t.Fatalf("category %s name %q, expected %q",id,got[id],name)}}
+ if apk391ValidCategory("xiongguo","290"){t.Fatal("unrelated advertising category should be rejected")}
+}
