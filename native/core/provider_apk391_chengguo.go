@@ -48,15 +48,23 @@ func chengguoCards(doc *nethtml.Node) []Drama {
   if title==""||apk391BadTitle("chengguodj",title){continue}
   cover:=""
   for _,img:=range providerHTMLNodes(article,func(n *nethtml.Node)bool{return n.Data=="img"}){
-   raw:=firstNonEmpty(providerHTMLAttr(img,"data-src"),providerHTMLAttr(img,"data-original"),providerHTMLAttr(img,"src"))
-   if strings.HasPrefix(raw,"data:")||raw==""{continue}
-   if resolved:=lujj31PosterAddress(raw,apk391BaseURL("chengguodj")+"/");resolved!=""{cover=resolved;break}
+   // The browser may use a lazy-loading attribute or the first srcset image;
+   // src alone is frequently a transparent placeholder.
+   for _,raw:=range []string{providerHTMLAttr(img,"data-src"),providerHTMLAttr(img,"data-original"),providerHTMLAttr(img,"data-lazy"),providerHTMLAttr(img,"data-srcset"),providerHTMLAttr(img,"srcset"),providerHTMLAttr(img,"src")}{
+    raw=strings.TrimSpace(raw)
+    if strings.Contains(raw,","){raw=strings.TrimSpace(strings.Split(raw,",")[0])}
+    if fields:=strings.Fields(raw);len(fields)>0{raw=fields[0]}
+    if raw==""||strings.HasPrefix(raw,"data:")||strings.HasPrefix(raw,"blob:"){continue}
+    if resolved:=lujj31PosterAddress(raw,apk391BaseURL("chengguodj")+"/");isProviderHTTPMediaURL(resolved)&&!strings.Contains(strings.ToLower(resolved),"placeholder"){
+     cover=resolved;break
+    }
+   }
+   if cover!=""{break}
   }
   if record,ok:=records[slug];ok{
-   // Do not replace a valid site thumbnail with a transparent lazy GIF.
-   // If the Nuxt payload marks an encrypted CDN original and has no usable
-   // fallback, avoid returning the unrenderable encrypted image.
-   if isProviderHTTPMediaURL(record.Cover){cover=record.Cover}
+   // Keep the actual poster selected by the browser. Nuxt's cover.url can
+   // be an encrypted original; only use its validated fallback if needed.
+   if cover==""&&isProviderHTTPMediaURL(record.Cover){cover=record.Cover}
   }
   seen[slug]=true
   title=truncate(title,512)
@@ -166,7 +174,7 @@ func (d *Downloader) fetchChengguoDetail(ctx context.Context,id string)(Drama,[]
   if isProviderHTTPMediaURL(candidate)&&!strings.Contains(candidate,"social-default"){cover=candidate;break}
  }
  records:=chengguoNuxtRecords(doc)
- if rec,ok:=records[id];ok&&isProviderHTTPMediaURL(rec.Cover){cover=rec.Cover}
+ if rec,ok:=records[id];ok&&cover==""&&isProviderHTTPMediaURL(rec.Cover){cover=rec.Cover}
  episodes:=map[int]bool{}
  for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}){
   link:=providerHTMLAttr(a,"href")
