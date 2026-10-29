@@ -89,10 +89,7 @@ class _StorageViewState extends State<StorageView> {
     return false;
   }
 
-  Future<void> _change({
-    bool sharedDefault = false,
-    bool appPrivate = false,
-  }) async {
+  Future<void> _change({bool appPrivate = false}) async {
     if (_busy) return;
     try {
       String? selected;
@@ -101,16 +98,14 @@ class _StorageViewState extends State<StorageView> {
       } else if (Platform.isAndroid) {
         if (!await _authorizeSharedStorage()) return;
         const channel = MethodChannel('duanju/device');
-        selected = await channel.invokeMethod<String>(
-          sharedDefault ? 'sharedDownloadDirectory' : 'selectDownloadDirectory',
-        );
+        selected = await channel.invokeMethod<String>('selectDownloadDirectory');
       } else {
         selected = await _pickParent();
         if (Platform.isIOS && selected != null)
           selected = '$selected/guo-downloads';
       }
       if (selected == null || !mounted) return;
-      if (sharedDefault || appPrivate || Platform.isIOS)
+      if (appPrivate || Platform.isIOS)
         await Directory(selected).create(recursive: true);
       if (!mounted) return;
       final confirmed = await showDialog<bool>(
@@ -268,13 +263,6 @@ class _StorageViewState extends State<StorageView> {
               onTap: () => _change(),
             ),
             if (Platform.isAndroid) ...[
-              const Divider(indent: 16, endIndent: 16),
-              SettingsTile(
-                title: '使用共享下载目录',
-                subtitle: 'Download/guo',
-                enabled: admin && !_busy,
-                onTap: () => _change(sharedDefault: true),
-              ),
               const Divider(indent: 16, endIndent: 16),
               SettingsTile(
                 title: '授权所有文件存取',
