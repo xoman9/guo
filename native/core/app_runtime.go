@@ -775,9 +775,11 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 	case sourceXiaoguo:
 		raw, chapters, err = engine.downloader.fetchXiaoguoDetail(ctx, sourceID)
 	default:
-		if _,ok:=apk391Spec(source);ok{raw,chapters,err=engine.downloader.fetchApk391Detail(ctx,source,sourceID)}
-	default:
-		title, chapters, err = engine.downloader.GetHuangguoChapters(ctx, source, sourceID)
+		if _,ok:=apk391Spec(source);ok{
+			raw,chapters,err=engine.downloader.fetchApk391Detail(ctx,source,sourceID)
+		}else{
+			title,chapters,err=engine.downloader.GetHuangguoChapters(ctx,source,sourceID)
+		}
 	}
 	if err != nil {
 		return nil, err
