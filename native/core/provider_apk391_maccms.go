@@ -43,11 +43,11 @@ func apk391VideoID(target string) string {
 
 func apk391ValidCategory(source,category string)bool {
  if category==""{return true}
- if !apk391Numeric.MatchString(category){return false}
  for _,cat:=range apk391StaticCategoryFallback[source]{
   if cat.ID==category{return true}
  }
- return len(apk391StaticCategoryFallback[source])==0
+ if len(apk391StaticCategoryFallback[source])>0{return false}
+ return apk391Numeric.MatchString(category)
 }
 
 func (d *Downloader) apk391Page(ctx context.Context,source,path string)(*nethtml.Node,string,error){
