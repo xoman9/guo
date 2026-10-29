@@ -80,3 +80,44 @@ func TestApk391UnverifiedCustomSourceHasExplicitError(t *testing.T){
  _,_,err:=d.fetchApk391CatalogPage(context.Background(),"xiongguo",1,"","")
  if err==nil||!strings.Contains(err.Error(),"尚未"){t.Fatalf("custom source should explain limitation, got %v",err)}
 }
+
+
+func TestApk391CatalogDoesNotDisplayCategoryNamesAsMovies(t *testing.T) {
+ source:="yanguo"
+ fake:=`<html><body>
+ <nav><a href="/voddetail/111.html">国产自拍</a></nav>
+ <div class="module-item"><a href="/voddetail/112.html" title="国产传媒">国产传媒</a></div>
+ <div class="module-item"><a href="/voddetail/113.html" title="探花系列">探花系列</a></div>
+ <div class="module-item"><a href="/voddetail/114.html" title="人妻熟女">人妻熟女</a></div>
+ <div class="module-play-list-content"><a href="/vodplay/999-1-1.html" title="第1集"><img src="/irrelevant.jpg"></a></div>
+ <div class="module-item"><a href="/voddetail/901.html" title="国产传媒">
+   <img data-original="/posters/901.jpg" alt="真正影片的片名"></a></div>
+ </body></html>`
+ doc,err:=nethtml.Parse(strings.NewReader(fake));if err!=nil{t.Fatal(err)}
+ cards:=apk391Cards(doc,source)
+ if len(cards)!=1 || cards[0].ID!="yanguo:901" ||
+  cards[0].Title!="真正影片的片名" ||
+  cards[0].Cover!="https://xqxq1.cc/posters/901.jpg" {
+  t.Fatalf("taxonomy entries leaked into movies: %+v",cards)
+ }
+ for _,c:=range cards {
+  for _,category:=range []string{"国产自拍","国产传媒","探花系列","人妻熟女"} {
+   if c.Title==category {t.Fatalf("category name used as video title: %+v",c)}
+  }
+ }
+}
+
+func TestApk391CatalogPageKeepsActualPostersAfterFiltering(t *testing.T) {
+ d:=sourceFixtureDownloader(t,func(r *http.Request)(*http.Response,error){
+  if r.URL.Path!="/" {return sourceFixtureResponse(r,http.StatusNotFound,"missing"),nil}
+  body:=`<html><body><nav><a href="/voddetail/111.html">国产自拍</a></nav>
+  <section class="module-item"><a href="/voddetail/112.html">国产传媒</a></section>
+  <section class="module-item"><a href="/voddetail/901.html"><img alt="真正影片" data-src="/cover901.jpg"></a></section>
+  </body></html>`
+  return sourceFixtureResponse(r,http.StatusOK,body),nil
+ })
+ items,more,err:=d.fetchApk391CatalogPage(context.Background(),"yanguo",1,"","")
+ if err!=nil||len(items)!=1||items[0].Title!="真正影片"||!more {
+  t.Fatalf("expected real movie only: %+v more=%v err=%v",items,more,err)
+ }
+}
