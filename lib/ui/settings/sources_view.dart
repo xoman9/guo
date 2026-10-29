@@ -5,6 +5,7 @@ import '../../models.dart';
 import '../app_scope.dart';
 import '../widgets/focus_ring.dart';
 import 'settings_rows.dart';
+import 'source_visibility_view.dart';
 
 class SourcesView extends StatelessWidget {
   const SourcesView({super.key, required this.store});
@@ -23,6 +24,32 @@ class SourcesView extends StatelessWidget {
             const _Note('需要管理员才能开启或关闭站源'),
             const SizedBox(height: 12),
           ],
+          SettingsCard(
+            children: [
+              ListTile(
+                key: const ValueKey('source-visibility-entry'),
+                leading: const Icon(Icons.visibility_outlined),
+                title: const Text('源顯示列表'),
+                subtitle: Text(
+                  '控制首頁顯示的頻道 · ${store.visibleSources.length}/${store.sources.length} 個可見',
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(title: const Text('源顯示列表')),
+                      body: SourceVisibilityView(store: store),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text('站源啟用管理'),
+          ),
           SettingsCard(
             children: [
               for (final site in SourceSite.values)
