@@ -27,7 +27,6 @@ jobs:
       - name: Test lujj31 integration
         working-directory: native
         run: |
-          gofmt -w core/provider_lujj31.go core/provider_lujj31_player.go core/provider_lujj31_test.go
-          git diff -- core/provider_lujj31.go core/provider_lujj31_player.go core/provider_lujj31_test.go
+          test -z "$(gofmt -l core/provider_lujj31.go core/provider_lujj31_player.go core/provider_lujj31_test.go)"
           go test ./core -run 'TestLujj31' -count=1 -v
           go test ./core -count=1
