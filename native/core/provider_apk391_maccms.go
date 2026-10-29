@@ -88,28 +88,81 @@ func (d *Downloader) fetchApk391Categories(ctx context.Context,source string)([]
  return items,nil
 }
 
+// A category/nav item can link to a video-shaped path, so a URL match
+// alone is not evidence of a drama card. This prevents category labels from
+// appearing as fake films before a detail-page refresh.
+func apk391CategoryLabel(source, value string) bool {
+ value = strings.Join(strings.Fields(value), "")
+ if value == "" { return true }
+ switch value {
+ case "全部", "首页", "首頁", "分类", "分類", "更多", "最新", "最新上傳", "最新上传":
+  return true
+ }
+ for _,category := range apk391StaticCategoryFallback[source] {
+  if strings.Join(strings.Fields(category.Name),"") == value { return true }
+ }
+ return false
+}
+
+func apk391InsideNavigation(node *nethtml.Node) bool {
+ for p:=node.Parent;p!=nil;p=p.Parent {
+  switch p.Data {
+  case "nav","header","footer": return true
+  }
+  if p.Data=="body" {break}
+  for _,class:=range []string{"module-play-list-content","playlist","play-list","module-play-list","module-play-list-group","breadcrumb","module-class","module-type","category-list","type-list"} {
+   if lujj31HasClass(p,class){return true}
+  }
+ }
+ return false
+}
+
+func apk391CardTitle(anchor *nethtml.Node, source string) string {
+ // Image alt/title takes priority over text from adjacent taxonomy badges.
+ for _,img:=range providerHTMLNodes(anchor,func(n *nethtml.Node)bool{return n.Data=="img"}) {
+  for _,attribute:=range []string{"alt","title"} {
+   title:=strings.TrimSpace(providerHTMLAttr(img,attribute))
+   if title!="" && !apk391CategoryLabel(source,title){return truncate(title,512)}
+  }
+ }
+ for _,attribute:=range []string{"title","data-title"}{
+  title:=strings.TrimSpace(providerHTMLAttr(anchor,attribute))
+  if title!=""&&!apk391CategoryLabel(source,title){return truncate(title,512)}
+ }
+ for _,root:=range []*nethtml.Node{anchor,anchor.Parent} {
+  if root==nil {continue}
+  for _,n:=range providerHTMLNodes(root,func(n *nethtml.Node)bool{
+   return n.Data=="h2"||n.Data=="h3"||n.Data=="h4"||
+    lujj31HasClass(n,"module-poster-item-title")||lujj31HasClass(n,"video-title")
+  }){
+   title:=strings.TrimSpace(providerHTMLText(n))
+   if title!=""&&!apk391CategoryLabel(source,title){return truncate(title,512)}
+  }
+ }
+ title:=strings.TrimSpace(providerHTMLText(anchor))
+ if apk391CategoryLabel(source,title){return ""}
+ return truncate(title,512)
+}
+
 func apk391Cards(doc *nethtml.Node,source string)[]Drama{
  spec,ok:=apk391Spec(source);if !ok{return nil}
  seen:=map[string]bool{};items:=[]Drama{}
  for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}){
+  if apk391InsideNavigation(a){continue}
   link:=apk391SameSite(source,providerHTMLAttr(a,"href"))
   id:=apk391VideoID(link)
   if id==""||seen[id]{continue}
-  title:=strings.TrimSpace(providerHTMLAttr(a,"title"))
-  if title==""{title=strings.TrimSpace(providerHTMLText(a))}
-  if title==""{
-   for _,img:=range providerHTMLNodes(a,func(n *nethtml.Node)bool{return n.Data=="img"}){
-    title=firstNonEmpty(providerHTMLAttr(img,"alt"),providerHTMLAttr(img,"title"))
-    if title!=""{break}
-   }
-  }
+  title:=apk391CardTitle(a,source)
   if title==""{continue}
   posterNode:=a
   if a.Parent!=nil{posterNode=a.Parent}
   cover:=lujj31CardPoster(posterNode,link)
+  // Recovered source landing pages mix navigation, video links and categories.
+  // Cards without real cover evidence frequently are category navigation.
+  if cover==""{continue}
   seen[id]=true
   items=append(items,Drama{ID:providerDramaID(source,id),Source:source,SourceID:id,
-   Title:truncate(title,512),Name:truncate(title,512),Cover:cover,CoverURL:cover,ChannelName:spec.Name})
+   Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
   if len(items)>=150{break}
  }
  return items
