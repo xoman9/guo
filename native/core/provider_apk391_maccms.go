@@ -572,6 +572,21 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
   return nil,false,fmt.Errorf("%s 原生 %s 目录 API 尚未恢复，不会用其他来源假冒",spec.Name,spec.Kind)
  }
  routes:=[]string{}
+ if source=="jiaoguo" && query=="" {
+  // Verified 0.2.391 Jiaoguo website: homepage has no video cards;
+  // /index.php/vod/type/... returns 404, /vod/ returns 500.
+  // Real catalogue cards live at /vodtype/<category>.html.
+  cat:=category
+  if cat==""{cat="1"}
+  if !apk391Numeric.MatchString(cat){return nil,false,errors.New("角果分类编号无效")}
+  path:=fmt.Sprintf("/vodtype/%s.html",cat)
+  if page>1 {path=fmt.Sprintf("/vodtype/%s-%d.html",cat,page)}
+  doc,_,err:=d.apk391Page(ctx,source,path)
+  if err!=nil{return nil,false,err}
+  cards:=d.apk391EnrichSuspects(ctx,source,doc,apk391Cards(doc,source))
+  if len(cards)==0{return nil,false,fmt.Errorf("角果分类页没有可验证的视频卡片: %s",path)}
+  return cards,apk391HasNextPage(doc,page),nil
+ }
  if source=="juguo" && query=="" {
   path:="/vod/"
   if category!="" {
