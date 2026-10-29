@@ -11,8 +11,8 @@ import (
 )
 
 func TestApk391NativeIdentityAndIsolation(t *testing.T) {
- if len(apk391Sources)!=45 || len(apk391ByID)!=45 {
-  t.Fatalf("expected 45 unique sources, got %d / %d",len(apk391Sources),len(apk391ByID))
+ if len(apk391Sources)!=43 || len(apk391ByID)!=43 {
+  t.Fatalf("expected 43 registered sources after removing two, got %d / %d",len(apk391Sources),len(apk391ByID))
  }
  for _,spec:=range apk391Sources {
   if !isHuangguoProviderSource(spec.ID) || canonicalProviderSource(spec.ID)!=spec.ID{
@@ -22,7 +22,7 @@ func TestApk391NativeIdentityAndIsolation(t *testing.T) {
    t.Fatalf("host/source mapping lost: %+v",spec)
   }
  }
- for _,id:=range []string{"lujj31","liuguo","xiaoguo","hongguo"}{
+ for _,id:=range []string{"lujj31","liuguo","xiaoguo","hongguo","chaoguo","chengguo"}{
   if _,ok:=apk391Spec(id);ok{t.Fatalf("completed provider overwritten: %s",id)}
  }
  if canonicalProviderSource("hsck.net")!="cangguo"||canonicalProviderSource("javbus.com")!="baguo" {
@@ -34,7 +34,7 @@ func TestApk391NativeIdentityAndIsolation(t *testing.T) {
    total+=len(rows)
    if len(rows)>0{groups++}
  }
- if total<436 || groups<19 { t.Fatalf("missing APK static classifications: %d rows, %d groups",total,groups)}
+ if total<420 || groups<18 { t.Fatalf("missing active APK static classifications: %d rows, %d groups",total,groups)}
  if len(apk391StaticCategoryFallback["luguo"])<5 {
   t.Fatal("historical categories missing")
  }
@@ -113,7 +113,7 @@ func TestApk391CatalogPageKeepsActualPostersAfterFiltering(t *testing.T) {
   if r.URL.Path!="/" {return sourceFixtureResponse(r,http.StatusNotFound,"missing"),nil}
   body:=`<html><body><nav><a href="/voddetail/111.html">国产自拍</a></nav>
   <section class="module-item"><a href="/voddetail/112.html">国产传媒</a></section>
-  <section class="module-item"><a href="/voddetail/901.html"><img alt="真正影片" data-src="/cover901.jpg"></a></section>
+  <section class="module-item"><a href="/voddetail/901.html"><img alt="真正影片" data-src="/cover901.jpg"></a></section><a rel="next" href="/index.php/vod/show/id/1/page/2.html">下一页</a>
   </body></html>`
   return sourceFixtureResponse(r,http.StatusOK,body),nil
  })
@@ -138,6 +138,7 @@ func TestApk391OnDemandDetailEnrichmentCorrectsCategoryLikeTitles(t *testing.T) 
    <div class="module-item"><a href="/voddetail/902.html">国产传媒</a></div>
    <div class="module-item"><a href="/voddetail/903.html">探花系列</a></div>
    <div class="module-item"><a href="/voddetail/904.html">人妻熟女</a></div>
+   <a rel="next" href="/index.php/vod/show/id/1/page/2.html">下一页</a>
    </body></html>`),nil
   case "/voddetail/901.html":
    return sourceFixtureResponse(req,http.StatusOK,`<html><head><meta property="og:image" content="/posters/901.jpg"></head><body><h1>影片甲的真正片名</h1></body></html>`),nil
