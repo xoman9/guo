@@ -202,16 +202,27 @@ func apk391CardTitle(anchor *nethtml.Node, source string) string {
 // Some wntheme player pages omit a movie heading entirely; a synthetic
 // "影片 {id}" must never replace the catalog's real name.
 var apk391CatalogNames sync.Map // source:id -> catalog title
+var apk391CatalogCovers sync.Map // source:id -> verified catalog poster
 
 func apk391RememberTitle(source,id,title string) {
  title=strings.TrimSpace(title)
- if (source=="luguo"||source=="liguo"||source=="juguo") && apk391Numeric.MatchString(id) && title!="" && !apk391BadTitle(source,title) && title!="影片 "+id {
+ if (source=="luguo"||source=="liguo"||source=="juguo"||source=="zaoguo") && apk391Numeric.MatchString(id) && title!="" && !apk391BadTitle(source,title) && title!="影片 "+id {
   apk391CatalogNames.Store(source+":"+id,truncate(title,512))
  }
 }
 
 func apk391RememberedTitle(source,id string)string {
  if title,ok:=apk391CatalogNames.Load(source+":"+id);ok {return title.(string)}
+ return ""
+}
+
+func apk391RememberCover(source,id,cover string) {
+ if (source=="zaoguo"||source=="juguo") && apk391Numeric.MatchString(id) && isProviderHTTPMediaURL(cover){
+  apk391CatalogCovers.Store(source+":"+id,cover)
+ }
+}
+func apk391RememberedCover(source,id string)string {
+ if value,ok:=apk391CatalogCovers.Load(source+":"+id);ok{return value.(string)}
  return ""
 }
 
@@ -311,6 +322,8 @@ func apk391ZaoguoCards(doc *nethtml.Node) []Drama {
   }
   if cover==""{continue}
   seen[id]=true
+  apk391RememberTitle("zaoguo",id,title)
+  apk391RememberCover("zaoguo",id,cover)
   out=append(out,Drama{ID:providerDramaID("zaoguo",id),Source:"zaoguo",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
   if len(out)>=150{break}
  }
@@ -343,6 +356,7 @@ func apk391JuguoCards(doc *nethtml.Node) []Drama {
   if id==""||title==""||cover==""||seen[id]{continue}
   seen[id]=true
   apk391RememberTitle("juguo",id,title)
+  apk391RememberCover("juguo",id,cover)
   out=append(out,Drama{ID:providerDramaID("juguo",id),Source:"juguo",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
   if len(out)>=150{break}
  }
@@ -683,7 +697,8 @@ func (d *Downloader) fetchApk391Detail(ctx context.Context,source,id string)(Dra
   if title==""{title="影片 "+id}
   // Keep the same per-film poster selection on the detail/return path:
   // a generic image from the page must not replace the verified catalog art.
-  cover:=apk391DetailPoster(doc,actual,source)
+  cover:=apk391RememberedCover(source,id)
+  if cover==""{cover=apk391DetailPoster(doc,actual,source)}
   return Drama{ID:providerDramaID(source,id),Source:source,SourceID:id,
    Title:title,Name:title,Cover:cover,CoverURL:cover,
    EpisodeCount:len(chapters),TotalEpisode:len(chapters),ChannelName:spec.Name},chapters,nil
@@ -700,6 +715,13 @@ func (d *Downloader) resolveApk391Media(ctx context.Context,task Task)(providerM
   return providerMedia{},errors.New("无效影片来源或分集编号")
  }
  page:=apk391SameSite(source,task.Chapter.PageURL)
+ // Some zaoguo entries have no stored chapter page URL when resuming
+ // from a catalog, despite having a valid source-scoped chapter ID.
+ // Reconstruct only this known original play route, never accept a URL
+ // pointing to another film or an external host.
+ if source=="zaoguo" && strings.TrimSpace(task.Chapter.PageURL)=="" {
+  page=apk391SameSite(source,fmt.Sprintf("/cn/home/web/index.php/vod/play/id/%s/sid/1/nid/1.html",id))
+ }
  if page==""||apk391VideoID(page)!=id{return providerMedia{},errors.New("分集播放页来源不一致")}
  ua:=context.WithValue(ctx,providerTextUserAgentKey{},lujj31UserAgent)
  body,err:=d.fetchProviderText(ua,page,apk391BaseURL(source)+"/")
