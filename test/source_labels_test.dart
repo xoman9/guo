@@ -13,6 +13,7 @@ void main() {
       'cloudfront',
       'lujj31',
       'liuguo',
+      'xiaoguo',
     ]) {
       final name = SourceSite.byId(id).name;
       expect(name.runes.last, 0x1f51e);
@@ -22,5 +23,6 @@ void main() {
     expect(SourceSite.byId('lujj31').id, 'lujj31');
     expect(SourceSite.isRestricted('lujj31'), isTrue);
     expect(SourceSite.isRestricted('liuguo'), isTrue);
+    expect(SourceSite.isRestricted('xiaoguo'), isTrue);
   });
 }
