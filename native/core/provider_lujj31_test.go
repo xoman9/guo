@@ -179,3 +179,23 @@ func TestLujj31OktvAlternateSIDPlayback(t *testing.T) {
 		t.Fatalf("first fallback did not use sid 2: %v", requests)
 	}
 }
+
+func TestLujj31OktvCloudParserFallback(t *testing.T) {
+	var sawFallback bool
+	d := sourceFixtureDownloader(t, func(request *http.Request) (*http.Response, error) {
+		switch {
+		case request.URL.Host == "lujj31.lol" && request.URL.Path == "/static/player/m3u8.js":
+			sawFallback = true
+			return sourceFixtureResponse(request, http.StatusOK, `<iframe src="https://parser.example.test/parse?url="></iframe>`), nil
+		case request.URL.Host == "parser.example.test" && request.URL.Query().Get("url") == "opaque-token":
+			return sourceFixtureResponse(request, http.StatusOK, `var video_url="https://cdn.example.test/episode.m3u8";`), nil
+		default:
+			return sourceFixtureResponse(request, http.StatusNotFound, ""), nil
+		}
+	})
+	page := "https://lujj31.lol/index.php/vod/play/id/123/sid/1/nid/1.html"
+	address := d.lujj31CloudParse(context.Background(), `player_data={"url":"opaque-token","from":"site-line"};`, "opaque-token", page)
+	if !sawFallback || address != "https://cdn.example.test/episode.m3u8" {
+		t.Fatalf("oktv cloud parser fallback failed: %q fallback=%v", address, sawFallback)
+	}
+}
