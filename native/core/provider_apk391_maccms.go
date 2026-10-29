@@ -147,6 +147,10 @@ func apk391ScopedPoster(anchor *nethtml.Node, source, link string) string {
  return ""
 }
 
+// Luguo/Liguo do not expose trustworthy movie metadata in their list cards.
+// Each displayed item must be verified against its OWN video detail URL.
+func apk391RequiresDetail(source string) bool { return source=="luguo" || source=="liguo" }
+
 // A video duration or a taxonomy badge is not a title, even when it appears
 // in a poster link's title/alt attribute.
 var apk391TimeLabel = regexp.MustCompile(`^[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?$`)
@@ -204,7 +208,7 @@ func apk391Cards(doc *nethtml.Node,source string)[]Drama{
   if cover==""{continue}
   // Luguo's list titles/posters are not reliably tied to each film.
   // Only verified per-ID detail metadata may appear in the Luguo catalog.
-  if source=="luguo" {continue}
+  if apk391RequiresDetail(source) {continue}
   seen[id]=true
   items=append(items,Drama{ID:providerDramaID(source,id),Source:source,SourceID:id,
    Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
@@ -230,12 +234,14 @@ func apk391Suspects(doc *nethtml.Node,source string,already []Drama) []apk391Sus
   if id==""||seen[id]{continue}
   rawTitle:=strings.TrimSpace(providerHTMLAttr(a,"title"))
   if rawTitle==""{rawTitle=strings.TrimSpace(providerHTMLText(a))}
-  if rawTitle==""{continue}
+  if rawTitle=="" && !apk391RequiresDetail(source){continue}
   cover:=apk391ScopedPoster(a,source,page)
-  if source!="luguo" && !apk391BadTitle(source,rawTitle) && cover!=""{continue}
+  if !apk391RequiresDetail(source) && !apk391BadTitle(source,rawTitle) && cover!=""{continue}
   seen[id]=true
   out=append(out,apk391Suspect{id:id,page:page})
-  if len(out)>=func()int{if source=="luguo"{return 24};return 8}(){break}
+  limit:=8
+  if apk391RequiresDetail(source) {limit=16}
+  if len(out)>=limit {break}
  }
  return out
 }
@@ -243,7 +249,7 @@ func apk391Suspects(doc *nethtml.Node,source string,already []Drama) []apk391Sus
 // For Luguo use poster metadata from the actual detail page, never an
 // unrelated thumbnail somewhere else in that page's general document tree.
 func apk391DetailPoster(doc *nethtml.Node,page,source string)string{
- if source!="luguo"{return lujj31DetailPoster(doc,page)}
+ if !apk391RequiresDetail(source){return lujj31DetailPoster(doc,page)}
  for _,node:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="meta"}) {
   property:=strings.ToLower(firstNonEmpty(providerHTMLAttr(node,"property"),providerHTMLAttr(node,"name")))
   if property=="og:image"||property=="og:image:url"||property=="twitter:image"{
@@ -293,13 +299,13 @@ func (d *Downloader) apk391EnrichSuspects(ctx context.Context,source string,doc 
  suspects:=apk391Suspects(doc,source,real)
  if len(suspects)==0{return real}
  timeout:=2*time.Second
- if source=="luguo" {timeout=3*time.Second}
+ if apk391RequiresDetail(source) {timeout=3*time.Second}
  limited,cancel:=context.WithTimeout(ctx,timeout)
  defer cancel()
  results:=make([]Drama,len(suspects))
  valid:=make([]bool,len(suspects))
  parallel:=3
- if source=="luguo"{parallel=8}
+ if apk391RequiresDetail(source){parallel=6}
  slots:=make(chan struct{},parallel)
  var wg sync.WaitGroup
  for i,entry:=range suspects{
