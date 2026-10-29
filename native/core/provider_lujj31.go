@@ -2,8 +2,6 @@ package core
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -415,48 +413,6 @@ func (d *Downloader) fetchLujj31Detail(ctx context.Context, id string) (Drama, [
 	return Drama{}, nil, lastErr
 }
 
-func lujj31PlayerURL(body, id string) (string, error) {
-	for _, index := range lujj31PlayerData.FindAllStringIndex(body, 10) {
-		decoder := json.NewDecoder(strings.NewReader(body[index[1]:]))
-		var player map[string]any
-		if decoder.Decode(&player) != nil || player == nil {
-			continue
-		}
-		if playerID := mapString(player, "id"); playerID != "" && playerID != id {
-			continue
-		}
-		address := mapString(player, "url")
-		if address == "" {
-			continue
-		}
-		switch mapString(player, "encrypt") {
-		case "1":
-			decoded, err := url.PathUnescape(address)
-			if err != nil {
-				return "", err
-			}
-			address = decoded
-		case "2":
-			decoded, err := base64.StdEncoding.DecodeString(address)
-			if err != nil {
-				return "", err
-			}
-			address, err = url.PathUnescape(string(decoded))
-			if err != nil {
-				return "", err
-			}
-		}
-		address = strings.ReplaceAll(address, `\/`, "/")
-		if isProviderHTTPMediaURL(address) {
-			return address, nil
-		}
-	}
-	if address := lujj31DirectMedia.FindString(body); address != "" {
-		return address, nil
-	}
-	return "", errors.New("桃果播放页未返回可用媒体地址")
-}
-
 func (d *Downloader) resolveLujj31Media(ctx context.Context, task Task) (providerMedia, error) {
 	source, id, ok := splitProviderDramaID(task.DramaID)
 	prefix := providerChapterID(sourceLujj31, id, "")
@@ -472,23 +428,5 @@ func (d *Downloader) resolveLujj31Media(ctx context.Context, task Task) (provide
 	if !strings.Contains(u.Path, "/play/") && !strings.Contains(u.Path, "/vodplay/") {
 		return providerMedia{}, errors.New("桃果播放路径无效")
 	}
-	body, err := d.fetchProviderText(context.WithValue(ctx, providerTextUserAgentKey{}, lujj31UserAgent), page, site+"/")
-	if err != nil {
-		return providerMedia{}, err
-	}
-	if strings.TrimSpace(body) == "" {
-		return providerMedia{}, errors.New("桃果播放页返回空白内容")
-	}
-	address, err := lujj31PlayerURL(body, id)
-	if err != nil {
-		return providerMedia{}, err
-	}
-	parsed, err := url.Parse(address)
-	if err != nil || parsed.User != nil || !isProviderHTTPMediaURL(address) {
-		return providerMedia{}, errors.New("桃果媒体网址无效")
-	}
-	if !strings.HasSuffix(strings.ToLower(parsed.Path), ".m3u8") && !strings.HasSuffix(strings.ToLower(parsed.Path), ".mp4") {
-		return providerMedia{}, errors.New("桃果没有返回直接 MP4/M3U8 媒体")
-	}
-	return d.prepareWebProviderMedia(ctx, providerMedia{URL: address, Referer: page}, "桃果")
+	return d.lujj31ResolvePreparedMedia(ctx, page, id)
 }
