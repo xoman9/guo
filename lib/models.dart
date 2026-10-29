@@ -7,6 +7,7 @@ class SourceSite {
   final String id;
   final String name;
   final String description;
+  bool get experimentalApk391 => description.startsWith('0.2.391');
   bool get onlineSearch => pagedSearch;
   bool get pagedSearch =>
       id == 'hongguo' ||
