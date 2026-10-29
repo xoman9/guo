@@ -22,14 +22,7 @@ func TestApk391NativeIdentityAndIsolation(t *testing.T) {
   if apk391BaseURL(spec.ID)=="" || apk391SourceForHost(spec.Host)!=spec.ID{
    t.Fatalf("APK source registry host mapping lost: %+v",spec)
   }
-  // llsp.me already belongs to the completed Liuguo playback core.
-  // Luguo shares this host and must use its explicit source ID rather than
-  // changing the global URL classifier and breaking existing Liuguo.
-  if spec.ID=="luguo" {
-   if providerSourceForURL("https://"+spec.Host+"/")!="liuguo" {
-    t.Fatalf("original Liuguo URL ownership changed: %+v",spec)
-   }
-  }else if providerSourceForURL("https://"+spec.Host+"/")!=spec.ID{
+  if providerSourceForURL("https://"+spec.Host+"/")!=spec.ID {
    t.Fatalf("global host/source mapping lost: %+v",spec)
   }
  }
@@ -303,7 +296,7 @@ func TestApk391Original391FilmDetailRoutes(t *testing.T) {
 }
 
 func TestApk391LuguoAndLiguoReferenceHosts(t *testing.T) {
- cases:=map[string]string{"luguo":"https://www.llsp.me","liguo":"https://ririlu.cc"}
+ cases:=map[string]string{"luguo":"https://luyitian.com","liguo":"https://ririlu.cc"}
  for source,want:=range cases {
   if got:=apk391BaseURL(source);got!=want {
    t.Fatalf("%s source host = %q, want %q",source,got,want)
