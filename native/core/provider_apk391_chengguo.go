@@ -116,10 +116,16 @@ func chengguoNuxtRecords(doc *nethtml.Node) map[string]struct{Cover string; Epis
    var coverFields map[string]json.RawMessage
    if json.Unmarshal(nodes[coverID],&coverFields)!=nil{continue}
    cover:=refString(coverFields["url"])
-   if !isProviderHTTPMediaURL(cover){
-    cover=refString(coverFields["fallback_url"])
-    if strings.HasPrefix(cover,"/"){cover=apk391BaseURL("chengguodj")+cover}
+   fallback:=refString(coverFields["fallback_url"])
+   if strings.HasPrefix(fallback,"/"){fallback=apk391BaseURL("chengguodj")+fallback}
+   // Site marks CDN covers encrypted. Prefer an explicit unencrypted
+   // poster fallback when available rather than displaying encrypted bytes.
+   encrypted:=false
+   if indexRaw,ok:=coverFields["encrypted"];ok{
+    var index int
+    if json.Unmarshal(indexRaw,&index)==nil && index>=0&&index<len(nodes){_ = json.Unmarshal(nodes[index],&encrypted)}
    }
+   if (encrypted||!isProviderHTTPMediaURL(cover))&&isProviderHTTPMediaURL(fallback){cover=fallback}
    result[slug]=struct{Cover string; Episodes int}{Cover:cover,Episodes:refInt(obj["published_episode_count"])}
   }
  }
