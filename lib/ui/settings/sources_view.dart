@@ -75,6 +75,12 @@ class _SourcesViewState extends State<SourcesView> {
                 ),
                 FilledButton(
                   key: const ValueKey('source-adult-bulk-toggle'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFDCD6),
+                    foregroundColor: const Color(0xFF692D25),
+                    disabledBackgroundColor: const Color(0xFFF5DFDA),
+                    shape: const StadiumBorder(),
+                  ),
                   onPressed: !admin || _bulkChanging || adult.isEmpty
                       ? null
                       : () => _toggleAdultSources(context, adult, adultOff),
