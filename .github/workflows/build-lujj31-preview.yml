@@ -50,6 +50,8 @@ jobs:
             echo "No release signing secret found: isolated preview build uses Android test signing."
           fi
       - run: flutter pub get --enforce-lockfile
+      - name: Verify source bulk toggles and adult labels
+        run: flutter test --dart-define=ALL_SOURCES=true test/source_bulk_switch_test.dart test/source_labels_test.dart
       - name: Verify lujj31 unit tests
         working-directory: native
         run: go test ./core -run 'TestLujj31' -count=1 -v
