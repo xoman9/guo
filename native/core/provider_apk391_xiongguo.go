@@ -11,10 +11,15 @@ import (
  "strconv"
  "strings"
  "time"
+ "sync"
 )
 
 //熊果独立网页 API，与 MacCMS 不兼容。
-type xiongguoHomeResponse struct {Data struct{ResultList []struct{Type string `json:"t_type"`;List []struct{ID json.Number `json:"id"`;Name string `json:"vod_name"`;Picture string `json:"vod_pic"`} `json:"t_list"`} `json:"resultList"`} `json:"data"`}
+var xiongguoFilmMid sync.Map // ID -> type_Mid from verified catalog
+var xiongguoFilmTitle sync.Map // ID -> verified catalog title
+var xiongguoFilmCover sync.Map // ID -> verified catalog image
+
+type xiongguoHomeResponse struct {Data struct{ResultList []struct{Type string `json:"t_type"`;List []struct{ID json.Number `json:"id"`;Mid json.Number `json:"type_Mid"`;Name string `json:"vod_name"`;Picture string `json:"vod_pic"`} `json:"t_list"`} `json:"resultList"`} `json:"data"`}
 
 type xiongguoListResponse struct {
  Data struct {
@@ -61,6 +66,8 @@ func (d *Downloader) fetchXiongguoCatalog(ctx context.Context,page int,category,
     id:=entry.ID.String();title:=strings.TrimSpace(entry.Name);cover:=strings.TrimSpace(entry.Picture)
     if !apk391Numeric.MatchString(id)||title==""||!isProviderHTTPMediaURL(cover)||seen[id]{continue}
     seen[id]=true
+    xiongguoFilmTitle.Store(id,title);xiongguoFilmCover.Store(id,cover)
+    if mid:=entry.Mid.String();mid!=""{xiongguoFilmMid.Store(id,mid)}
     cards=append(cards,Drama{ID:providerDramaID("xiongguo",id),Source:"xiongguo",SourceID:id,Title:truncate(title,512),Name:truncate(title,512),Cover:cover,CoverURL:cover,ChannelName:"熊果"})
    }
   }
@@ -77,8 +84,55 @@ func (d *Downloader) fetchXiongguoCatalog(ctx context.Context,page int,category,
   cover:=strings.TrimSpace(item.Picture)
   if !isProviderHTTPMediaURL(cover){continue}
   seen[id]=true
+  xiongguoFilmTitle.Store(id,strings.TrimSpace(item.Name));xiongguoFilmCover.Store(id,cover)
+  if mid:=item.TypeMid.String();mid!=""{xiongguoFilmMid.Store(id,mid)}
   title:=truncate(strings.TrimSpace(item.Name),512)
   entries=append(entries,Drama{ID:providerDramaID("xiongguo",id),Source:"xiongguo",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:"熊果"})
  }
  return entries,page*20<parsed.Data.Count,nil
+}
+
+func xiongguoStored(m *sync.Map,id string)string{
+ if v,ok:=m.Load(id);ok{if s,ok:=v.(string);ok{return s}}
+ return ""
+}
+func (d *Downloader) fetchXiongguoDetail(ctx context.Context,id string)(Drama,[]Chapter,error){
+ if !apk391Numeric.MatchString(id){return Drama{},nil,errors.New("熊果影片编号无效")}
+ mid:=xiongguoStored(&xiongguoFilmMid,id)
+ if mid==""{mid="1"}
+ reqBody,_:=json.Marshal(map[string]interface{}{"command":"WEB_GET_INFO_DETAIL","id":id,"type_Mid":mid,"languageType":"CN"})
+ ctx,cancel:=context.WithTimeout(ctx,8*time.Second);defer cancel()
+ req,err:=http.NewRequestWithContext(ctx,http.MethodPost,"https://spiderscloudcn2.51111666.com/forward",bytes.NewReader(reqBody))
+ if err!=nil{return Drama{},nil,err}
+ req.Header.Set("Content-Type","application/json")
+ req.Header.Set("User-Agent",lujj31UserAgent)
+ req.Header.Set("Referer",apk391BaseURL("xiongguo")+"/home.html")
+ res,err:=(&http.Client{Timeout:8*time.Second}).Do(req)
+ if err!=nil{return Drama{},nil,fmt.Errorf("熊果详情 API 连接失败: %w",err)}
+ defer res.Body.Close()
+ if res.StatusCode!=http.StatusOK{return Drama{},nil,fmt.Errorf("熊果详情 API HTTP %d",res.StatusCode)}
+ raw,err:=io.ReadAll(io.LimitReader(res.Body,4<<20));if err!=nil{return Drama{},nil,err}
+ var envelope struct{Data struct{Result struct{
+  ID json.Number `json:"id"`
+  Mid json.Number `json:"type_Mid"`
+  Name string `json:"vod_name"`
+  Picture string `json:"vod_pic"`
+  URL string `json:"vod_url"`
+ } `json:"result"`} `json:"data"`}
+ decoder:=json.NewDecoder(bytes.NewReader(raw));decoder.UseNumber()
+ if err:=decoder.Decode(&envelope);err!=nil{return Drama{},nil,fmt.Errorf("熊果详情 JSON 错误: %w",err)}
+ movie:=envelope.Data.Result
+ if movie.ID.String()!=""&&movie.ID.String()!=id{return Drama{},nil,errors.New("熊果详情影片编号与片单不符")}
+ title:=xiongguoStored(&xiongguoFilmTitle,id)
+ if title==""{title=strings.TrimSpace(movie.Name)}
+ if title==""{title="影片 "+id}
+ cover:=xiongguoStored(&xiongguoFilmCover,id)
+ if cover==""&&isProviderHTTPMediaURL(movie.Picture){cover=movie.Picture}
+ // The site serves a single vod_url per item. Resolving its CDN prefix
+ // requires /getDataInit macVodLinkMap; preserve the original token here.
+ if strings.TrimSpace(movie.URL)==""{return Drama{},nil,errors.New("熊果详情缺少播放地址")}
+ chapter:=Chapter{ID:providerChapterID("xiongguo",id,"1"),Source:"xiongguo",Title:"第1集",CurrentEpisode:rawEpisode(1),
+  PageURL:apk391BaseURL("xiongguo")+"/home.html",VideoURL:"xiongguo-play://"+id,Referer:apk391BaseURL("xiongguo")+"/home.html"}
+ item:=Drama{ID:providerDramaID("xiongguo",id),Source:"xiongguo",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,EpisodeCount:1,TotalEpisode:1,ChannelName:"熊果"}
+ return item,[]Chapter{chapter},nil
 }
