@@ -52,7 +52,12 @@ func chengguoCards(doc *nethtml.Node) []Drama {
    if strings.HasPrefix(raw,"data:")||raw==""{continue}
    if resolved:=lujj31PosterAddress(raw,apk391BaseURL("chengguodj")+"/");resolved!=""{cover=resolved;break}
   }
-  if record,ok:=records[slug];ok&&isProviderHTTPMediaURL(record.Cover){cover=record.Cover}
+  if record,ok:=records[slug];ok{
+   // Do not replace a valid site thumbnail with a transparent lazy GIF.
+   // If the Nuxt payload marks an encrypted CDN original and has no usable
+   // fallback, avoid returning the unrenderable encrypted image.
+   if isProviderHTTPMediaURL(record.Cover){cover=record.Cover}
+  }
   seen[slug]=true
   title=truncate(title,512)
   episodes:=records[slug].Episodes
@@ -125,7 +130,10 @@ func chengguoNuxtRecords(doc *nethtml.Node) map[string]struct{Cover string; Epis
     var index int
     if json.Unmarshal(indexRaw,&index)==nil && index>=0&&index<len(nodes){_ = json.Unmarshal(nodes[index],&encrypted)}
    }
-   if (encrypted||!isProviderHTTPMediaURL(cover))&&isProviderHTTPMediaURL(fallback){cover=fallback}
+   // For this site, CDN originals marked encrypted are unsuitable for
+   // direct display. Use its first-party processed thumbnail whenever present.
+   if isProviderHTTPMediaURL(fallback){cover=fallback}
+   if encrypted && !isProviderHTTPMediaURL(fallback){cover=""}
    result[slug]=struct{Cover string; Episodes int}{Cover:cover,Episodes:refInt(obj["published_episode_count"])}
   }
  }
