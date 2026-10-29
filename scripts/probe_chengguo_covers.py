@@ -62,7 +62,11 @@ for attr,u in targets:
     seen.add(u)
     try:
         b,h,final=get(u); k=kind(b)
-        result={"source":attr,"url":u,"actual":final,"bytes":len(b),"content_type":h.get("Content-Type"),"magic":k,"sha256":hashlib.sha256(b).hexdigest()}
+        result={"source":attr,"url":u,"actual":final,"bytes":len(b),"content_type":h.get("Content-Type"),"magic":k,"head_hex":b[:48].hex(),"sha256":hashlib.sha256(b).hexdigest()}
+        if not k and len(b)>2048 and len([q for q in proofs if q.get("raw_file")])<3:
+            raw_name=f"unknown-{len(proofs):02d}.bin"
+            (OUT/raw_name).write_bytes(b)
+            result["raw_file"]=raw_name
         if k and len(b)>2048:
             name=f"poster-{len(proofs):02d}.{k}"
             (OUT/name).write_bytes(b)
