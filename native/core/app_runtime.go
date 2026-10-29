@@ -477,7 +477,7 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	}
 	page := max(1, input.Page)
 	query := strings.TrimSpace(input.Query)
-	if query == "" && source != sourceLujj31 && source != sourceLiuguo {
+	if query == "" && source != sourceLujj31 && source != sourceLiuguo && source != sourceXiaoguo {
 		if retried, err := engine.retryCatalogSave(); retried {
 			cached := engine.nativeCached(cacheKey)
 			if err != nil || len(cached.Items) > 0 {
@@ -485,7 +485,7 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 			}
 		}
 	}
-	if query == "" && page == 1 && !input.Force && source != sourceLujj31 && source != sourceLiuguo {
+	if query == "" && page == 1 && !input.Force && source != sourceLujj31 && source != sourceLiuguo && source != sourceXiaoguo {
 		if cached := engine.nativeCached(cacheKey); cached.Fresh {
 			return cached, nil
 		}
@@ -509,6 +509,17 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 			result.Items = append(result.Items, nativeNormalize(drama))
 		}
 		result.Warning, result.HasMore = entry.Warning, entry.HasMore
+		return result, nil
+	}
+	if query != "" && source == sourceXiaoguo {
+		items, more, err := d.fetchXiaoguoCatalogPage(ctx, page, "", query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = more
 		return result, nil
 	}
 	if query != "" && source == sourceLiuguo {
@@ -681,6 +692,8 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		items, result.HasMore, err = d.fetchLujj31CatalogPage(ctx, page, category, "")
 	case sourceLiuguo:
 		items, result.HasMore, err = d.fetchLiuguoCatalogPage(ctx, page, category, "")
+	case sourceXiaoguo:
+		items, result.HasMore, err = d.fetchXiaoguoCatalogPage(ctx, page, category, "")
 	case sourceHuangguoVideo:
 		address := fmt.Sprintf("%s/videos?page=%d", d.providerBaseURL(source), page)
 		if category != "" {
@@ -712,7 +725,7 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		seen[drama.ID] = true
 		result.Items = append(result.Items, nativeNormalize(drama))
 	}
-	if source != sourceLujj31 && source != sourceLiuguo {
+	if source != sourceLujj31 && source != sourceLiuguo && source != sourceXiaoguo {
 		engine.saveCatalogCache(cacheKey, &result)
 	}
 	return result, nil
@@ -750,6 +763,8 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 		raw, chapters, err = engine.downloader.fetchLujj31Detail(ctx, sourceID)
 	case sourceLiuguo:
 		raw, chapters, err = engine.downloader.fetchLiuguoDetail(ctx, sourceID)
+	case sourceXiaoguo:
+		raw, chapters, err = engine.downloader.fetchXiaoguoDetail(ctx, sourceID)
 	default:
 		title, chapters, err = engine.downloader.GetHuangguoChapters(ctx, source, sourceID)
 	}
