@@ -392,3 +392,16 @@ func TestApk391ZaoguoCatalogMetadataSurvivesDetail(t *testing.T) {
  if err!=nil{t.Fatalf("fetch detail: %v",err)}
  if drama.Title!=title||drama.Cover!=cover{t.Fatalf("catalog info lost: %+v",drama)}
 }
+
+func TestApk391NingguoRejectsUnverifiedAdjacentCardTitle(t *testing.T) {
+ fixture:=`<html><body><div class="row">
+ <a href="/voddetail/987601.html" title="片單顯示的鄰片"><img src="https://img.example.org/wrong.jpg"></a>
+ <a href="/voddetail/987602.html" title="其他影片"><img src="https://img.example.org/other.jpg"></a>
+ </div></body></html>`
+ doc,err:=nethtml.Parse(strings.NewReader(fixture));if err!=nil{t.Fatal(err)}
+ if !apk391RequiresDetail("ningguo"){t.Fatal("ningguo must validate detail per original film")}
+ if cards:=apk391Cards(doc,"ningguo");len(cards)!=0{
+  t.Fatalf("unverified Ningguo cards exposed as mismatched movies: %+v",cards)
+ }
+ if apk391RequiresDetail("zaoguo"){t.Fatal("unrelated source altered")}
+}
