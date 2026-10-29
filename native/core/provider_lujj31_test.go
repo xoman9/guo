@@ -111,3 +111,65 @@ func TestLujj31BlankHomepage(t *testing.T) {
 		t.Fatalf("fallback card: %+v", got)
 	}
 }
+
+func TestLujj31OktvCSSPosterAndDetailCover(t *testing.T) {
+	cards, err := html.Parse(strings.NewReader(`<html><body>
+		<div class="myui-vodlist__box">
+			<a href="/index.php/vod/detail/id/456.html" title="有封面影片"
+			class="myui-vodlist__thumb" style="background-image: url('/upload/posters/456.jpg')"></a>
+			<img src="/static/images/loading.gif">
+		</div></body></html>`))
+	if err != nil { t.Fatal(err) }
+	list := lujj31Cards(cards, "https://lujj31.lol/index.php/vod/type/id/1.html")
+	if len(list) != 1 || list[0].Cover != "https://lujj31.lol/upload/posters/456.jpg" {
+		t.Fatalf("CSS poster not ported from oktv: %+v", list)
+	}
+	doc, err := html.Parse(strings.NewReader(`<html><head>
+		<meta property="og:image" content="https://cdn.example.test/poster.jpg">
+		</head><body><h1>有封面影片</h1>
+		<div class="module-play-list-content">
+			<a href="/index.php/vod/play/id/456/sid/1/nid/1.html">第1集</a>
+		</div></body></html>`))
+	if err != nil { t.Fatal(err) }
+	detail, episodes, err := lujj31DetailFromHTML(doc,"https://lujj31.lol","456")
+	if err != nil || len(episodes)!=1 || detail.Cover!="https://cdn.example.test/poster.jpg" {
+		t.Fatalf("detail OG cover not preserved: %+v episodes=%d err=%v",detail,len(episodes),err)
+	}
+}
+
+func TestLujj31PlayerAcceptsOktvHTTPAndIframeB64(t *testing.T) {
+	url,err:=lujj31PlayerURL(`player_aaaa={"id":123,"encrypt":0,"url":"https://stream.example.test/token/play?id=123"};`,"123")
+	if err!=nil || url!="https://stream.example.test/token/play?id=123" {
+		t.Fatalf("non-extension HTTP player rejected: %q %v",url,err)
+	}
+	decoded:="https://cdn.example.test/episode.m3u8"
+	encoded:=base64.StdEncoding.EncodeToString([]byte(decoded))
+	url,err=lujj31PlayerURL(`<iframe src="https://player.example.test/player?url=`+encoded+`"></iframe>`,"123")
+	if err!=nil || url!=decoded{t.Fatalf("iframe-base64 m3u8 lost: %q %v",url,err)}
+	if got:=lujj31Decrypt("%u7B2C%201%E9%9B%86","1");got!="第 1集"{
+		t.Fatalf("macCMS JS escape() not decoded: %q",got)
+	}
+}
+
+func TestLujj31OktvAlternateSIDPlayback(t *testing.T) {
+	var requests []string
+	d:=sourceFixtureDownloader(t,func(r *http.Request)(*http.Response,error){
+		requests=append(requests,r.URL.Path)
+		switch {
+		case strings.Contains(r.URL.Path,"/sid/1/nid/1.html"):
+			return sourceFixtureResponse(r,http.StatusOK,`player_data={"id":123,"encrypt":0,"url":"encrypted-token"};`),nil
+		case strings.Contains(r.URL.Path,"/sid/2/nid/1.html"):
+			return sourceFixtureResponse(r,http.StatusOK,`player_aaaa={"id":123,"encrypt":0,"url":"https://cdn.example.test/backup.m3u8"};`),nil
+		default:
+			return sourceFixtureResponse(r,http.StatusNotFound,""),nil
+		}
+	})
+	page:="https://lujj31.lol/index.php/vod/play/id/123/sid/1/nid/1.html"
+	address,err:=d.lujj31ResolveAlternative(context.Background(),page,"123")
+	if err!=nil||address!="https://cdn.example.test/backup.m3u8"{
+		t.Fatalf("alternate oktv source line ignored: url=%q err=%v requests=%v",address,err,requests)
+	}
+	if len(requests)==0||!strings.Contains(requests[0],"/sid/2/"){
+		t.Fatalf("first fallback did not use sid 2: %v",requests)
+	}
+}
