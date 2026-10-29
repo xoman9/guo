@@ -51,11 +51,11 @@ jobs:
       - name: Require fixed release signing key and expected certificate
         env:
           KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          EXPECTED: ${{ vars.ANDROID_CERT_SHA256 }}
+          EXPECTED: "78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a"
         run: |
           set -euo pipefail
           test -n "$KEY" || { echo "::error::Missing ANDROID_KEYSTORE_BASE64"; exit 1; }
-          test -n "$EXPECTED" || { echo "::error::Missing ANDROID_CERT_SHA256"; exit 1; }
+          test -n "$EXPECTED" || { echo "::error::Missing fixed signer fingerprint"; exit 1; }
           printf '%s' "$KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/release.jks"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
       - run: flutter pub get --enforce-lockfile
@@ -73,7 +73,7 @@ jobs:
         run: flutter build apk --release --split-per-abi --target-platform android-arm64 --no-pub --dart-define=ALL_SOURCES=true --dart-define=COEXIST=true
       - name: Verify package, release certificate, version and architecture
         env:
-          EXPECTED: ${{ vars.ANDROID_CERT_SHA256 }}
+          EXPECTED: "78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a"
         run: |
           set -euo pipefail
           apk=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
@@ -87,7 +87,7 @@ jobs:
           "$apksigner" verify --verbose --print-certs "$apk" | tee cert.txt
           expected=$(printf '%s' "$EXPECTED" | tr -d ': ' | tr '[:upper:]' '[:lower:]')
           actual=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' cert.txt | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
-          test -n "$actual" && test "$expected" = "$actual" && test "$actual" = "b39a61cdaa9fabf985aa6c73603aaaee3c91a91d79637c4afb175087a4028d18" || { echo "::error::Signing certificate does not match old coexist APK; overwrite installation would fail"; exit 1; }
+          test -n "$actual" && test "$expected" = "$actual"  || { echo "::error::Fixed coexist release signing certificate mismatch; aborting release"; exit 1; }
           unzip -Z1 "$apk" | grep -Fx 'lib/arm64-v8a/libduanju_core.so'
           mkdir -p dist
           cp "$apk" dist/zhenguojian-coexist-1.0.4+104-arm64-v8a.apk
@@ -102,4 +102,4 @@ jobs:
             echo "::error::Release already exists: $tag"
             exit 1
           fi
-          gh release create "$tag" dist/*.apk dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target aee26c461ee3959e995e65bb47cc2dbd9767dbfd --title "真果鑑 共存版 1.0.4+104 ARM64 (可覆蓋同簽章舊共存版)" --notes "Coexist package: com.duanju.duanju_app.coexist. Must match old coexist signing certificate. Includes 熊果 detail/play interface and 橙果 browse list updates. Build verified; source playback requires device testing."
+          gh release create "$tag" dist/*.apk dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target aee26c461ee3959e995e65bb47cc2dbd9767dbfd --title "真果鑑 共存版 1.0.4+104 ARM64 固定簽章版" --notes "Coexist package: com.duanju.duanju_app.coexist. First migration from the old temporary debug-signed coexist APK requires uninstall after backing up app data; future versions built with this fixed key can overwrite. Includes 熊果 detail/play interface and 橙果 browse list updates. Build verified; source playback requires device testing."
