@@ -320,22 +320,22 @@ func TestApk391LiguoWntheme27ActualCardStructure(t *testing.T) {
  if apk391Cards(doc,"liguo")[0].Title!=cards[0].Title{t.Fatal("liguo path did not use dedicated cards")}
 }
 
-func TestApk391LuguoDetailPreservesCatalogTitle(t *testing.T) {
- const source="luguo"
- const id="987654321"
- const expected="MIDV-586 妹妹的性格與故事"
- // The real list gives the proper title, while the playback page only
- // advertises player data; it must not overwrite the title with 影片 + ID.
- apk391RememberTitle(source,id,expected)
- t.Cleanup(func(){apk391CatalogNames.Delete(source+":"+id)})
- base:=apk391BaseURL(source)
- d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
-  if req.URL.Path=="/vodplay/"+id+"-1-1/" {
-   return sourceFixtureResponse(req,http.StatusOK,`<html><body><h1>影片 987654321</h1><script>var player_aaaa={"flag":"hls","encrypt":0,"url":"https://example.org/video.m3u8"};</script><a href="/vodplay/987654321-1-1/">第1集</a></body></html>`),nil
-  }
-  return sourceFixtureResponse(req,http.StatusNotFound,"missing"),nil
- })
- drama,_,err:=d.fetchApk391Detail(context.Background(),source,id)
- if err!=nil{t.Fatalf("fetch detail failed: %v",err)}
- if drama.Title!=expected||drama.Name!=expected{t.Fatalf("catalog title was overwritten: %+v (base %s)",drama,base)}
+func TestApk391LuguoAndLiguoDetailPreserveCatalogTitle(t *testing.T) {
+ for _,source:=range []string{"luguo","liguo"} {
+  t.Run(source,func(t *testing.T){
+   const id="987654321"
+   const expected="MIDV-586 真正的完整片名"
+   apk391RememberTitle(source,id,expected)
+   t.Cleanup(func(){apk391CatalogNames.Delete(source+":"+id)})
+   d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
+    if req.URL.Path=="/vodplay/"+id+"-1-1/" {
+     return sourceFixtureResponse(req,http.StatusOK,`<html><body><h1>影片 987654321</h1><script>var player_aaaa={"flag":"hls","encrypt":0,"url":"https://example.org/video.m3u8"};</script><a href="/vodplay/987654321-1-1/">第1集</a></body></html>`),nil
+    }
+    return sourceFixtureResponse(req,http.StatusNotFound,"missing"),nil
+   })
+   drama,_,err:=d.fetchApk391Detail(context.Background(),source,id)
+   if err!=nil{t.Fatalf("fetch detail failed: %v",err)}
+   if drama.Title!=expected||drama.Name!=expected{t.Fatalf("%s catalog title overwritten: %+v",source,drama)}
+  })
+ }
 }
