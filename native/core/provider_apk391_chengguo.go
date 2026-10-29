@@ -2,6 +2,7 @@ package core
 
 import (
  "context"
+ "encoding/json"
  "errors"
  "fmt"
  "net/url"
@@ -27,6 +28,7 @@ func chengguoSlug(link string) string {
 // are separate siblings. Never discard a verified film for missing cover.
 func chengguoCards(doc *nethtml.Node) []Drama {
  seen:=map[string]bool{}
+ records:=chengguoNuxtRecords(doc)
  results:=[]Drama{}
  for _,article:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{
   return n.Data=="article"&&providerHTMLAttr(n,"data-xpch")=="card-drama"
@@ -48,9 +50,11 @@ func chengguoCards(doc *nethtml.Node) []Drama {
    if strings.HasPrefix(raw,"data:")||raw==""{continue}
    if resolved:=lujj31PosterAddress(raw,apk391BaseURL("chengguodj")+"/");resolved!=""{cover=resolved;break}
   }
+  if record,ok:=records[slug];ok&&isProviderHTTPMediaURL(record.Cover){cover=record.Cover}
   seen[slug]=true
   title=truncate(title,512)
-  results=append(results,Drama{ID:providerDramaID("chengguodj",slug),Source:"chengguodj",SourceID:slug,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:"橙果"})
+  episodes:=records[slug].Episodes
+  results=append(results,Drama{ID:providerDramaID("chengguodj",slug),Source:"chengguodj",SourceID:slug,Title:title,Name:title,Cover:cover,CoverURL:cover,EpisodeCount:episodes,TotalEpisode:episodes,ChannelName:"橙果"})
   if len(results)>=100{break}
  }
  return results
@@ -76,4 +80,46 @@ func (d *Downloader) fetchChengguoCatalog(ctx context.Context,page int,category,
  cards:=chengguoCards(doc)
  if len(cards)==0{return nil,false,fmt.Errorf("橙果页面未取得有效短剧卡片: %s",path)}
  return cards,category==""&&chengguoHasNext(doc,page),nil
+}
+
+var chengguoNuxtPattern=regexp.MustCompile(`(?s)<script[^>]+id="__NUXT_DATA__"[^>]*>(.*?)</script>`)
+func chengguoNuxtRecords(doc *nethtml.Node) map[string]struct{Cover string; Episodes int} {
+ result:=map[string]struct{Cover string; Episodes int}{}
+ for _,script:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="script"&&providerHTMLAttr(n,"id")=="__NUXT_DATA__"}) {
+  var source string
+  for child:=script.FirstChild;child!=nil;child=child.NextSibling{if child.Type==nethtml.TextNode{source+=child.Data}}
+  var nodes []json.RawMessage
+  if json.Unmarshal([]byte(source),&nodes)!=nil{continue}
+  refString:=func(v json.RawMessage)string{
+   var index int
+   if json.Unmarshal(v,&index)!=nil||index<0||index>=len(nodes){return ""}
+   var value string
+   _=json.Unmarshal(nodes[index],&value)
+   return value
+  }
+  refInt:=func(v json.RawMessage)int{
+   var index int
+   if json.Unmarshal(v,&index)!=nil||index<0||index>=len(nodes){return 0}
+   var value int
+   _=json.Unmarshal(nodes[index],&value)
+   return value
+  }
+  for _,entry:=range nodes{
+   var obj map[string]json.RawMessage
+   if json.Unmarshal(entry,&obj)!=nil||obj["slug"]==nil||obj["cover"]==nil{continue}
+   slug:=refString(obj["slug"])
+   if !strings.HasPrefix(slug,"dj-")&&!strings.HasPrefix(slug,"app-"){continue}
+   var coverID int
+   if json.Unmarshal(obj["cover"],&coverID)!=nil||coverID<0||coverID>=len(nodes){continue}
+   var coverFields map[string]json.RawMessage
+   if json.Unmarshal(nodes[coverID],&coverFields)!=nil{continue}
+   cover:=refString(coverFields["url"])
+   if !isProviderHTTPMediaURL(cover){
+    cover=refString(coverFields["fallback_url"])
+    if strings.HasPrefix(cover,"/"){cover=apk391BaseURL("chengguodj")+cover}
+   }
+   result[slug]=struct{Cover string; Episodes int}{Cover:cover,Episodes:refInt(obj["published_episode_count"])}
+  }
+ }
+ return result
 }
