@@ -6,6 +6,7 @@ import (
  "strings"
  "testing"
  "sync"
+ "strconv"
 
  nethtml "golang.org/x/net/html"
 )
@@ -230,5 +231,50 @@ func TestYanguoNativeMergeRetainsListPoster(t *testing.T) {
  empty:=mergeNativeDrama(nativeDrama{ID:"yanguo:602",Source:"yanguo"},nativeDrama{ID:"yanguo:602",Source:"yanguo",Cover:"https://xqxq1.cc/602.jpg"})
  if empty.Cover!="https://xqxq1.cc/602.jpg"{
   t.Fatalf("missing original cover blocked new detail poster: %+v",empty)
+ }
+}
+
+func TestApk391LiguoAndLuguoUsePerVideoDetails(t *testing.T) {
+ for _,source:=range []string{"luguo","liguo"} {
+  t.Run(source,func(t *testing.T){
+   base:=apk391BaseURL(source)
+   if base==""{t.Fatal("missing source")}
+   d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
+    switch req.URL.Path{
+    case "/":
+     // One shared parent, duplicated misleading poster, category and
+     // duration labels: no metadata may be copied from a neighboring card.
+     return sourceFixtureResponse(req,http.StatusOK,`<html><body>
+      <div class="film-row">
+       <a href="/voddetail/601.html" title="热门"><img src="/wrong-shared.jpg"></a>
+       <a href="/voddetail/602.html" title="01:57:57"><img src="/wrong-shared.jpg"></a>
+       <a href="/voddetail/603.html"><img src="/wrong-shared.jpg"></a>
+      </div></body></html>`),nil
+    case "/voddetail/601.html":
+     return sourceFixtureResponse(req,http.StatusOK,`<html><head><meta property="og:image" content="/right601.jpg"></head><body><h1>影片一的真實片名</h1></body></html>`),nil
+    case "/voddetail/602.html":
+     return sourceFixtureResponse(req,http.StatusOK,`<html><head><meta property="og:image" content="/right602.jpg"></head><body><h1>影片二的真實片名</h1></body></html>`),nil
+    case "/voddetail/603.html":
+     return sourceFixtureResponse(req,http.StatusOK,`<html><head><meta property="og:image" content="/right603.jpg"></head><body><h1>影片三的真實片名</h1></body></html>`),nil
+    }
+    return sourceFixtureResponse(req,http.StatusNotFound,"missing"),nil
+   })
+   items,more,err:=d.fetchApk391CatalogPage(context.Background(),source,1,"","")
+   if err!=nil||more||len(items)!=3{
+    t.Fatalf("wanted 3 detail-backed items, got %+v more=%v err=%v",items,more,err)
+   }
+   wantTitles:=[]string{"影片一的真實片名","影片二的真實片名","影片三的真實片名"}
+   for i,item:=range items {
+    wantCover:=base+"/right"+strconv.Itoa(601+i)+".jpg"
+    if item.SourceID!=strconv.Itoa(601+i)||item.Title!=wantTitles[i]||item.Cover!=wantCover{
+     t.Fatalf("%s film %d wrongly bound metadata: %+v want title %s cover %s",source,i,item,wantTitles[i],wantCover)
+    }
+   }
+  })
+ }
+}
+func TestApk391RejectsDurationAndPopularTagsAsFilmTitles(t *testing.T){
+ for _,title:=range []string{"热门","熱門","01:57:57","02:09:21","29:33","15:07","国产传媒"}{
+  if !apk391BadTitle("liguo",title){t.Fatalf("unfiltered bogus film title %q",title)}
  }
 }
