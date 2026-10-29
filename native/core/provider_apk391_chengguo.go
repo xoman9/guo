@@ -174,7 +174,7 @@ func (d *Downloader) fetchChengguoDetail(ctx context.Context,id string)(Drama,[]
  return Drama{ID:providerDramaID("chengguodj",id),Source:"chengguodj",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,EpisodeCount:count,TotalEpisode:count,ChannelName:"橙果"},chapters,nil
 }
 
-var chengguoMediaPattern=regexp.MustCompile(\`https?://[^"'<>\\\s]+?\.(?:m3u8|mp4)(?:\?[^"'<>\\\s]*)?\`)
+var chengguoMediaPattern=regexp.MustCompile(`https?://[^"'<>\\s]+?\\.(?:m3u8|mp4)(?:\\?[^"'<>\\s]*)?`)
 func (d *Downloader) resolveChengguoMedia(ctx context.Context,task Task)(providerMedia,error){
  source,id,ok:=splitProviderDramaID(task.DramaID)
  if !ok||source!="chengguodj"||!chengguoIDValid(id)||!strings.HasPrefix(task.Chapter.ID,providerChapterID(source,id,"")){
