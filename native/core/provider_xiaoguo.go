@@ -225,7 +225,7 @@ func xiaoguoSinglePlayback(doc *nethtml.Node, base, id, page string) (Drama, []C
 	}
 	cover := lujj31DetailPoster(doc, link)
 	chapter := Chapter{
-		ID: providerChapterID(sourceXiaoguo, id, "1"),
+		ID:     providerChapterID(sourceXiaoguo, id, "1"),
 		Source: sourceXiaoguo, Title: "第1集", CurrentEpisode: rawEpisode(1),
 		PageURL: link, VideoURL: "xiaoguo-play://" + link, Referer: base + "/",
 	}
