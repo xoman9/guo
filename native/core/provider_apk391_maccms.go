@@ -441,9 +441,11 @@ func (d *Downloader) fetchApk391Detail(ctx context.Context,source,id string)(Dra
   }
   title:="影片 "+id
   for _,h:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="h1"}){
-   if str:=strings.TrimSpace(providerHTMLText(h));str!=""{title=truncate(str,512);break}
+   if str:=strings.TrimSpace(providerHTMLText(h));str!="" && !apk391BadTitle(source,str) {title=truncate(str,512);break}
   }
-  cover:=lujj31DetailPoster(doc,actual)
+  // Keep the same per-film poster selection on the detail/return path:
+  // a generic image from the page must not replace the verified catalog art.
+  cover:=apk391DetailPoster(doc,actual,source)
   return Drama{ID:providerDramaID(source,id),Source:source,SourceID:id,
    Title:title,Name:title,Cover:cover,CoverURL:cover,
    EpisodeCount:len(chapters),TotalEpisode:len(chapters),ChannelName:spec.Name},chapters,nil
