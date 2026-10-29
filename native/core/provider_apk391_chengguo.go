@@ -6,6 +6,7 @@ import (
  "errors"
  "fmt"
  "net/url"
+ "strconv"
  "strings"
  nethtml "golang.org/x/net/html"
 )
@@ -122,4 +123,52 @@ func chengguoNuxtRecords(doc *nethtml.Node) map[string]struct{Cover string; Epis
   }
  }
  return result
+}
+
+func chengguoIDValid(id string)bool{
+ if !(strings.HasPrefix(id,"dj-")||strings.HasPrefix(id,"app-"))||len(id)>48{return false}
+ for _,r:=range id{if !(r>='a'&&r<='z'||r>='0'&&r<='9'||r=='-'){return false}}
+ return true
+}
+func (d *Downloader) fetchChengguoDetail(ctx context.Context,id string)(Drama,[]Chapter,error){
+ if !chengguoIDValid(id){return Drama{},nil,errors.New("橙果影片编号无效")}
+ path:="/drama/"+id
+ doc,_,err:=d.apk391Page(ctx,"chengguodj",path)
+ if err!=nil{return Drama{},nil,err}
+ title:=""
+ for _,h:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="h1"}) {
+  if v:=strings.TrimSpace(providerHTMLText(h));v!=""{title=v;break}
+ }
+ if title=="" {
+  for _,m:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="meta"&&providerHTMLAttr(n,"property")=="og:title"}) {
+   title=strings.TrimSpace(providerHTMLAttr(m,"content"));break
+  }
+ }
+ if title==""{title=id}
+ cover:=""
+ for _,m:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="meta"&&providerHTMLAttr(n,"property")=="og:image"}){
+  candidate:=strings.TrimSpace(providerHTMLAttr(m,"content"))
+  if isProviderHTTPMediaURL(candidate)&&!strings.Contains(candidate,"social-default"){cover=candidate;break}
+ }
+ records:=chengguoNuxtRecords(doc)
+ if rec,ok:=records[id];ok&&isProviderHTTPMediaURL(rec.Cover){cover=rec.Cover}
+ episodes:=map[int]bool{}
+ for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}){
+  link:=providerHTMLAttr(a,"href")
+  u,err:=url.Parse(link);if err!=nil{continue}
+  prefix:="/play/"+id+"/"
+  if !strings.HasPrefix(u.Path,prefix){continue}
+  n,err:=strconv.Atoi(strings.TrimPrefix(u.Path,prefix))
+  if err==nil&&n>=1&&n<=1000{episodes[n]=true}
+ }
+ count:=records[id].Episodes
+ for n:=range episodes{if n>count{count=n}}
+ if count==0{count=1}
+ if count>500{count=500}
+ chapters:=make([]Chapter,0,count)
+ for n:=1;n<=count;n++{
+  link:=apk391BaseURL("chengguodj")+fmt.Sprintf("/play/%s/%d",id,n)
+  chapters=append(chapters,Chapter{ID:providerChapterID("chengguodj",id,strconv.Itoa(n)),Source:"chengguodj",Title:fmt.Sprintf("第%d集",n),CurrentEpisode:rawEpisode(n),PageURL:link,VideoURL:"chengguodj-play://"+id+"/"+strconv.Itoa(n),Referer:apk391BaseURL("chengguodj")+"/"})
+ }
+ return Drama{ID:providerDramaID("chengguodj",id),Source:"chengguodj",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,EpisodeCount:count,TotalEpisode:count,ChannelName:"橙果"},chapters,nil
 }
