@@ -18,7 +18,24 @@ class SourceSite {
       id == 'hanxiaoquan' ||
       id == 'lujj31' ||
       id == 'liuguo' ||
-      id == 'xiaoguo';
+      id == 'xiaoguo' ||
+      id == 'yanguo' ||
+      id == 'youguo' ||
+      id == 'meiguo' ||
+      id == 'chengguo' ||
+      id == 'yingguo' ||
+      id == 'luguo' ||
+      id == 'liguo' ||
+      id == 'juguo' ||
+      id == 'zaoguo' ||
+      id == 'ningguo' ||
+      id == 'mangguo' ||
+      id == 'jiaoguo' ||
+      id == 'zhenguo' ||
+      id == 'xueguo' ||
+      id == 'huiguo' ||
+      id == 'liaoguo' ||
+      id == 'chunguo';
   bool get searchSuggestions => id == 'hongguo';
   String get groupId => switch (id) {
     'huangguo-video' || 'huangguoai' || 'cloudfront' => 'huangguo',
@@ -53,6 +70,51 @@ class SourceSite {
     SourceSite('lujj31', '桃果 🔞', '网页分类 · 视频详情 · 播放线路'),
     SourceSite('liuguo', '榴果 🔞', '即時分類 · 影片 · 播放線路'),
     SourceSite('xiaoguo', '宵果 🔞', '即時分類 · 線上搜尋 · 播放線路'),
+    SourceSite('chaoguo', '超果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('yanguo', '艷果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('youguo', '柚果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('meiguo', '美果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('chengguo', '城果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('yingguo', '櫻果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('luguo', '露果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('liguo', '荔果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('juguo', '橘果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('zaoguo', '棗果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('ningguo', '檸果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('mangguo', '芒果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('chengguodj', '橙果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('xiongguo', '熊果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('jiaoguo', '角果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('zhenguo', '貞果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('caoguo', '草果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('xueguo', '學果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('av2', '二果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('huiguo', '會果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('liaoguo', '撩果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('chunguo', '春果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('boguo', '波果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('cangguo', '倉果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('baguo', '巴果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('jieguo', '杰果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('dangguo', '檔果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('hanguo', '漢果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('whostv', '番果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('bangguo', '榜果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('tangguo', '糖果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('bilifun', '影果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('fengguo', '鳳果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('x134', '推果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('manman', '漫果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('hsex', '色果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('uu', '優果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('rb91', '九果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('dj51', '壹果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('yeshe', '夜果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('cg51', '擦果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('cg69', '六果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('maitian', '田果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('yangguo', '洋果 🔞', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('badnews', '爆果 🔞', '0.2.391 原生抽取 · 測試來源'),
     SourceSite('huangdou', '黄豆 🔞', '精选短剧'),
     SourceSite('huangju', '剧果 🔞', '热门 · 最新 · 分类短剧'),
     SourceSite('yeguo', '野果 🔞', '分类短剧 · 在线搜索'),
