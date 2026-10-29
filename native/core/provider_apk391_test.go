@@ -5,6 +5,7 @@ import (
  "net/http"
  "strings"
  "testing"
+ "sync"
 
  nethtml "golang.org/x/net/html"
 )
@@ -119,5 +120,50 @@ func TestApk391CatalogPageKeepsActualPostersAfterFiltering(t *testing.T) {
  items,more,err:=d.fetchApk391CatalogPage(context.Background(),"yanguo",1,"","")
  if err!=nil||len(items)!=1||items[0].Title!="真正影片"||!more {
   t.Fatalf("expected real movie only: %+v more=%v err=%v",items,more,err)
+ }
+}
+
+
+func TestApk391OnDemandDetailEnrichmentCorrectsCategoryLikeTitles(t *testing.T) {
+ var mu sync.Mutex
+ calls:=map[string]int{}
+ d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
+  mu.Lock()
+  calls[req.URL.Path]++
+  mu.Unlock()
+  switch req.URL.Path {
+  case "/":
+   return sourceFixtureResponse(req,http.StatusOK,`<html><body>
+   <div class="module-item"><a href="/voddetail/901.html">国产自拍</a></div>
+   <div class="module-item"><a href="/voddetail/902.html">国产传媒</a></div>
+   <div class="module-item"><a href="/voddetail/903.html">探花系列</a></div>
+   <div class="module-item"><a href="/voddetail/904.html">人妻熟女</a></div>
+   </body></html>`),nil
+  case "/voddetail/901.html":
+   return sourceFixtureResponse(req,http.StatusOK,`<html><head><meta property="og:image" content="/posters/901.jpg"></head><body><h1>影片甲的真正片名</h1></body></html>`),nil
+  case "/voddetail/902.html":
+   return sourceFixtureResponse(req,http.StatusOK,`<html><head><meta property="og:image" content="/posters/902.jpg"></head><body><h1>影片乙的真正片名</h1></body></html>`),nil
+  case "/voddetail/903.html":
+   return sourceFixtureResponse(req,http.StatusOK,`<html><head><meta property="og:image" content="/posters/903.jpg"></head><body><h1>影片丙的真正片名</h1></body></html>`),nil
+  case "/voddetail/904.html":
+   return sourceFixtureResponse(req,http.StatusOK,`<html><head><meta property="og:image" content="/posters/904.jpg"></head><body><h1>影片丁的真正片名</h1></body></html>`),nil
+  default:
+   return sourceFixtureResponse(req,http.StatusNotFound,"missing"),nil
+  }
+ })
+ items,more,err:=d.fetchApk391CatalogPage(context.Background(),"yanguo",1,"","")
+ if err!=nil||!more||len(items)!=4 {
+  t.Fatalf("expected four real detail-enriched videos, got %+v more=%v err=%v",items,more,err)
+ }
+ names:=[]string{"影片甲的真正片名","影片乙的真正片名","影片丙的真正片名","影片丁的真正片名"}
+ for i,v:=range items {
+  if v.Title!=names[i]||v.Cover==nil||v.Cover=="" {
+   t.Fatalf("item %d still displays taxonomy or placeholder: %+v",i,v)
+  }
+ }
+ mu.Lock()
+ defer mu.Unlock()
+ if calls["/"]!=1||len(calls)!=5 {
+  t.Fatalf("unexpected detail prefetch beyond four uncertain items: %+v",calls)
  }
 }
