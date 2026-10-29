@@ -20,7 +20,7 @@ const lujj31UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5
 
 var (
 	lujj31CategoryPath = regexp.MustCompile(`(?i)^/(?:index\.php/)?vod/type/id/([0-9]{1,6})(?:\.html|/)$`)
-	lujj31VideoPath    = regexp.MustCompile(`(?i)/(?:index\.php/vod/)?(?:detail|play)/id/([0-9]+)(?:/|\.html|$)|/(?:voddetail|vodplay)/([0-9]+)(?:[-./]|$)`)
+	lujj31VideoPath    = regexp.MustCompile(`(?i)/(?:(?:index\.php/)?vod/)?(?:detail|play)/id/([0-9]+)(?:/|\.html|$)|/(?:voddetail|vodplay)/([0-9]+)(?:[-./]|$)`)
 	lujj31PlayRoute    = regexp.MustCompile(`(?i)/sid/([0-9]+)/nid/([0-9]+)`)
 	lujj31PlayerData   = regexp.MustCompile(`(?i)player_(?:aaaa|data)\s*=\s*`)
 	lujj31DirectMedia  = regexp.MustCompile(`https?://[^\s"'<>\\]+?\.(?:m3u8|mp4)(?:\?[^\s"'<>\\]*)?`)
