@@ -219,7 +219,7 @@ var apk391CatalogCovers sync.Map // source:id -> verified catalog poster
 
 func apk391RememberTitle(source,id,title string) {
  title=strings.TrimSpace(title)
- if (source=="luguo"||source=="liguo"||source=="juguo"||source=="zaoguo") && apk391Numeric.MatchString(id) && title!="" && !apk391BadTitle(source,title) && title!="影片 "+id {
+ if (source=="luguo"||source=="liguo"||source=="juguo"||source=="zaoguo"||source=="mangguo") && apk391Numeric.MatchString(id) && title!="" && !apk391BadTitle(source,title) && title!="影片 "+id {
   apk391CatalogNames.Store(source+":"+id,truncate(title,512))
  }
 }
@@ -399,6 +399,7 @@ func apk391Cards(doc *nethtml.Node,source string)[]Drama{
   if apk391RequiresDetail(source) {continue}
   seen[id]=true
   if source=="ningguo"||source=="mangguo"{apk391RememberCover(source,id,cover)}
+  if source=="mangguo"{apk391RememberTitle(source,id,title)}
   items=append(items,Drama{ID:providerDramaID(source,id),Source:source,SourceID:id,
    Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
   if len(items)>=150{break}
