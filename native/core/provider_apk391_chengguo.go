@@ -48,6 +48,10 @@ func chengguoCards(doc *nethtml.Node) []Drama {
   if title==""||apk391BadTitle("chengguodj",title){continue}
   cover:=""
   for _,img:=range providerHTMLNodes(article,func(n *nethtml.Node)bool{return n.Data=="img"}){
+   // Keep the page's direct image only as a fallback: it may be a stale
+   // static poster. Nuxt's original cover URL is AES-CBC encrypted, but the
+   // native cover cache already decodes that response to a displayable JPEG.
+   // The site's fallback_url currently points to a missing /static/ resource.
    // The browser may use a lazy-loading attribute or the first srcset image;
    // src alone is frequently a transparent placeholder.
    for _,raw:=range []string{providerHTMLAttr(img,"data-src"),providerHTMLAttr(img,"data-original"),providerHTMLAttr(img,"data-lazy"),providerHTMLAttr(img,"data-srcset"),providerHTMLAttr(img,"srcset"),providerHTMLAttr(img,"src")}{
@@ -62,9 +66,10 @@ func chengguoCards(doc *nethtml.Node) []Drama {
    if cover!=""{break}
   }
   if record,ok:=records[slug];ok{
-   // Keep the actual poster selected by the browser. Nuxt's cover.url can
-   // be an encrypted original; only use its validated fallback if needed.
-   if cover==""&&isProviderHTTPMediaURL(record.Cover){cover=record.Cover}
+   // The canonical original is encrypted in transit, and nativeDecodeCover
+   // handles its AES-128-CBC PKCS#7 payload. Prefer it over missing static
+   // fallback posters or transparent lazy-loading placeholders.
+   if isProviderHTTPMediaURL(record.Cover){cover=record.Cover}
   }
   seen[slug]=true
   title=truncate(title,512)
@@ -131,17 +136,18 @@ func chengguoNuxtRecords(doc *nethtml.Node) map[string]struct{Cover string; Epis
    cover:=refString(coverFields["url"])
    fallback:=refString(coverFields["fallback_url"])
    if strings.HasPrefix(fallback,"/"){fallback=apk391BaseURL("chengguodj")+fallback}
-   // Site marks CDN covers encrypted. Prefer an explicit unencrypted
-   // poster fallback when available rather than displaying encrypted bytes.
+   // Preserve the canonical CDN original; nativeCoverCache decrypts it
+   // before returning the image file to Flutter. Static fallback paths can
+   // return HTTP 404 and must not replace a valid canonical URL.
    encrypted:=false
    if indexRaw,ok:=coverFields["encrypted"];ok{
     var index int
     if json.Unmarshal(indexRaw,&index)==nil && index>=0&&index<len(nodes){_ = json.Unmarshal(nodes[index],&encrypted)}
    }
-   // For this site, CDN originals marked encrypted are unsuitable for
-   // direct display. Use its first-party processed thumbnail whenever present.
-   if isProviderHTTPMediaURL(fallback){cover=fallback}
-   if encrypted && !isProviderHTTPMediaURL(fallback){cover=""}
+   // If the original is absent, use an explicit fallback as a last resort.
+   // Do not reject an encrypted original: the native image cache decrypts it.
+   _ = encrypted
+   if !isProviderHTTPMediaURL(cover) && isProviderHTTPMediaURL(fallback){cover=fallback}
    result[slug]=struct{Cover string; Episodes int}{Cover:cover,Episodes:refInt(obj["published_episode_count"])}
   }
  }
@@ -174,7 +180,7 @@ func (d *Downloader) fetchChengguoDetail(ctx context.Context,id string)(Drama,[]
   if isProviderHTTPMediaURL(candidate)&&!strings.Contains(candidate,"social-default"){cover=candidate;break}
  }
  records:=chengguoNuxtRecords(doc)
- if rec,ok:=records[id];ok&&cover==""&&isProviderHTTPMediaURL(rec.Cover){cover=rec.Cover}
+ if rec,ok:=records[id];ok&&isProviderHTTPMediaURL(rec.Cover){cover=rec.Cover}
  episodes:=map[int]bool{}
  for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}){
   link:=providerHTMLAttr(a,"href")
