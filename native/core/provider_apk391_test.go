@@ -278,3 +278,27 @@ func TestApk391RejectsDurationAndPopularTagsAsFilmTitles(t *testing.T){
   if !apk391BadTitle("liguo",title){t.Fatalf("unfiltered bogus film title %q",title)}
  }
 }
+
+
+func TestApk391ObservedFilmLinkPrecedesGuessedDetailRoutes(t *testing.T) {
+ for _,source:=range []string{"luguo","liguo"}{
+  id:="987654321"
+  original:=apk391BaseURL(source)+"/vodplay/"+id+"-1-1.html"
+  apk391RememberDetailLink(source,id,original)
+  candidates:=apk391DetailCandidates(source,id)
+  if len(candidates)!=5 || candidates[0]!=original {
+   t.Fatalf("%s did not prioritize observed original link: %+v",source,candidates)
+  }
+  // Reject unrelated IDs and off-domain URLs: never reuse a different film's page.
+  apk391RememberDetailLink(source,id,apk391BaseURL(source)+"/voddetail/111.html")
+  apk391RememberDetailLink(source,id,"https://example.net/voddetail/"+id+".html")
+  candidates=apk391DetailCandidates(source,id)
+  if candidates[0]!=original {t.Fatalf("%s accepted wrong video detail URL: %+v",source,candidates)}
+  apk391ObservedDetailLinks.Delete(source+":"+id)
+ }
+ other:="yanguo"
+ apk391RememberDetailLink(other,"987654321",apk391BaseURL(other)+"/voddetail/987654321.html")
+ if got:=apk391DetailCandidates(other,"987654321");len(got)!=4 {
+  t.Fatalf("non-target source affected: %+v",got)
+ }
+}
