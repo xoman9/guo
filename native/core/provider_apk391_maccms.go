@@ -313,8 +313,8 @@ func apk391LiguoCards(doc *nethtml.Node) []Drama {
 }
 
 // Zaoguo's site labels the sidebar as 目录: these are video categories.
-// Its MacCMS deployment uses /cn/home/web/index.php/vod/type/id/<category>.html
-// and card links in the /cn/home/web/index.php/vod/play/id/<id>/sid/1/nid/1.html form.
+// The supplied new entry point is /yhsp/; preserve the MacCMS index.php/vod/type/id/<category>.html
+// and card links in the /yhsp/index.php/vod/play/id/<id>/sid/1/nid/1.html form.
 func apk391ZaoguoCards(doc *nethtml.Node) []Drama {
  spec,_:=apk391Spec("zaoguo")
  seen:=map[string]bool{};out:=[]Drama{}
@@ -569,10 +569,10 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
   return nil,false,fmt.Errorf("橘果页面无可核实的视频卡片: %s",path)
  }
  if source=="zaoguo" && query=="" {
-  path:="/cn/home/web/"
+  path:="/yhsp/"
   if category!="" {
-   path=fmt.Sprintf("/cn/home/web/index.php/vod/type/id/%s.html",category)
-   if page>1 {path=fmt.Sprintf("/cn/home/web/index.php/vod/type/id/%s/page/%d.html",category,page)}
+   path=fmt.Sprintf("/yhsp/index.php/vod/type/id/%s.html",category)
+   if page>1 {path=fmt.Sprintf("/yhsp/index.php/vod/type/id/%s/page/%d.html",category,page)}
   }else if page>1{
    // Homepage pagination is not attested in the supplied directory page.
    return []Drama{},false,nil
@@ -645,7 +645,7 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
 // Keep other channels' existing fallback behavior untouched.
 func apk391DetailRoutes(source,id string) []string {
  if source=="juguo"{return []string{fmt.Sprintf("/voddetail/%s/",id),fmt.Sprintf("/vodplay/%s-1-1/",id)}}
- if source=="zaoguo"{return []string{fmt.Sprintf("/cn/home/web/index.php/vod/play/id/%s/sid/1/nid/1.html",id)}}
+ if source=="zaoguo"{return []string{fmt.Sprintf("/yhsp/index.php/vod/play/id/%s/sid/1/nid/1.html",id)}}
  if source=="luguo"||source=="liguo" {
   return []string{fmt.Sprintf("/vodplay/%s-1-1/",id),
    fmt.Sprintf("/vodplay/%s-1-1.html",id)}
@@ -737,7 +737,7 @@ func (d *Downloader) resolveApk391Media(ctx context.Context,task Task)(providerM
   // resolved against the wrong directory, or a non-HTTP play token.
   // Rebuild exclusively from the verified source-scoped drama ID.
   // Never fetch or trust the mismatched page URL.
-  page=apk391SameSite(source,fmt.Sprintf("/cn/home/web/index.php/vod/play/id/%s/sid/1/nid/1.html",id))
+  page=apk391SameSite(source,fmt.Sprintf("/yhsp/index.php/vod/play/id/%s/sid/1/nid/1.html",id))
  }
  if page==""||apk391VideoID(page)!=id{return providerMedia{},errors.New("分集播放页来源不一致")}
  ua:=context.WithValue(ctx,providerTextUserAgentKey{},lujj31UserAgent)
