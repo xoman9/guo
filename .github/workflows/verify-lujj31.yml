@@ -6,6 +6,7 @@ on:
       - 'native/core/provider_lujj31*'
       - 'native/core/provider_liuguo*'
       - 'native/core/provider_xiaoguo*'
+      - 'native/core/provider_apk391*'
       - 'native/core/provider_huangguo.go'
       - 'native/core/provider_media.go'
       - 'native/core/app_categories.go'
@@ -30,5 +31,5 @@ jobs:
         working-directory: native
         run: |
           test -z "$(gofmt -l core/provider_lujj31.go core/provider_lujj31_player.go core/provider_lujj31_test.go core/provider_liuguo.go core/provider_liuguo_test.go core/provider_xiaoguo.go core/provider_xiaoguo_test.go)"
-          go test ./core -run 'Test(Lujj31|Liuguo|Xiaoguo)' -count=1 -v
+          go test ./core -run 'Test(Lujj31|Liuguo|Xiaoguo|Apk391)' -count=1 -v
           go test ./core -count=1
