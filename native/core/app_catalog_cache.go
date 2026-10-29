@@ -168,7 +168,11 @@ func mergeNativeDrama(previous, fresh nativeDrama) nativeDrama {
 	if fresh.Description == "" {
 		fresh.Description = previous.Description
 	}
-	if fresh.Cover == "" {
+	// Yanguo's detail endpoint may return a generic fallback image after
+	// playback. Keep the successfully loaded list poster when available.
+	if previous.Source == "yanguo" && strings.HasPrefix(previous.Cover, "http") {
+		fresh.Cover = previous.Cover
+	} else if fresh.Cover == "" {
 		fresh.Cover = previous.Cover
 	}
 	if fresh.Category == "" || nativeGenericCategory(fresh.Category) && previous.Category != "" && !nativeGenericCategory(previous.Category) {
