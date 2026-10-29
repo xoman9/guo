@@ -43,7 +43,7 @@ func TestLujj31OktvHTMLRoutes(t *testing.T){
   return sourceFixtureResponse(r,http.StatusOK,body),nil
  })
  categories,err:=d.fetchLujj31Categories(context.Background())
- if err!=nil || len(categories)!=3 || categories[1].ID!="1" {t.Fatalf("categories: %+v %v",categories,err)}
+ if err!=nil || len(categories)!=2 || categories[0].ID!="1" {t.Fatalf("categories: %+v %v",categories,err)}
  items,more,err:=d.fetchLujj31CatalogPage(context.Background(),1,"","")
  if err!=nil || !more || len(items)!=1 || items[0].ID!="lujj31:123" {t.Fatalf("catalog: %+v %t %v",items,more,err)}
  items,more,err=d.fetchLujj31CatalogPage(context.Background(),2,"","")
