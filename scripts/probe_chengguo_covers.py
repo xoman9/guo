@@ -71,5 +71,5 @@ for attr,u in targets:
     except Exception as exc:proofs.append({"source":attr,"url":u,"error":repr(exc)})
 report={"pages":rows,"checked":len(proofs),"verified_images":[p for p in proofs if p.get("file")],"requests":proofs}
 (OUT/"report.json").write_text(json.dumps(report,ensure_ascii=False,indent=2))
-print(json.dumps({"pages":rows,"checked":len(proofs),"verified":len(report["verified_images"])},ensure_ascii=False))
+print(json.dumps({"pages":rows,"checked":len(proofs),"verified":len(report["verified_images"]),"samples":proofs[:12]},ensure_ascii=False))
 if not report["verified_images"]:raise SystemExit("NO_VERIFIED_COVER: real image bytes unavailable; do not build APK")
