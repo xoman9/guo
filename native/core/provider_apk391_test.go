@@ -291,3 +291,15 @@ func TestApk391Original391FilmDetailRoutes(t *testing.T) {
   t.Fatalf("unrelated channel routes changed: %+v",other)
  }
 }
+
+func TestApk391LuguoAndLiguoReferenceHosts(t *testing.T) {
+ cases:=map[string]string{"luguo":"https://www.llsp.me","liguo":"https://ririlu.cc"}
+ for source,want:=range cases {
+  if got:=apk391BaseURL(source);got!=want {
+   t.Fatalf("%s source host = %q, want %q",source,got,want)
+  }
+  if got:=apk391SameSite(source,want+"/vodplay/601-1-1/");got!=want+"/vodplay/601-1-1/" {
+   t.Fatalf("%s canonical same-site URL invalid: %q",source,got)
+  }
+ }
+}
