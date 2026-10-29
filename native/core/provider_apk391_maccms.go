@@ -131,7 +131,20 @@ func apk391InsideNavigation(node *nethtml.Node) bool {
 // Only a poster directly associated with this video is trustworthy. The
 // generic extractor searches a parent subtree, which can accidentally use
 // the previous film's poster when multiple links share one container.
+// Ningguo's title and film ID are already correct. Keep the poster scoped
+// to the SAME film link; never borrow an image from a surrounding grid/card.
+func apk391NingguoPoster(anchor *nethtml.Node,link string) string {
+ for _,img:=range providerHTMLNodes(anchor,func(n *nethtml.Node)bool{return n.Data=="img"}) {
+  raw:=firstNonEmpty(providerHTMLAttr(img,"data-original"),providerHTMLAttr(img,"data-src"),providerHTMLAttr(img,"data-lazy"),providerHTMLAttr(img,"src"))
+  if raw==""{continue}
+  cover:=lujj31PosterAddress(raw,link)
+  if cover!=""{return cover}
+ }
+ return ""
+}
+
 func apk391ScopedPoster(anchor *nethtml.Node, source, link string) string {
+ if source=="ningguo"{return apk391NingguoPoster(anchor,link)}
  if poster:=lujj31CardPoster(anchor,link);poster!="" {return poster}
  id:=apk391VideoID(link)
  for parent,depth:=anchor.Parent,0;parent!=nil&&depth<3;parent,depth=parent.Parent,depth+1 {
@@ -152,7 +165,7 @@ func apk391ScopedPoster(anchor *nethtml.Node, source, link string) string {
 
 // Luguo/Liguo/Ningguo can have list cards with titles or covers from an adjacent film.
 // Each displayed item must be verified against its OWN video detail URL.
-func apk391RequiresDetail(source string) bool { return source=="luguo" || source=="liguo" || source=="ningguo" }
+func apk391RequiresDetail(source string) bool { return source=="luguo" || source=="liguo" }
 
 // A video duration or a taxonomy badge is not a title, even when it appears
 // in a poster link's title/alt attribute.
