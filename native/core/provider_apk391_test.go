@@ -357,3 +357,19 @@ func TestApk391ZaoguoDirectoryIsCategories(t *testing.T) {
  paths:=apk391DetailRoutes("zaoguo",id)
  if len(paths)!=1||paths[0]!="/cn/home/web/index.php/vod/play/id/1197978/sid/1/nid/1.html"{t.Fatalf("unexpected zaoguo detail route %+v",paths)}
 }
+
+func TestApk391JuguoVideo7CardsAndCategories(t *testing.T) {
+ if apk391BaseURL("juguo")!="https://bulunhome.cc" {t.Fatal("stale Juguo domain")}
+ if !apk391ValidCategory("juguo","372")||!apk391ValidCategory("juguo","423"){t.Fatal("missing observed video7 categories")}
+ fixture:=`<html><body><div class="menu"><a href="/vodtype/372/">欧美性爱</a></div>
+ <div class="mod index-list"><div class="row col5 clearfix">
+ <dl><dt class="preview-item"><a href="/voddetail/1979090/"><img class="nature lazy" data-original="https://img.example.org/real.jpg" src="/template/video7/static/images/loading.svg"></a></dt><dd><a href="/voddetail/1979090/"><h3>原有完整片名</h3></a></dd></dl>
+ <dl><dt class="preview-item"><a href="javascript:void(0)"><img data-original="/fake.jpg"></a></dt><dd><a href="javascript:void(0)"><h3>廣告</h3></a></dd></dl>
+ </div></div></body></html>`
+ doc,err:=nethtml.Parse(strings.NewReader(fixture));if err!=nil{t.Fatal(err)}
+ cards:=apk391JuguoCards(doc)
+ if len(cards)!=1||cards[0].SourceID!="1979090"||cards[0].Title!="原有完整片名"||cards[0].Cover!="https://img.example.org/real.jpg" {
+  t.Fatalf("incorrect video7 cards: %+v",cards)
+ }
+ if got:=apk391DetailRoutes("juguo","1979090")[0];got!="/voddetail/1979090/"{t.Fatalf("wrong Juguo detail URL %q",got)}
+}
