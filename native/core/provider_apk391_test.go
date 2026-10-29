@@ -302,3 +302,26 @@ func TestApk391ObservedFilmLinkPrecedesGuessedDetailRoutes(t *testing.T) {
   t.Fatalf("non-target source affected: %+v",got)
  }
 }
+
+
+func TestApk391OriginalWWWHostFallbackOn404(t *testing.T) {
+ for _,source:=range []string{"luguo","liguo"} {
+  t.Run(source,func(t *testing.T){
+   base:=apk391BaseURL(source)
+   seen:=[]string{}
+   d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
+    seen=append(seen,req.URL.Host+req.URL.Path)
+    if strings.HasPrefix(req.URL.Host,"www.") {
+     return sourceFixtureResponse(req,http.StatusOK,`<html><body><h1>可用片單</h1></body></html>`),nil
+    }
+    return sourceFixtureResponse(req,http.StatusNotFound,"missing"),nil
+   })
+   doc,_,err:=d.apk391Page(context.Background(),source,"/voddetail/987654321.html")
+   if err!=nil||doc==nil{t.Fatalf("original www fallback failed: %v",err)}
+   if len(seen)!=2||seen[0]!=""+strings.TrimPrefix(strings.TrimPrefix(base,"https://"),"http://")+"/voddetail/987654321.html"||
+     seen[1]!="www."+strings.TrimPrefix(strings.TrimPrefix(base,"https://"),"http://")+"/voddetail/987654321.html" {
+    t.Fatalf("unexpected host or modified source path: %+v",seen)
+   }
+  })
+ }
+}
