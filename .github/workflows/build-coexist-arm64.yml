@@ -9,6 +9,12 @@ on:
       - 'native/core/provider_xiaoguo*'
       - 'native/core/provider_liuguo*'
       - 'native/core/provider_lujj31*'
+      - 'native/core/provider_apk391*'
+      - 'native/core/provider_huangguo.go'
+      - 'native/core/provider_media.go'
+      - 'native/core/app_categories.go'
+      - 'native/core/app_runtime.go'
+      - 'lib/models.dart'
   workflow_dispatch:
 
 permissions:
@@ -65,7 +71,7 @@ jobs:
       - name: Verify Go providers and native core
         working-directory: native
         run: |
-          go test ./core -run 'Test(Lujj31|Liuguo|Xiaoguo)' -count=1
+          go test ./core -run 'Test(Lujj31|Liuguo|Xiaoguo|Apk391)' -count=1
           go test ./core -count=1
       - name: Build native Go ARM64 library
         run: python scripts/build_native.py --platform android --abi arm64-v8a --all-sources
