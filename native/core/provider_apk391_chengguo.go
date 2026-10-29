@@ -7,6 +7,7 @@ import (
  "fmt"
  "net/url"
  "strconv"
+ "regexp"
  "strings"
  nethtml "golang.org/x/net/html"
 )
@@ -171,4 +172,27 @@ func (d *Downloader) fetchChengguoDetail(ctx context.Context,id string)(Drama,[]
   chapters=append(chapters,Chapter{ID:providerChapterID("chengguodj",id,strconv.Itoa(n)),Source:"chengguodj",Title:fmt.Sprintf("第%d集",n),CurrentEpisode:rawEpisode(n),PageURL:link,VideoURL:"chengguodj-play://"+id+"/"+strconv.Itoa(n),Referer:apk391BaseURL("chengguodj")+"/"})
  }
  return Drama{ID:providerDramaID("chengguodj",id),Source:"chengguodj",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,EpisodeCount:count,TotalEpisode:count,ChannelName:"橙果"},chapters,nil
+}
+
+var chengguoMediaPattern=regexp.MustCompile(`https?://[^"'<>\\\s]+?\\.(?:m3u8|mp4)(?:\\?[^"'<>\\\s]*)?`)
+func (d *Downloader) resolveChengguoMedia(ctx context.Context,task Task)(providerMedia,error){
+ source,id,ok:=splitProviderDramaID(task.DramaID)
+ if !ok||source!="chengguodj"||!chengguoIDValid(id)||!strings.HasPrefix(task.Chapter.ID,providerChapterID(source,id,"")){
+  return providerMedia{},errors.New("橙果播放编号无效")
+ }
+ page:=apk391SameSite(source,task.Chapter.PageURL)
+ if page==""||!strings.Contains(page,"/play/"+id+"/"){return providerMedia{},errors.New("橙果分集来源不一致")}
+ body,err:=d.fetchProviderText(context.WithValue(ctx,providerTextUserAgentKey{},lujj31UserAgent),page,apk391BaseURL(source)+"/")
+ if err!=nil{return providerMedia{},err}
+ // Only forward a confirmed media resource, never the HTML page or an image URL.
+ normalized:=strings.ReplaceAll(body,`\u002F`,"/")
+ normalized=strings.ReplaceAll(normalized,`\/`,"/")
+ matches:=chengguoMediaPattern.FindAllString(normalized,50)
+ for _,candidate:=range matches{
+  candidate=strings.TrimSuffix(candidate,"\\")
+  if isProviderHTTPMediaURL(candidate){
+   return d.prepareWebProviderMedia(ctx,providerMedia{URL:candidate,Referer:page},"橙果")
+  }
+ }
+ return providerMedia{},errors.New("橙果播放页面未提供可验证的媒体 URL；需进一步确认站方播放器 API")
 }
