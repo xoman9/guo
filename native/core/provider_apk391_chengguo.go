@@ -18,7 +18,7 @@ func chengguoSlug(link string) string {
  parts:=strings.Split(strings.Trim(u.Path,"/"),"/")
  if len(parts)!=2||parts[0]!="drama"{return ""}
  slug:=parts[1]
- if !strings.HasPrefix(slug,"dj-")||len(slug)>48{return ""}
+ if !chengguoIDValid(slug){return ""}
  for _,r:=range slug[3:]{
   if !(r>='a'&&r<='z'||r>='0'&&r<='9'||r=='-'){return ""}
  }
