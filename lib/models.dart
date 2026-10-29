@@ -263,7 +263,11 @@ class Drama {
       sourceId: fresh.sourceId.isEmpty ? sourceId : fresh.sourceId,
       title: fresh.title.isEmpty || fresh.title == '短剧' ? title : fresh.title,
       description: fresh.description.isEmpty ? description : fresh.description,
-      cover: fresh.cover.isEmpty ? cover : fresh.cover,
+      // A valid Yanguo list poster must not be replaced by the generic
+      // thumbnail returned by its detail/playback page.
+      cover: source == 'yanguo' && cover.startsWith('http')
+          ? cover
+          : (fresh.cover.isEmpty ? cover : fresh.cover),
       episodes: fresh.episodes > 0 ? fresh.episodes : episodes,
       category:
           fresh.category.isEmpty ||
