@@ -39,6 +39,17 @@ func (engine *nativeEngine) loadCatalogCache() {
 	}
 	var disk nativeCatalogDisk
 	if json.Unmarshal(body, &disk) == nil && (disk.Version == 2 || disk.Version == 3) {
+        // Tao-guo is live-only; ignore any catalog saved by older builds.
+        for key := range disk.Catalogs {
+            if key == sourceLujj31 || strings.HasPrefix(key, sourceLujj31+"|") {
+                delete(disk.Catalogs, key)
+            }
+        }
+        for key := range disk.States {
+            if key == sourceLujj31 || strings.HasPrefix(key, sourceLujj31+"|") {
+                delete(disk.States, key)
+            }
+        }
 		if disk.Catalogs != nil {
 			engine.catalogs = disk.Catalogs
 			trimNativeCatalogs(engine.catalogs)
@@ -69,6 +80,11 @@ func (engine *nativeEngine) loadCatalogCache() {
 	}
 	var legacy map[string][]nativeDrama
 	if json.Unmarshal(body, &legacy) == nil && legacy != nil {
+        for key := range legacy {
+            if key == sourceLujj31 || strings.HasPrefix(key, sourceLujj31+"|") {
+                delete(legacy, key)
+            }
+        }
 		engine.catalogs = legacy
 		trimNativeCatalogs(engine.catalogs)
 		for _, items := range engine.catalogs {
