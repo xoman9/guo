@@ -128,6 +128,49 @@ class LocalStore extends ChangeNotifier {
       sourceEnabled(source);
   List<SourceSite> get sources =>
       SourceSite.values.where((site) => allowsSource(site.id)).toList();
+  // Matches oktv's display-only switch. It does not change source
+  // permissions, download jobs, favorites or viewing history.
+  Set<String> get hiddenSites {
+    final raw = _string(_key('hiddenSites'));
+    if (raw == null) {
+      return {for (final site in SourceSite.restrictedValues) site.id};
+    }
+    try {
+      return (jsonDecode(raw) as List).whereType<String>().toSet();
+    } catch (_) {
+      return {for (final site in SourceSite.restrictedValues) site.id};
+    }
+  }
+
+  bool siteVisible(String source) => !hiddenSites.contains(source);
+  List<SourceSite> get visibleSources => [
+    for (final site in sources)
+      if (siteVisible(site.id)) site,
+  ];
+
+  Future<void> setSiteVisible(String source, bool visible) =>
+      setSitesVisible([source], visible);
+
+  Future<void> setSitesVisible(Iterable<String> sites, bool visible) {
+    final ids = sites.toSet();
+    final epoch = _epoch;
+    return _queue(() async {
+      if (locked || epoch != _epoch) {
+        throw StateError('当前用户已变更，请重试');
+      }
+      if (ids.any((id) => !SourceSite.isKnown(id) || !profile.allows(id))) {
+        throw StateError('站源不在当前用户权限范围内');
+      }
+      final hidden = hiddenSites;
+      if (visible) {
+        hidden.removeAll(ids);
+      } else {
+        hidden.addAll(ids);
+      }
+      await _commit({_key('hiddenSites'): jsonEncode(hidden.toList())});
+      _notify();
+    });
+  }
   List<SourceSite> get permittedSources => [
     for (final site in SourceSite.values)
       if (!locked && profile.allows(site.id)) site,
@@ -346,9 +389,9 @@ class LocalStore extends ChangeNotifier {
   String get source {
     if (locked) return '';
     final value = _string(_key('source')) ?? '';
-    return sources.any((site) => site.id == value)
+    return visibleSources.any((site) => site.id == value)
         ? value
-        : sources.firstOrNull?.id ?? '';
+        : visibleSources.firstOrNull?.id ?? '';
   }
 
   DownloadPreferences get downloadPreferences {
@@ -405,7 +448,7 @@ class LocalStore extends ChangeNotifier {
   Future<void> setCatalogSource(String source, {required bool allSources}) {
     final epoch = _epoch;
     return _queue(() async {
-      if (!allowsSource(source) || epoch != _epoch) {
+      if (!allowsSource(source) || !siteVisible(source) || epoch != _epoch) {
         throw StateError('当前用户没有此站源权限');
       }
       await _commit({
@@ -477,7 +520,7 @@ class LocalStore extends ChangeNotifier {
       _setting('forceLogin', value, admin: true);
   Future<void> setHideVip(bool value) => _setting(_key('hideVip'), value);
   Future<void> setSource(String value) {
-    if (!allowsSource(value)) return Future.error(StateError('当前用户没有此站源权限'));
+    if (!allowsSource(value) || !siteVisible(value)) return Future.error(StateError('当前用户没有此站源权限'));
     return _setting(_key('source'), value);
   }
 
@@ -1003,6 +1046,10 @@ class LocalStore extends ChangeNotifier {
             'recentSearches': jsonDecode(
               _string(_key('recentSearches', profile.id)) ?? '[]',
             ),
+            'hiddenSites': jsonDecode(
+              _string(_key('hiddenSites', profile.id)) ??
+                  jsonEncode(SourceSite.restrictedValues.map((s) => s.id).toList()),
+            ),
           },
       },
     });
@@ -1080,6 +1127,12 @@ class LocalStore extends ChangeNotifier {
       CatalogView.fromJson(
         Map<String, dynamic>.from(library['catalogView'] as Map? ?? {}),
       );
+      final hidden = library['hiddenSites'];
+      if (hidden != null &&
+          (hidden is! List ||
+              hidden.any((id) => id is! String || !SourceSite.isKnown(id)))) {
+        throw const FormatException('备份站源显示设置无效');
+      }
       final searches = library['recentSearches'] as List? ?? [];
       if (searches.length > 20 ||
           searches.any(
@@ -1138,6 +1191,10 @@ class LocalStore extends ChangeNotifier {
         ),
         _key('recentSearches', profile.id): jsonEncode(
           library['recentSearches'] ?? [],
+        ),
+        _key('hiddenSites', profile.id): jsonEncode(
+          library['hiddenSites'] ??
+              SourceSite.restrictedValues.map((s) => s.id).toList(),
         ),
       });
     }
