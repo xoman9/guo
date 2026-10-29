@@ -128,3 +128,25 @@ func TestXiaoguoAdultCatalogBypassesDiskCache(t *testing.T) {
 		t.Fatalf("Xiaoguo unexpectedly saved a disk catalog %+v", result)
 	}
 }
+
+func TestXiaoguoHomepageSlashPlaybackFallback(t *testing.T) {
+	var requested []string
+	d := sourceFixtureDownloader(t, func(req *http.Request) (*http.Response, error) {
+		requested = append(requested, req.URL.Path)
+		if req.URL.Path == "/vod/play/id/306091/sid/1/nid/1/" {
+			return sourceFixtureResponse(req, http.StatusOK,
+				`<html><head><meta property="og:image" content="/poster.jpg"></head>
+				<body><h1>範例影片</h1><script>var player_aaaa={"id":306091,"encrypt":0,"url":"https://cdn.example.test/video.mp4"};</script></body></html>`), nil
+		}
+		return sourceFixtureResponse(req, http.StatusNotFound, ""), nil
+	})
+	drama, chapters, err := d.fetchXiaoguoDetail(context.Background(), "306091")
+	if err != nil || drama.ID != "xiaoguo:306091" || len(chapters) != 1 ||
+		chapters[0].PageURL != "https://yese.co/vod/play/id/306091/sid/1/nid/1/" ||
+		drama.Cover != "https://yese.co/poster.jpg" {
+		t.Fatalf("single-episode homepage playback fallback failed: %+v %+v err=%v", drama, chapters, err)
+	}
+	if len(requested) != 2 || requested[1] != "/vod/play/id/306091/sid/1/nid/1/" {
+		t.Fatalf("homepage play URL was not preferred: %v", requested)
+	}
+}
