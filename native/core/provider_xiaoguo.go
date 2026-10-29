@@ -192,12 +192,50 @@ func xiaoguoDetailFromHTML(doc *nethtml.Node, base, id string) (Drama, []Chapter
 	return drama, chapters, nil
 }
 
+// A single player page with player_data is sufficient for a one-episode
+// drama. Never synthesize a playable item from an unrelated error/home page.
+func xiaoguoSinglePlayback(doc *nethtml.Node, base, id, page string) (Drama, []Chapter, bool) {
+	link := lujj31SameSite(base, page)
+	if link == "" || lujj31SourceID(link) != id {
+		return Drama{}, nil, false
+	}
+	found := false
+	for _, script := range providerHTMLNodes(doc, func(n *nethtml.Node) bool { return n.Data == "script" }) {
+		if lujj31PlayerData.MatchString(providerHTMLText(script)) {
+			found = true
+			break
+		}
+	}
+	if !found { return Drama{}, nil, false }
+	title := "影片 " + id
+	for _, heading := range providerHTMLNodes(doc, func(n *nethtml.Node) bool { return n.Data == "h1" }) {
+		if value := strings.TrimSpace(providerHTMLText(heading)); value != "" {
+			title = truncate(value, 512)
+			break
+		}
+	}
+	cover := lujj31DetailPoster(doc, link)
+	chapter := Chapter{
+		ID: providerChapterID(sourceXiaoguo, id, "1"),
+		Source: sourceXiaoguo, Title: "第1集", CurrentEpisode: rawEpisode(1),
+		PageURL: link, VideoURL: "xiaoguo-play://" + link, Referer: base + "/",
+	}
+	drama := Drama{
+		ID: providerDramaID(sourceXiaoguo, id), Source: sourceXiaoguo, SourceID: id,
+		Title: title, Name: title, Cover: cover, CoverURL: cover,
+		EpisodeCount: 1, TotalEpisode: 1, ChannelName: "宵果",
+	}
+	return drama, []Chapter{chapter}, true
+}
+
 func (d *Downloader) fetchXiaoguoDetail(ctx context.Context, id string) (Drama, []Chapter, error) {
 	if !webProviderNumericID.MatchString(id) {
 		return Drama{}, nil, errors.New("宵果影片编号无效")
 	}
 	paths := []string{
 		fmt.Sprintf("/index.php/vod/detail/id/%s.html", id),
+		// The user-supplied yese.co homepage links to this slash route.
+		fmt.Sprintf("/vod/play/id/%s/sid/1/nid/1/", id),
 		fmt.Sprintf("/index.php/vod/play/id/%s/sid/1/nid/1.html", id),
 	}
 	var last error
@@ -210,6 +248,13 @@ func (d *Downloader) fetchXiaoguoDetail(ctx context.Context, id string) (Drama, 
 		drama, chapters, err := xiaoguoDetailFromHTML(doc, d.providerBaseURL(sourceXiaoguo), id)
 		if err == nil {
 			return drama, chapters, nil
+		}
+		// Single-video MacCMS pages sometimes expose a player but no
+		// episode-list anchors; reuse the user's actual play-page URL.
+		if strings.Contains(path, "/play/") {
+			if single, episodes, ok := xiaoguoSinglePlayback(doc, d.providerBaseURL(sourceXiaoguo), id, path); ok {
+				return single, episodes, nil
+			}
 		}
 		last = err
 	}
