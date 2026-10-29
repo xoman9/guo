@@ -487,3 +487,19 @@ func TestApk391MangguoDetailRetainsCatalogTitle(t *testing.T) {
  if err!=nil{t.Fatal(err)}
  if drama.Title!=original||drama.Name!=original{t.Fatalf("detail overwrote original catalog title: %+v",drama)}
 }
+
+func TestChengguoBrowseArticleLazyPosters(t *testing.T) {
+ htmlText:=`<html><body><div data-xpch="card-list">
+ <article data-xpch="card-drama"><div><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///"></div><h3>第一部短劇</h3><a href="/drama/dj-a123" aria-label="第一部短劇 详情">详情</a><a href="/play/dj-a123/3"></a></article>
+ <article data-xpch="card-drama"><div><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///"></div><h3>第二部短劇</h3><a href="/drama/dj-b456" aria-label="第二部短劇 详情">详情</a><a href="/play/dj-b456/2"></a></article>
+ <article data-xpch="card-drama"><div><img src="/_img/poster.jpeg"></div><h3>第三部短劇</h3><a href="/drama/dj-c789">详情</a></article>
+ </div><a href="/browse/page-2">下一頁</a></body></html>`
+ doc,err:=nethtml.Parse(strings.NewReader(htmlText));if err!=nil{t.Fatal(err)}
+ got:=chengguoCards(doc)
+ if len(got)!=3{t.Fatalf("expected 3 movies despite lazy placeholders, got %d: %+v",len(got),got)}
+ for i,id:=range []string{"dj-a123","dj-b456","dj-c789"}{
+  if got[i].SourceID!=id{t.Fatalf("film %d ID mismatch: %s",i,got[i].SourceID)}
+ }
+ if got[0].Cover!=""||got[1].Cover!=""{t.Fatalf("transparent placeholders leaked as posters: %+v",got)}
+ if !apk391HasNextPage(doc,1){t.Fatal("missing verified browse/page-2 continuation")}
+}
