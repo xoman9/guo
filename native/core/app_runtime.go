@@ -477,7 +477,7 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	}
 	page := max(1, input.Page)
 	query := strings.TrimSpace(input.Query)
-	if query == "" {
+	if query == "" && source != sourceLujj31 {
 		if retried, err := engine.retryCatalogSave(); retried {
 			cached := engine.nativeCached(cacheKey)
 			if err != nil || len(cached.Items) > 0 {
@@ -485,7 +485,7 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 			}
 		}
 	}
-	if query == "" && page == 1 && !input.Force {
+	if query == "" && page == 1 && !input.Force && source != sourceLujj31 {
 		if cached := engine.nativeCached(cacheKey); cached.Fresh {
 			return cached, nil
 		}
@@ -699,7 +699,9 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		seen[drama.ID] = true
 		result.Items = append(result.Items, nativeNormalize(drama))
 	}
-	engine.saveCatalogCache(cacheKey, &result)
+	if source != sourceLujj31 {
+		engine.saveCatalogCache(cacheKey, &result)
+	}
 	return result, nil
 }
 
