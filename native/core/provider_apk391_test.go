@@ -168,3 +168,67 @@ func TestApk391OnDemandDetailEnrichmentCorrectsCategoryLikeTitles(t *testing.T) 
   t.Fatalf("unexpected detail prefetch beyond four uncertain items: %+v",calls)
  }
 }
+
+
+func TestApk391LuguoCategoryPosterResolvesActualTitle(t *testing.T) {
+ d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
+  switch req.URL.Path {
+  case "/":
+   return sourceFixtureResponse(req,http.StatusOK,`<html><body>
+    <div class="module-item"><a title="国产传媒" href="/voddetail/601.html">
+     <img data-src="/covers/601.jpg" title="国产传媒"></a></div>
+    <div class="module-item"><a title="探花系列" href="/voddetail/602.html">
+     <img data-src="/covers/602.jpg"></a></div>
+    </body></html>`),nil
+  case "/voddetail/601.html":
+   return sourceFixtureResponse(req,http.StatusOK,`<html><head><meta property="og:image" content="/covers/601.jpg"></head>
+    <body><h1>露果電影甲 真正片名</h1></body></html>`),nil
+  case "/voddetail/602.html":
+   return sourceFixtureResponse(req,http.StatusOK,`<html><head><meta property="og:image" content="/covers/602.jpg"></head>
+    <body><h1>露果電影乙 真正片名</h1></body></html>`),nil
+  default: return sourceFixtureResponse(req,http.StatusNotFound,"missing"),nil
+  }
+ })
+ items,more,err:=d.fetchApk391CatalogPage(context.Background(),"luguo",1,"","")
+ if err!=nil||more||len(items)!=2 {
+  t.Fatalf("Luguo catalog title enrichment returned %+v more=%v err=%v",items,more,err)
+ }
+ if items[0].Title!="露果電影甲 真正片名"||items[1].Title!="露果電影乙 真正片名" {
+  t.Fatalf("Luguo showed category names as video titles: %+v",items)
+ }
+}
+
+func TestApk391IgnoreCategoryAndPaginationIDs(t *testing.T) {
+ for _,path:=range []string{
+  "/index.php/vod/show/id/1/page/2.html", "/vod/type/id/22.html",
+  "/vodtype/3-2.html", "/vodshow/id/12.html"}{
+  if got:=apk391VideoID(path);got!="" {
+   t.Fatalf("category or paging URL treated as video: %s => %s",path,got)
+  }
+ }
+ for _,path:=range []string{"/voddetail/601.html","/vodplay/601-1-1.html","/vod/play/id/601/sid/1/nid/1/"}{
+  if got:=apk391VideoID(path);got!="601"{
+   t.Fatalf("real video no longer recognized: %s => %s",path,got)
+  }
+ }
+ doc,err:=nethtml.Parse(strings.NewReader(`<html><body>
+  <a href="/index.php/vod/show/id/1/page/2.html">下一页</a>
+ </body></html>`))
+ if err!=nil{t.Fatal(err)}
+ if !apk391HasNextPage(doc,1)||apk391HasNextPage(doc,2){
+  t.Fatal("pagination successor detection returned wrong result")
+ }
+}
+
+func TestYanguoNativeMergeRetainsListPoster(t *testing.T) {
+ before:=nativeDrama{ID:"yanguo:601",Source:"yanguo",Title:"正確片名",Cover:"https://xqxq1.cc/movie601.jpg"}
+ after:=nativeDrama{ID:"yanguo:601",Source:"yanguo",Title:"更新片名",Cover:"https://xqxq1.cc/fallback.png"}
+ merged:=mergeNativeDrama(before,after)
+ if merged.Cover!=before.Cover||merged.Title!="更新片名"{
+  t.Fatalf("playback detail replaced Yanguo list poster: %+v",merged)
+ }
+ empty:=mergeNativeDrama(nativeDrama{ID:"yanguo:602",Source:"yanguo"},nativeDrama{ID:"yanguo:602",Source:"yanguo",Cover:"https://xqxq1.cc/602.jpg"})
+ if empty.Cover!="https://xqxq1.cc/602.jpg"{
+  t.Fatalf("missing original cover blocked new detail poster: %+v",empty)
+ }
+}
