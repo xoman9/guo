@@ -125,17 +125,179 @@ func apk391InsideNavigation(node *nethtml.Node) bool {
  return false
 }
 
+// Only a poster directly associated with this video is trustworthy. The
+// generic extractor searches a parent subtree, which can accidentally use
+// the previous film's poster when multiple links share one container.
+func apk391ScopedPoster(anchor *nethtml.Node, source, link string) string {
+ if poster:=lujj31CardPoster(anchor,link);poster!="" {return poster}
+ id:=apk391VideoID(link)
+ for parent,depth:=anchor.Parent,0;parent!=nil&&depth<3;parent,depth=parent.Parent,depth+1 {
+  if parent.Data=="body"||parent.Data=="section"{break}
+  ownLinks:=0
+  for _,a:=range providerHTMLNodes(parent,func(n *nethtml.Node)bool{return n.Data=="a"}) {
+   if v:=apk391VideoID(apk391SameSite(source,providerHTMLAttr(a,"href")));v!=""{
+    if v!=id{return ""}
+    ownLinks++
+   }
+  }
+  if ownLinks==1 {
+   return lujj31CardPoster(parent,link)
+  }
+ }
+ return ""
+}
+
+// A video duration or a taxonomy badge is not a title, even when it appears
+// in a poster link's title/alt attribute.
+var apk391TimeLabel=regexp.MustCompile(`^[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?package core
+
+import (
+ "context"
+ "errors"
+ "fmt"
+ "net/url"
+ "regexp"
+ "strconv"
+ "strings"
+ "sync"
+ "time"
+
+ nethtml "golang.org/x/net/html"
+)
+
+// Experimental shared adapter only for sites whose APK registry Kind=maccms.
+// Specialty APIs retain explicit unsupported responses until their original
+// request/response protocol is reconstructed. No source is pre-cached.
+var (
+ apk391IDPattern = regexp.MustCompile("(?i)/(?:voddetail|vodplay|detail|play)/([0-9]{1,9})(?:[-./?]|$)")
+ apk391SlashID = regexp.MustCompile("(?i)/(?:vod/)?(?:detail|play)/id/([0-9]{1,9})(?:[-./?]|$)")
+ apk391CatPattern=regexp.MustCompile("(?i)/(?:vodtype|vodshow|type|list)(?:/id)?[/_-]([0-9]{1,8})(?:[-./?]|$)")
+ apk391Numeric=regexp.MustCompile("^[0-9]{1,9}$")
+)
+
+func apk391SameSite(source, target string) string {
+ base:=apk391BaseURL(source)
+ if base==""{return ""}
+ b,be:=url.Parse(base);u,ue:=url.Parse(strings.TrimSpace(target))
+ if be!=nil||ue!=nil||u.User!=nil{return ""}
+ a:=b.ResolveReference(u)
+ if a.User!=nil || (a.Scheme!="https"&&a.Scheme!="http") ||
+  !strings.EqualFold(strings.TrimPrefix(a.Hostname(),"www."),strings.TrimPrefix(b.Hostname(),"www.")){return ""}
+ return a.String()
+}
+
+func apk391VideoID(target string) string {
+ u,err:=url.Parse(target);if err!=nil{return ""}
+ path:=strings.ToLower(u.Path)
+ // MacCMS taxonomy routes contain /id/<category> too, and pagination
+ // links contain /page/<n>. Neither can be treated as a video.
+ for _,part:=range []string{"/vod/show/","/vod/type/","/vodshow/","/vodtype/","/category/","/categories/","/page/"} {
+  if strings.Contains(path,part){return ""}
+ }
+ for _,rx:=range []*regexp.Regexp{apk391SlashID,apk391IDPattern}{
+  if m:=rx.FindStringSubmatch(u.Path);len(m)>1{return m[1]}
+ }
+ return ""
+}
+
+func apk391ValidCategory(source,category string)bool {
+ if category==""{return true}
+ for _,cat:=range apk391StaticCategoryFallback[source]{
+  if cat.ID==category{return true}
+ }
+ if len(apk391StaticCategoryFallback[source])>0{return false}
+ return apk391Numeric.MatchString(category)
+}
+
+func (d *Downloader) apk391Page(ctx context.Context,source,path string)(*nethtml.Node,string,error){
+ link:=apk391SameSite(source,path)
+ if link==""{return nil,"",errors.New("非法或跨站页面")}
+ base:=apk391BaseURL(source)
+ doc,actual,err:=d.fetchProviderPage(ctx,link,base+"/",lujj31UserAgent)
+ if err!=nil{return nil,"",err}
+ if len(providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="body"&&n.FirstChild!=nil}))==0{
+  return nil,"",errors.New("网页未返回有效正文")
+ }
+ return doc,actual,nil
+}
+
+func (d *Downloader) fetchApk391Categories(ctx context.Context,source string)([]nativeCategory,error){
+ spec,ok:=apk391Spec(source)
+ if !ok{return nil,errors.New("未知站源")}
+ // Extracted native category tables are useful even when a custom
+ // website/API adapter is not yet available for live catalog playback.
+ if choices:=apk391StaticCategoryFallback[source];len(choices)>0{
+  return append([]nativeCategory(nil),choices...),nil
+ }
+ if spec.Kind!="maccms"{return nil,fmt.Errorf("%s 需要独立 %s 分类协议，尚未完成移植",spec.Name,spec.Kind)}
+ doc,_,err:=d.apk391Page(ctx,source,"/")
+ if err!=nil{return nil,err}
+ seen:=map[string]bool{};items:=[]nativeCategory{}
+ for _,a:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="a"}){
+  link:=apk391SameSite(source,providerHTMLAttr(a,"href"))
+  if link==""{continue}
+  m:=apk391CatPattern.FindStringSubmatch(link);if len(m)<2||seen[m[1]]{continue}
+  name:=strings.TrimSpace(providerHTMLText(a))
+  if name==""||name=="全部"||len([]rune(name))>28{continue}
+  seen[m[1]]=true
+  items=append(items,nativeCategory{ID:m[1],Name:name})
+  if len(items)>=48{break}
+ }
+ if len(items)==0{return nil,errors.New("网页没有取得有效分类")}
+ return items,nil
+}
+
+// A category/nav item can link to a video-shaped path, so a URL match
+// alone is not evidence of a drama card. This prevents category labels from
+// appearing as fake films before a detail-page refresh.
+func apk391CategoryLabel(source, value string) bool {
+ value = strings.Join(strings.Fields(value), "")
+ if value == "" { return true }
+ switch value {
+ case "全部", "首页", "首頁", "分类", "分類", "更多", "最新", "最新上傳", "最新上传", "國產自拍", "国产自拍", "国产传媒", "國產傳媒", "探花系列", "人妻熟女":
+  return true
+ }
+ for _,category := range apk391StaticCategoryFallback[source] {
+  if strings.EqualFold(strings.Join(strings.Fields(category.Name),""),value) { return true }
+ }
+ return false
+}
+
+func apk391InsideNavigation(node *nethtml.Node) bool {
+ for p:=node.Parent;p!=nil;p=p.Parent {
+  switch p.Data {
+  case "nav","header","footer": return true
+  }
+  if p.Data=="body" {break}
+  for _,class:=range []string{"module-play-list-content","playlist","play-list","module-play-list","module-play-list-group","breadcrumb","module-class","module-type","category-list","type-list"} {
+   if lujj31HasClass(p,class){return true}
+  }
+ }
+ return false
+}
+
+)
+func apk391BadTitle(source,title string)bool{
+ title=strings.TrimSpace(title)
+ if apk391CategoryLabel(source,title)||apk391TimeLabel.MatchString(title){return true}
+ switch strings.ToLower(title){
+ case "热门","熱門","hot","推荐","推薦","new","更新","最新","播放","观看","觀看","视频","影片","video","more":
+  return true
+ }
+ return false
+}
+
 func apk391CardTitle(anchor *nethtml.Node, source string) string {
  // Image alt/title takes priority over text from adjacent taxonomy badges.
  for _,img:=range providerHTMLNodes(anchor,func(n *nethtml.Node)bool{return n.Data=="img"}) {
   for _,attribute:=range []string{"alt","title"} {
    title:=strings.TrimSpace(providerHTMLAttr(img,attribute))
-   if title!="" && !apk391CategoryLabel(source,title){return truncate(title,512)}
+   if title!="" && !apk391BadTitle(source,title){return truncate(title,512)}
   }
  }
  for _,attribute:=range []string{"title","data-title"}{
   title:=strings.TrimSpace(providerHTMLAttr(anchor,attribute))
-  if title!=""&&!apk391CategoryLabel(source,title){return truncate(title,512)}
+  if title!=""&&!apk391BadTitle(source,title){return truncate(title,512)}
  }
  for _,root:=range []*nethtml.Node{anchor,anchor.Parent} {
   if root==nil {continue}
@@ -144,11 +306,11 @@ func apk391CardTitle(anchor *nethtml.Node, source string) string {
     lujj31HasClass(n,"module-poster-item-title")||lujj31HasClass(n,"video-title")
   }){
    title:=strings.TrimSpace(providerHTMLText(n))
-   if title!=""&&!apk391CategoryLabel(source,title){return truncate(title,512)}
+   if title!=""&&!apk391BadTitle(source,title){return truncate(title,512)}
   }
  }
  title:=strings.TrimSpace(providerHTMLText(anchor))
- if apk391CategoryLabel(source,title){return ""}
+ if apk391BadTitle(source,title){return ""}
  return truncate(title,512)
 }
 
@@ -162,15 +324,13 @@ func apk391Cards(doc *nethtml.Node,source string)[]Drama{
   if id==""||seen[id]{continue}
   title:=apk391CardTitle(a,source)
   if title==""{continue}
-  posterNode:=a
-  if a.Parent!=nil{posterNode=a.Parent}
-  cover:=lujj31CardPoster(posterNode,link)
+  cover:=apk391ScopedPoster(a,source,link)
   // Recovered source landing pages mix navigation, video links and categories.
   // Cards without real cover evidence frequently are category navigation.
   if cover==""{continue}
-  // Luguo can place a category label on an otherwise valid poster. Confirm
-  // the video title through the matching detail page first.
-  if source=="luguo" && apk391CategoryLabel(source,title) {continue}
+  // Luguo's list titles/posters are not reliably tied to each film.
+  // Only verified per-ID detail metadata may appear in the Luguo catalog.
+  if source=="luguo" {continue}
   seen[id]=true
   items=append(items,Drama{ID:providerDramaID(source,id),Source:source,SourceID:id,
    Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:spec.Name})
@@ -197,15 +357,31 @@ func apk391Suspects(doc *nethtml.Node,source string,already []Drama) []apk391Sus
   rawTitle:=strings.TrimSpace(providerHTMLAttr(a,"title"))
   if rawTitle==""{rawTitle=strings.TrimSpace(providerHTMLText(a))}
   if rawTitle==""{continue}
-  posterNode:=a
-  if a.Parent!=nil{posterNode=a.Parent}
-  cover:=lujj31CardPoster(posterNode,page)
-  if !apk391CategoryLabel(source,rawTitle) && cover!=""{continue}
+  cover:=apk391ScopedPoster(a,source,page)
+  if source!="luguo" && !apk391BadTitle(source,rawTitle) && cover!=""{continue}
   seen[id]=true
   out=append(out,apk391Suspect{id:id,page:page})
-  if len(out)>=8{break}
+  if len(out)>=func()int{if source=="luguo"{return 24};return 8}(){break}
  }
  return out
+}
+
+// For Luguo use poster metadata from the actual detail page, never an
+// unrelated thumbnail somewhere else in that page's general document tree.
+func apk391DetailPoster(doc *nethtml.Node,page,source string)string{
+ if source!="luguo"{return lujj31DetailPoster(doc,page)}
+ for _,node:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="meta"}) {
+  property:=strings.ToLower(firstNonEmpty(providerHTMLAttr(node,"property"),providerHTMLAttr(node,"name")))
+  if property=="og:image"||property=="og:image:url"||property=="twitter:image"{
+   if poster:=lujj31PosterAddress(providerHTMLAttr(node,"content"),page);poster!=""{return poster}
+  }
+ }
+ for _,class:=range []string{"detail-pic","video-info-pic","module-item-pic"}{
+  if node:=providerHTMLFirstClass(doc,class);node!=nil{
+   if poster:=lujj31CardPoster(node,page);poster!=""{return poster}
+  }
+ }
+ return ""
 }
 
 func (d *Downloader) apk391EnrichOne(ctx context.Context,source string,entry apk391Suspect)(Drama,bool) {
@@ -214,7 +390,7 @@ func (d *Downloader) apk391EnrichOne(ctx context.Context,source string,entry apk
  title:=""
  for _,tag:=range []string{"h1","h2"} {
   for _,n:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data==tag}) {
-   if text:=strings.TrimSpace(providerHTMLText(n));text!=""&&!apk391CategoryLabel(source,text) {
+   if text:=strings.TrimSpace(providerHTMLText(n));text!=""&&!apk391BadTitle(source,text) {
     title=text
     break
    }
@@ -225,14 +401,14 @@ func (d *Downloader) apk391EnrichOne(ctx context.Context,source string,entry apk
   for _,n:=range providerHTMLNodes(doc,func(n *nethtml.Node)bool{return n.Data=="meta"}) {
    name:=strings.ToLower(firstNonEmpty(providerHTMLAttr(n,"property"),providerHTMLAttr(n,"name")))
    if name=="og:title"||name=="twitter:title" {
-    if t:=strings.TrimSpace(providerHTMLAttr(n,"content"));t!=""&&!apk391CategoryLabel(source,t){
+    if t:=strings.TrimSpace(providerHTMLAttr(n,"content"));t!=""&&!apk391BadTitle(source,t){
      title=t
      break
     }
    }
   }
  }
- cover:=lujj31DetailPoster(doc,actual)
+ cover:=apk391DetailPoster(doc,actual,source)
  if title==""||cover=="" {return Drama{},false}
  spec:=apk391ByID[source]
  return Drama{ID:providerDramaID(source,entry.id),Source:source,SourceID:entry.id,
@@ -242,11 +418,15 @@ func (d *Downloader) apk391EnrichOne(ctx context.Context,source string,entry apk
 func (d *Downloader) apk391EnrichSuspects(ctx context.Context,source string,doc *nethtml.Node,real []Drama) []Drama {
  suspects:=apk391Suspects(doc,source,real)
  if len(suspects)==0{return real}
- limited,cancel:=context.WithTimeout(ctx,2*time.Second)
+ timeout:=2*time.Second
+ if source=="luguo" {timeout=3*time.Second}
+ limited,cancel:=context.WithTimeout(ctx,timeout)
  defer cancel()
  results:=make([]Drama,len(suspects))
  valid:=make([]bool,len(suspects))
- slots:=make(chan struct{},3)
+ parallel:=3
+ if source=="luguo"{parallel=8}
+ slots:=make(chan struct{},parallel)
  var wg sync.WaitGroup
  for i,entry:=range suspects{
   if limited.Err()!=nil{break}
