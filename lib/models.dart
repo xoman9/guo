@@ -45,10 +45,10 @@ class SourceSite {
     hanxiaoquan,
     guipian,
     sorani,
-    SourceSite('lujj31', 'lujj31', '网站影片 · 分类与搜索（接口待验证）'),
   ];
 
   static const restrictedValues = [
+    SourceSite('lujj31', '桃果 🔞', '网页分类 · 视频详情 · 播放线路'),
     SourceSite('huangdou', '黄豆 🔞', '精选短剧'),
     SourceSite('huangju', '剧果 🔞', '热门 · 最新 · 分类短剧'),
     SourceSite('yeguo', '野果 🔞', '分类短剧 · 在线搜索'),
