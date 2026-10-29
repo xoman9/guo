@@ -428,3 +428,20 @@ func TestApk391NingguoPosterRemainsAfterDetailNavigation(t *testing.T) {
  if err!=nil{t.Fatalf("detail unavailable: %v",err)}
  if drama.Cover!=cover||drama.CoverURL!=cover{t.Fatalf("detail replaced catalog poster: %+v",drama)}
 }
+
+func TestApk391MangguoDetailRetainsCatalogCover(t *testing.T) {
+ const source="mangguo"
+ const id="987654321"
+ const poster="https://img.example.org/mangguo-correct.jpg"
+ apk391RememberCover(source,id,poster)
+ t.Cleanup(func(){apk391CatalogCovers.Delete(source+":"+id)})
+ d:=sourceFixtureDownloader(t,func(req *http.Request)(*http.Response,error){
+  if req.URL.Path=="/index.php/vod/detail/id/"+id+".html"{
+   return sourceFixtureResponse(req,http.StatusOK,`<html><body><h1>正确影片</h1><img src="https://img.example.org/wrong-recommendation.jpg"><a href="/index.php/vod/play/id/987654321/sid/1/nid/1.html">第1集</a></body></html>`),nil
+  }
+  return sourceFixtureResponse(req,http.StatusNotFound,"not found"),nil
+ })
+ movie,_,err:=d.fetchApk391Detail(context.Background(),source,id)
+ if err!=nil{t.Fatal(err)}
+ if movie.Cover!=poster||movie.CoverURL!=poster{t.Fatalf("incorrect cover after entering detail: %+v",movie)}
+}
