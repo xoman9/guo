@@ -306,3 +306,16 @@ func TestApk391LuguoAndLiguoReferenceHosts(t *testing.T) {
   }
  }
 }
+
+func TestApk391LiguoWntheme27ActualCardStructure(t *testing.T) {
+ fixture:=`<html><body><div class="list"><div class="list-title"><a href="/vodshow/28-----------/" class="more">更多</a></div><div class="list-content">
+ <a href="/vodplay/288007-1-1/" class="card el-col"><div class="card-box"><div class="el-image"><img class="lazyload" src="/template/wntheme27/asset/img/lazyload.gif" data-src="https://img.example.org/actual.jpg"><div class="play-time">01:58:55</div></div><div class="desc">MOND-259 真正影片標題</div></div></a>
+ <a href="/vodplay/288008-1-1/" class="card el-col"><div class="card-box"><div class="desc">只有文字無封面</div></div></a>
+ </div></div></body></html>`
+ doc,err:=nethtml.Parse(strings.NewReader(fixture));if err!=nil{t.Fatal(err)}
+ cards:=apk391LiguoCards(doc)
+ if len(cards)!=1||cards[0].SourceID!="288007"||cards[0].Title!="MOND-259 真正影片標題"||cards[0].Cover!="https://img.example.org/actual.jpg"{
+  t.Fatalf("wrong original wntheme27 movie metadata: %+v",cards)
+ }
+ if apk391Cards(doc,"liguo")[0].Title!=cards[0].Title{t.Fatal("liguo path did not use dedicated cards")}
+}
