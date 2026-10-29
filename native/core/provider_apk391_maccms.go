@@ -51,6 +51,9 @@ func apk391VideoID(target string) string {
 
 func apk391ValidCategory(source,category string)bool {
  if category==""{return true}
+ // The live Juguo video7 website exposes many more numeric /vodtype/ IDs
+ // than its old 0.2.183 static category list.
+ if source=="juguo"{return apk391Numeric.MatchString(category)}
  for _,cat:=range apk391StaticCategoryFallback[source]{
   if cat.ID==category{return true}
  }
