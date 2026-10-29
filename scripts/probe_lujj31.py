@@ -67,13 +67,13 @@ def probe(path):
 
 for HOST in ("lujj31.lol", "www.lujj31.lol", "lujj31.buzz"):
     ORIGIN = "https://" + HOST
-    print("\\n=== HOST:", HOST, "===")
+    print("\n=== HOST:", HOST, "===")
     try:
         ips = sorted({row[4][0] for row in socket.getaddrinfo(HOST, 443, type=socket.SOCK_STREAM)})
         print("DNS resolved:", ips[:8])
     except OSError as exc:
         print("DNS failed:", type(exc).__name__, str(exc)[:150])
     probe("/")
-    probe("/api.php/provide/vod/?ac=list")
+    probe("/index.php/vod/type/id/1.html")
     if HOST == "lujj31.lol":
-        probe("/api.php/provide/vod/?ac=detail&pg=1")
+        probe("/index.php/vod/type/id/2.html")
