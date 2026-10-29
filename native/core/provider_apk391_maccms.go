@@ -567,6 +567,7 @@ func (d *Downloader) fetchApk391CatalogPage(ctx context.Context,source string,pa
   return nil,false,errors.New("非法分类或分页参数")
  }
  if source=="xiongguo"{return d.fetchXiongguoCatalog(ctx,page,category,query)}
+ if source=="chengguodj"{return d.fetchChengguoCatalog(ctx,page,category,query)}
  if spec.Kind!="maccms"{
   return nil,false,fmt.Errorf("%s 原生 %s 目录 API 尚未恢复，不会用其他来源假冒",spec.Name,spec.Kind)
  }
