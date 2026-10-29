@@ -23,7 +23,6 @@ class SourceSite {
       id == 'yanguo' ||
       id == 'youguo' ||
       id == 'meiguo' ||
-      id == 'chengguo' ||
       id == 'yingguo' ||
       id == 'luguo' ||
       id == 'liguo' ||
@@ -71,11 +70,9 @@ class SourceSite {
     SourceSite('lujj31', '桃果 🔞', '网页分类 · 视频详情 · 播放线路'),
     SourceSite('liuguo', '榴果 🔞', '即時分類 · 影片 · 播放線路'),
     SourceSite('xiaoguo', '宵果 🔞', '即時分類 · 線上搜尋 · 播放線路'),
-    SourceSite('chaoguo', '超果 🔞', '0.2.391 原生抽取 · 測試來源'),
     SourceSite('yanguo', '艷果 🔞', '0.2.391 原生抽取 · 測試來源'),
     SourceSite('youguo', '柚果 🔞', '0.2.391 原生抽取 · 測試來源'),
     SourceSite('meiguo', '美果 🔞', '0.2.391 原生抽取 · 測試來源'),
-    SourceSite('chengguo', '城果 🔞', '0.2.391 原生抽取 · 測試來源'),
     SourceSite('yingguo', '櫻果 🔞', '0.2.391 原生抽取 · 測試來源'),
     SourceSite('luguo', '露果 🔞', '0.2.391 原生抽取 · 測試來源'),
     SourceSite('liguo', '荔果 🔞', '0.2.391 原生抽取 · 測試來源'),
