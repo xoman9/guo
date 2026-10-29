@@ -67,13 +67,15 @@ for attr,u in targets:
             raw_name=f"unknown-{len(proofs):02d}.bin"
             (OUT/raw_name).write_bytes(b)
             result["raw_file"]=raw_name
+            result["block_aligned_16"]=len(b)%16==0
+            result["first_block_hex"]=b[:16].hex()
         if k and len(b)>2048:
             name=f"poster-{len(proofs):02d}.{k}"
             (OUT/name).write_bytes(b)
             result["file"]=name
         proofs.append(result)
     except Exception as exc:proofs.append({"source":attr,"url":u,"error":repr(exc)})
-report={"pages":rows,"checked":len(proofs),"verified_images":[p for p in proofs if p.get("file")],"requests":proofs}
+report={"first_blocks":[v.get("first_block_hex") for v in proofs if v.get("first_block_hex")],"pages":rows,"checked":len(proofs),"verified_images":[p for p in proofs if p.get("file")],"requests":proofs}
 (OUT/"report.json").write_text(json.dumps(report,ensure_ascii=False,indent=2))
 print(json.dumps({"pages":rows,"checked":len(proofs),"verified":len(report["verified_images"]),"samples":proofs[:12]},ensure_ascii=False))
 if not report["verified_images"]:raise SystemExit("NO_VERIFIED_COVER: real image bytes unavailable; do not build APK")
