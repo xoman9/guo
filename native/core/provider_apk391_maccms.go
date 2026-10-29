@@ -35,6 +35,33 @@ func apk391SameSite(source, target string) string {
  return a.String()
 }
 
+// Preserve each film's exact URL from the original catalog. Guessed routes
+// can return 404 even when the source card's URL works.
+var apk391ObservedDetailLinks sync.Map
+
+func apk391RememberDetailLink(source,id,link string) {
+ if !apk391RequiresDetail(source)||!apk391Numeric.MatchString(id){return}
+ verified:=apk391SameSite(source,link)
+ if verified==""||apk391VideoID(verified)!=id{return}
+ apk391ObservedDetailLinks.Store(source+":"+id,verified)
+}
+
+func apk391DetailCandidates(source,id string) []string {
+ paths:=make([]string,0,5)
+ if apk391RequiresDetail(source){
+  if found,ok:=apk391ObservedDetailLinks.Load(source+":"+id);ok {
+   if original,ok:=found.(string);ok&&apk391SameSite(source,original)!=""&&apk391VideoID(original)==id {
+    paths=append(paths,original)
+   }
+  }
+ }
+ return append(paths,
+  fmt.Sprintf("/index.php/vod/detail/id/%s.html",id),
+  fmt.Sprintf("/voddetail/%s.html",id),
+  fmt.Sprintf("/vodplay/%s-1-1.html",id),
+  fmt.Sprintf("/index.php/vod/play/id/%s/sid/1/nid/1.html",id))
+}
+
 func apk391VideoID(target string) string {
  u,err:=url.Parse(target);if err!=nil{return ""}
  path:=strings.ToLower(u.Path)
@@ -232,6 +259,7 @@ func apk391Suspects(doc *nethtml.Node,source string,already []Drama) []apk391Sus
   page:=apk391SameSite(source,providerHTMLAttr(a,"href"))
   id:=apk391VideoID(page)
   if id==""||seen[id]{continue}
+  apk391RememberDetailLink(source,id,page)
   rawTitle:=strings.TrimSpace(providerHTMLAttr(a,"title"))
   if rawTitle==""{rawTitle=strings.TrimSpace(providerHTMLText(a))}
   if rawTitle=="" && !apk391RequiresDetail(source){continue}
@@ -404,10 +432,7 @@ func (d *Downloader) fetchApk391Detail(ctx context.Context,source,id string)(Dra
  spec,ok:=apk391Spec(source)
  if !ok||!apk391Numeric.MatchString(id){return Drama{},nil,errors.New("非法影片编号")}
  if spec.Kind!="maccms"{return Drama{},nil,fmt.Errorf("%s 需要专用详情接口",spec.Name)}
- paths:=[]string{fmt.Sprintf("/index.php/vod/detail/id/%s.html",id),
-  fmt.Sprintf("/voddetail/%s.html",id),
-  fmt.Sprintf("/vodplay/%s-1-1.html",id),
-  fmt.Sprintf("/index.php/vod/play/id/%s/sid/1/nid/1.html",id)}
+ paths:=apk391DetailCandidates(source,id)
  var failure error
  for _,path:=range paths{
   doc,actual,err:=d.apk391Page(ctx,source,path)
