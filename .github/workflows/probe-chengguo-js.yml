@@ -1,0 +1,25 @@
+name: Inspect Chengguo image decoder in site JS
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/probe-chengguo-js.yml'
+      - 'scripts/probe_chengguo_js.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inspect live web JS for image decoding logic
+        run: python scripts/probe_chengguo_js.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chengguo-js-proof
+          path: chengguo-js-proof/
