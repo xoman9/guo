@@ -150,9 +150,9 @@ func apk391ScopedPoster(anchor *nethtml.Node, source, link string) string {
  return ""
 }
 
-// Luguo/Liguo do not expose trustworthy movie metadata in their list cards.
+// Luguo/Liguo/Ningguo can have list cards with titles or covers from an adjacent film.
 // Each displayed item must be verified against its OWN video detail URL.
-func apk391RequiresDetail(source string) bool { return source=="luguo" || source=="liguo" }
+func apk391RequiresDetail(source string) bool { return source=="luguo" || source=="liguo" || source=="ningguo" }
 
 // A video duration or a taxonomy badge is not a title, even when it appears
 // in a poster link's title/alt attribute.
