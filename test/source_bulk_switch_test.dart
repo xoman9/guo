@@ -12,7 +12,7 @@ void main() {
         reason: 'Run with --dart-define=ALL_SOURCES=true');
     final store = await openStore();
     final adult = SourceSite.values
-        .where((site) => site.name.contains('🔞'))
+        .where((site) => SourceSite.isRestricted(site.id))
         .map((site) => site.id)
         .toList();
     expect(adult, contains('lujj31'));
