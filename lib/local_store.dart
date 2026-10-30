@@ -147,6 +147,28 @@ class LocalStore extends ChangeNotifier {
     }
   }
 
+  /// Bulk switch used by the adult-channels button in guo's existing
+  /// source management list. Persist all changes in one transaction.
+  Future<void> setSourcesEnabled(Iterable<String> sources, bool enabled) {
+    final ids = sources.toSet();
+    if (ids.any((source) => !SourceSite.isAvailable(source))) {
+      return Future.error(StateError('站源无效'));
+    }
+    if (ids.isEmpty) return Future.value();
+    final epoch = _epoch;
+    return _queue(() async {
+      _requireAdmin();
+      if (epoch != _epoch) throw StateError('当前用户已变更，请重试');
+      final switches = {
+        ..._sourceSwitches,
+        for (final source in ids) source: enabled,
+      };
+      await _commit({'sourceSwitches': jsonEncode(switches)});
+      _sourceSwitches = switches;
+      _notify();
+    });
+  }
+
   Future<void> setSourceEnabled(String source, bool enabled) {
     if (!SourceSite.isAvailable(source)) {
       return Future.error(StateError('站源无效'));

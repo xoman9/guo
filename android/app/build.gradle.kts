@@ -13,6 +13,9 @@ val dartDefines = providers.gradleProperty("dart-defines").orNull.orEmpty()
         decoded.substringBefore("=") to decoded.substringAfter("=", "")
     }
 val allSources = dartDefines["ALL_SOURCES"] == "true"
+// Coexistence is build-only: the original package and signing remain unchanged
+// when COEXIST is omitted. Flutter/Kotlin namespace stays the original one.
+val coexist = dartDefines["COEXIST"] == "true"
 
 val releaseKey = rootProject.file("key.properties")
 val releaseProperties = Properties()
@@ -39,12 +42,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.duanju.duanju_app"
+        applicationId = if (coexist) "com.duanju.duanju_app.coexist" else "com.duanju.duanju_app"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        manifestPlaceholders["appLabel"] = if (allSources) "真果鉴" else "红果鉴"
+        manifestPlaceholders["appLabel"] = if (coexist) "真果鉴-共存" else if (allSources) "真果鉴" else "红果鉴"
         manifestPlaceholders["appBanner"] = if (allSources) "@drawable/tv_banner_all_sources" else "@drawable/tv_banner"
     }
 

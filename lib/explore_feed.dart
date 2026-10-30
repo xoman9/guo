@@ -126,7 +126,9 @@ class ExploreFeed extends ChangeNotifier {
                 _saved(_ranking(catalog, board, ranks, page, force)),
           )
         : DramaFeed(
-            cached: () => catalog.cached(tab),
+            cached: catalog.source.id == 'lujj31' || catalog.source.id == 'liuguo' || catalog.source.id == 'xiaoguo' || catalog.source.experimentalApk391
+                ? null // Tao-guo: fetch only the requested page live.
+                : () => catalog.cached(tab),
             load: (page, force) =>
                 _saved(catalog.fetch(tab, page: page, force: force)),
           );

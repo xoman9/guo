@@ -7,6 +7,7 @@ class SourceSite {
   final String id;
   final String name;
   final String description;
+  bool get experimentalApk391 => description.startsWith('0.2.391');
   bool get onlineSearch => pagedSearch;
   bool get pagedSearch =>
       id == 'hongguo' ||
@@ -15,22 +16,41 @@ class SourceSite {
       id == 'dsd' ||
       id == 'sorani' ||
       id == 'guipian' ||
-      id == 'hanxiaoquan';
+      id == 'hanxiaoquan' ||
+      id == 'lujj31' ||
+      id == 'liuguo' ||
+      id == 'xiaoguo' ||
+      id == 'yanguo' ||
+      id == 'youguo' ||
+      id == 'meiguo' ||
+      id == 'yingguo' ||
+      id == 'luguo' ||
+      id == 'liguo' ||
+      id == 'juguo' ||
+      id == 'zaoguo' ||
+      id == 'ningguo' ||
+      id == 'mangguo' ||
+      id == 'jiaoguo' ||
+      id == 'zhenguo' ||
+      id == 'xueguo' ||
+      id == 'huiguo' ||
+      id == 'liaoguo' ||
+      id == 'chunguo';
   bool get searchSuggestions => id == 'hongguo';
   String get groupId => switch (id) {
     'huangguo-video' || 'huangguoai' || 'cloudfront' => 'huangguo',
     _ => id,
   };
-  String get groupName => groupId == 'huangguo' ? '黄果 🔞' : name;
+  String get groupName => groupId == 'huangguo' ? '黄果 +' : name;
   String get entryName => switch (id) {
-    'huangguo-video' => '视频 🔞',
-    'huangguoai' => 'AI 🔞',
-    'cloudfront' => '旧版 🔞',
+    'huangguo-video' => '视频 +',
+    'huangguoai' => 'AI +',
+    'cloudfront' => '旧版 +',
     _ => name,
   };
 
   static const hongguo = SourceSite('hongguo', '红果', '短剧 · 漫剧 · AI 剧');
-  static const dsd = SourceSite('dsd', '帝果 🔞', '分类视频 · 在线搜索');
+  static const dsd = SourceSite('dsd', '帝果 +', '分类视频 · 在线搜索');
   static const sorani = SourceSite('sorani', '青空', '番剧 · 剧场动画 · 特摄');
   static const guipian = SourceSite('guipian', '鬼片', '鬼片 · 电视剧 · 动漫');
   static const hanxiaoquan = SourceSite(
@@ -39,16 +59,67 @@ class SourceSite {
     '韩剧 · 韩国电影 · 综艺动漫',
   );
 
-  static const primaryValues = [hongguo, hanxiaoquan, guipian, sorani];
+  static const primaryValues = [
+    hongguo,
+    hanxiaoquan,
+    guipian,
+    sorani,
+  ];
 
   static const restrictedValues = [
-    SourceSite('huangdou', '黄豆 🔞', '精选短剧'),
-    SourceSite('huangju', '剧果 🔞', '热门 · 最新 · 分类短剧'),
-    SourceSite('yeguo', '野果 🔞', '分类短剧 · 在线搜索'),
+    SourceSite('lujj31', '桃果 +', '网页分类 · 视频详情 · 播放线路'),
+    SourceSite('liuguo', '榴果 +', '即時分類 · 影片 · 播放線路'),
+    SourceSite('xiaoguo', '宵果 +', '即時分類 · 線上搜尋 · 播放線路'),
+    SourceSite('yanguo', '艷果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('youguo', '柚果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('meiguo', '美果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('yingguo', '櫻果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('luguo', '露果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('liguo', '荔果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('juguo', '橘果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('zaoguo', '棗果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('ningguo', '檸果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('mangguo', '芒果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('chengguodj', '橙果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('xiongguo', '熊果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('jiaoguo', '角果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('zhenguo', '貞果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('caoguo', '草果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('xueguo', '學果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('av2', '二果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('huiguo', '會果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('liaoguo', '撩果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('chunguo', '春果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('boguo', '波果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('cangguo', '倉果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('baguo', '巴果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('jieguo', '杰果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('dangguo', '檔果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('hanguo', '漢果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('whostv', '番果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('bangguo', '榜果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('tangguo', '糖果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('bilifun', '影果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('fengguo', '鳳果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('x134', '推果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('manman', '漫果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('hsex', '色果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('uu', '優果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('rb91', '九果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('dj51', '壹果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('yeshe', '夜果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('cg51', '擦果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('cg69', '六果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('maitian', '田果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('yangguo', '洋果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('badnews', '爆果 +', '0.2.391 原生抽取 · 測試來源'),
+    SourceSite('huangdou', '黄豆 +', '精选短剧'),
+    SourceSite('huangju', '剧果 +', '热门 · 最新 · 分类短剧'),
+    SourceSite('yeguo', '野果 +', '分类短剧 · 在线搜索'),
     dsd,
-    SourceSite('huangguo-video', '黄果视频 🔞', '视频剧集'),
-    SourceSite('huangguoai', '黄果 AI 🔞', 'AI 短剧'),
-    SourceSite('cloudfront', '黄果旧版 🔞', '旧 API 剧库'),
+    SourceSite('huangguo-video', '黄果视频 +', '视频剧集'),
+    SourceSite('huangguoai', '黄果 AI +', 'AI 短剧'),
+    SourceSite('cloudfront', '黄果旧版 +', '旧 API 剧库'),
   ];
   static const knownValues = [...primaryValues, ...restrictedValues];
   static const allValues = [...primaryValues, ...restrictedValues];
@@ -192,7 +263,11 @@ class Drama {
       sourceId: fresh.sourceId.isEmpty ? sourceId : fresh.sourceId,
       title: fresh.title.isEmpty || fresh.title == '短剧' ? title : fresh.title,
       description: fresh.description.isEmpty ? description : fresh.description,
-      cover: fresh.cover.isEmpty ? cover : fresh.cover,
+      // A valid Yanguo list poster must not be replaced by the generic
+      // thumbnail returned by its detail/playback page.
+      cover: source == 'yanguo' && cover.startsWith('http')
+          ? cover
+          : (fresh.cover.isEmpty ? cover : fresh.cover),
       episodes: fresh.episodes > 0 ? fresh.episodes : episodes,
       category:
           fresh.category.isEmpty ||

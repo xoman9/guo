@@ -1,0 +1,35 @@
+name: Verify Tao-guo, Liuguo and Xiaoguo sources
+
+on:
+  pull_request:
+    paths:
+      - 'native/core/provider_lujj31*'
+      - 'native/core/provider_liuguo*'
+      - 'native/core/provider_xiaoguo*'
+      - 'native/core/provider_apk391*'
+      - 'native/core/provider_huangguo.go'
+      - 'native/core/provider_media.go'
+      - 'native/core/app_categories.go'
+      - 'native/core/app_runtime.go'
+      - '.github/workflows/verify-lujj31.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  go-source-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - name: Test lujj31 integration
+        working-directory: native
+        run: |
+          test -z "$(gofmt -l core/provider_lujj31.go core/provider_lujj31_player.go core/provider_lujj31_test.go core/provider_liuguo.go core/provider_liuguo_test.go core/provider_xiaoguo.go core/provider_xiaoguo_test.go)"
+          go test ./core -run 'Test(Lujj31|Liuguo|Xiaoguo|Apk391)' -count=1 -v
+          go test ./core -count=1

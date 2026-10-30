@@ -36,6 +36,10 @@ func validNativeCategory(source, category string) bool {
 	if category == "" {
 		return true
 	}
+	if source == sourceXiaoguo {
+		return validXiaoguoCategory(category)
+	}
+	if _,ok:=apk391Spec(source);ok{return apk391ValidCategory(source,category)}
 	if len(category) > 128 || strings.ContainsAny(category, "|/\\\x00\r\n") {
 		return false
 	}
@@ -62,7 +66,7 @@ func validNativeCategory(source, category string) bool {
 		return category == huangjuNewestCategory || validHuangjuID(category) && !strings.HasPrefix(category, "@")
 	case sourceYeguo:
 		return validYeguoCategory(category)
-	case sourceDSD:
+	case sourceDSD, sourceLujj31, sourceLiuguo:
 		return webProviderNumericID.MatchString(category)
 	case sourceSorani:
 		return validSoraniCategory(category)
@@ -136,7 +140,31 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 		all = append(all, d.fetchGuipianCategories()...)
 	case sourceHanxiaoquan:
 		all = append(all, d.fetchHanxiaoquanCategories()...)
+	case sourceLujj31:
+		var categories []nativeCategory
+		categories, err = d.fetchLujj31Categories(ctx)
+		if err == nil {
+			all = append(all, categories...)
+		}
+	case sourceLiuguo:
+		var categories []nativeCategory
+		categories, err = d.fetchLiuguoCategories(ctx)
+		if err == nil {
+			all = append(all, categories...)
+		}
+	case sourceXiaoguo:
+		var categories []nativeCategory
+		categories, err = d.fetchXiaoguoCategories(ctx)
+		if err == nil {
+			all = append(all, categories...)
+		}
 	default:
+		if _,ok:=apk391Spec(source);ok{
+			var categories []nativeCategory
+			categories,err=d.fetchApk391Categories(ctx,source)
+			if err==nil{all=append(all,categories...)}
+			break
+		}
 		return nil, errors.New("请选择有效站源")
 	}
 	if err != nil {

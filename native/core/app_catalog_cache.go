@@ -39,6 +39,17 @@ func (engine *nativeEngine) loadCatalogCache() {
 	}
 	var disk nativeCatalogDisk
 	if json.Unmarshal(body, &disk) == nil && (disk.Version == 2 || disk.Version == 3) {
+        // Tao-guo is live-only; ignore any catalog saved by older builds.
+        for key := range disk.Catalogs {
+            if key == sourceLujj31 || strings.HasPrefix(key, sourceLujj31+"|") || key == sourceLiuguo || strings.HasPrefix(key, sourceLiuguo+"|") || key == sourceXiaoguo || strings.HasPrefix(key, sourceXiaoguo+"|") {
+                delete(disk.Catalogs, key)
+            }
+        }
+        for key := range disk.States {
+            if key == sourceLujj31 || strings.HasPrefix(key, sourceLujj31+"|") || key == sourceLiuguo || strings.HasPrefix(key, sourceLiuguo+"|") || key == sourceXiaoguo || strings.HasPrefix(key, sourceXiaoguo+"|") {
+                delete(disk.States, key)
+            }
+        }
 		if disk.Catalogs != nil {
 			engine.catalogs = disk.Catalogs
 			trimNativeCatalogs(engine.catalogs)
@@ -69,6 +80,11 @@ func (engine *nativeEngine) loadCatalogCache() {
 	}
 	var legacy map[string][]nativeDrama
 	if json.Unmarshal(body, &legacy) == nil && legacy != nil {
+        for key := range legacy {
+            if key == sourceLujj31 || strings.HasPrefix(key, sourceLujj31+"|") {
+                delete(legacy, key)
+            }
+        }
 		engine.catalogs = legacy
 		trimNativeCatalogs(engine.catalogs)
 		for _, items := range engine.catalogs {
@@ -152,7 +168,11 @@ func mergeNativeDrama(previous, fresh nativeDrama) nativeDrama {
 	if fresh.Description == "" {
 		fresh.Description = previous.Description
 	}
-	if fresh.Cover == "" {
+	// Yanguo's detail endpoint may return a generic fallback image after
+	// playback. Keep the successfully loaded list poster when available.
+	if previous.Source == "yanguo" && strings.HasPrefix(previous.Cover, "http") {
+		fresh.Cover = previous.Cover
+	} else if fresh.Cover == "" {
 		fresh.Cover = previous.Cover
 	}
 	if fresh.Category == "" || nativeGenericCategory(fresh.Category) && previous.Category != "" && !nativeGenericCategory(previous.Category) {

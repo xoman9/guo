@@ -15,3 +15,9 @@
 参考来源为 [oktv 指定提交](https://github.com/xoman9/oktv/commit/1ba9d1e69de77f62588af3d9763d1858d62aa98c) 的完整快照，仅适配下载相关行为，未引入其剧库备份容量变更。Android 权限与系统选择器、真实站源的下载和合并效果尚待真机验证。
 
 黄豆、帝果、剧果、野果及黄果相关频道名称以单一符号 🔞 标记；取片核心及既有站源开关不变。
+
+### lujj31.lol（待网站接口验证）
+
+新增独立的 `lujj31` 站源入口，网址固定为 `https://lujj31.lol`，管理员需在「设置 → 站源」手动开启，不会预先下载剧库。已参考 `xoman9/oktv` commit `1ba9d1e69de77f62588af3d9763d1858d62aa98c` 的 **桃果（taoguo）** 网页解析方式，改接 `/index.php/vod/type/id/` 分类、`/index.php/vod/detail/id/` 详情、`player_aaaa` / `player_data` 播放页。不再请求先前错误假设的 `/api.php/provide/vod/` JSON 接口。预设关闭，不预载剧库；只有明确的 MP4/M3U8 媒体才可进入播放器，其他站源不受影响。**网页实际回传内容及播放仍需真机验证。**
+
+GitHub Actions 于 2026-10-29 对 `lujj31.lol` 与此前提供的 `lujj31.buzz` 进行只读探测，两者在当时的云端网络都解析到相同地址，首页及先前误测的 JSON 接口均返回 `HTTP 200` 但回应体为零字节；`www.lujj31.lol` 的 TLS 证书不匹配。**这不证明该站可播放，也不证明其他地区必然相同。** 因此新站源保持默认关闭，禁止将空白回应视为有效剧库。详见 `.github/workflows/probe-lujj31.yml` 与对应 Actions 记录。
