@@ -55,7 +55,7 @@ class _SourcesViewState extends State<SourcesView> {
       final repository = AppScope.of(context).repository;
       final adult = [
         for (final site in SourceSite.values)
-          if (SourceSite.isRestricted(site.id)) site,
+          if (site.name.trimRight().endsWith('+')) site,
       ];
       final adultOff = adult.every(
         (site) => !store.sourceEnabled(site.id),
