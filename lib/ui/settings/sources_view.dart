@@ -84,7 +84,7 @@ class _SourcesViewState extends State<SourcesView> {
                   onPressed: !admin || _bulkChanging || adult.isEmpty
                       ? null
                       : () => _toggleAdultSources(context, adult, adultOff),
-                  child: Text(adultOff ? '成人頻道-開' : '成人頻道-關'),
+                  child: Text(adultOff ? '隱藏頻道-開' : '隱藏頻道-關'),
                 ),
               ],
             ),
