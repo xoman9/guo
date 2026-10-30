@@ -55,7 +55,7 @@ class _SourcesViewState extends State<SourcesView> {
       final repository = AppScope.of(context).repository;
       final adult = [
         for (final site in SourceSite.values)
-          if (site.name.contains('🔞')) site,
+          if (SourceSite.isRestricted(site.id)) site,
       ];
       final adultOff = adult.every(
         (site) => !store.sourceEnabled(site.id),
@@ -115,7 +115,7 @@ class _SourcesViewState extends State<SourcesView> {
           ),
           const SizedBox(height: 12),
           const _Note(
-            '右上方按钮可一次开启或关闭所有带 🔞 标记的站源。关闭的站源不在发现、搜索、追剧、观看记录和下载中显示，记录保留，重新开启后恢复。正在下载的集会暂停，重新开启后可在下载页继续。',
+            '右上方按钮可一次开启或关闭所有帶 + 標記的隱藏頻道。关闭的站源不在发现、搜索、追剧、观看记录和下载中显示，记录保留，重新开启后恢复。正在下载的集会暂停，重新开启后可在下载页继续。',
           ),
         ],
       );
