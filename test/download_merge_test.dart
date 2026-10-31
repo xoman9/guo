@@ -286,6 +286,29 @@ void main() {
     expect(await File(path.join(directory.path, '1.mp4')).exists(), true);
     expect(repository.leases.last, 'media:end');
   });
+  test('necessary SDR normalization targets AVC but identical HEVC streams stay copied', () {
+    MediaProbe hevc(int width) => MediaProbe({
+      'format': {'duration': '12'},
+      'streams': [
+        {
+          'codec_type': 'video',
+          'codec_name': 'hevc',
+          'width': width,
+          'height': 640,
+          'pix_fmt': 'yuv420p',
+          'r_frame_rate': '30/1',
+        },
+      ],
+    });
+    final mixed = MergePlan.create([hevc(720), hevc(360)]);
+    expect(mixed.video.videoCodec, 'h264');
+    expect(mixed.video.video['width'], 360);
+    expect(mixed.videoTranscodes, 2);
+    final identical = MergePlan.create([hevc(360), hevc(360)]);
+    expect(identical.videoTranscodes, 0);
+    expect(identical.video.videoCodec, 'hevc');
+  });
+
   for (final rejected in [false, true]) {
     test(
       'hardware AVC ${rejected ? 'falls back to software' : 'is preferred'}',

@@ -117,11 +117,20 @@ class MergePlan {
             ),
       );
     final lowest = ordered.first;
+    final needsConversion =
+        probes.any((probe) => probe.videoSignature != lowest.videoSignature) ||
+        intValue(lowest.video['width']).isOdd ||
+        intValue(lowest.video['height']).isOdd;
+    final preferAvc =
+        needsConversion &&
+        {'yuv420p', 'nv12'}.contains(lowest.video['pix_fmt']) &&
+        !{'smpte2084', 'arib-std-b67'}.contains(lowest.video['color_transfer']);
     final video = MediaProbe({
       ...lowest.raw,
       'streams': [
         {
           ...lowest.video,
+          'codec_name': preferAvc ? 'h264' : lowest.videoCodec,
           'width': intValue(lowest.video['width']) ~/ 2 * 2,
           'height': intValue(lowest.video['height']) ~/ 2 * 2,
         },
