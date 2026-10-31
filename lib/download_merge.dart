@@ -23,7 +23,7 @@ List<DownloadJob> continuousDownloadJobs(List<DownloadJob> selected) {
   return jobs;
 }
 
-String downloadMergeName(String title) {
+String downloadMergeName(String title, int firstEpisode, int lastEpisode) {
   var name = String.fromCharCodes(title.runes.take(60))
       .replaceAll(RegExp(r'[\x00-\x1f\x7f<>:"/\\|?*]'), '_')
       .replaceAll(RegExp(r'^[\s.]+|[\s.]+$'), '');
@@ -34,7 +34,7 @@ String downloadMergeName(String title) {
   ).hasMatch(name)) {
     name = '_$name';
   }
-  return '$name-合';
+  return '$name($firstEpisode-$lastEpisode)';
 }
 
 class DownloadMerger extends ChangeNotifier {
@@ -91,58 +91,74 @@ class DownloadMerger extends ChangeNotifier {
       final root = await repository.downloadDirectory();
       if (!path.isAbsolute(root)) throw AppFailure('下载资料夹无效');
       workspace = await Directory(root).createTemp('.guo-merge-');
-      final files = <String>[];
-      var totalDuration = 0.0;
-      Map<String, dynamic>? firstVideo;
+      final prepared = <String>[];
+      final probes = <MediaProbe>[];
       for (var index = 0; index < jobs.length; index++) {
         _check();
         final job = jobs[index];
-        final plan = await repository.resolve(job.drama, job.episode);
-        if (!plan.local || !await File(plan.url).exists()) {
+        _update('預備第 ${job.episode.number} 集', index / jobs.length * .2);
+        final local = await repository.resolve(job.drama, job.episode);
+        _check();
+        if (!local.local || !await File(local.url).exists()) {
           throw AppFailure('第 ${job.episode.number} 集没有完整本地影片，请重新下载');
         }
-        final probe = await executor.probe(plan.url);
-        verifyMediaDuration(probe, 0);
-        final first = firstVideo;
-        if (first != null &&
-            (first['codec_name'] != probe.video['codec_name'] ||
-                first['width'] != probe.video['width'] ||
-                first['height'] != probe.video['height'])) {
-          throw AppFailure('分集编码或尺寸不同，请使用相同画质重新下载后合并');
-        }
-        firstVideo ??= probe.video;
-        totalDuration += probe.duration;
-        final output = path.join(workspace.path, 'episode-$index.ts');
-        _update('准备第 ${job.episode.number} 集', index / jobs.length * .7);
-        await executor.run(
-          [
-            if (plan.decryptionKey.isNotEmpty) ...[
-              '-decryption_key',
-              plan.decryptionKey,
-            ],
-            if (path.extension(plan.url).toLowerCase() == '.m3u8') ...[
-              '-allowed_extensions',
-              'ALL',
-              '-extension_picky',
-              '0',
-            ],
-            '-i',
-            plan.url,
-            '-map',
-            '0:v:0',
-            '-map',
-            '0:a:0?',
-            '-c',
-            'copy',
-            '-f',
-            'mpegts',
-            output,
+        final output = path.join(workspace.path, 'original-$index.mkv');
+        await executor.run([
+          if (local.decryptionKey.isNotEmpty) ...[
+            '-decryption_key',
+            local.decryptionKey,
           ],
-          duration: probe.duration,
-          progress: (value) => _update(
-            '准备第 ${job.episode.number} 集',
-            (index + value) / jobs.length * .7,
+          if (path.extension(local.url).toLowerCase() == '.m3u8') ...[
+            '-allowed_extensions',
+            'ALL',
+            '-extension_picky',
+            '0',
+          ],
+          '-i',
+          local.url,
+          '-map',
+          '0:v:0',
+          '-map',
+          '0:a:0?',
+          '-c',
+          'copy',
+          '-map_metadata',
+          '-1',
+          '-avoid_negative_ts',
+          'make_zero',
+          output,
+        ]);
+        _check();
+        probes.add(await executor.probe(output));
+        prepared.add(output);
+      }
+      _check();
+      final plan = MergePlan.create(probes);
+      final totalDuration = probes.fold<double>(
+        0,
+        (sum, probe) => sum + probe.duration,
+      );
+      final files = <String>[];
+      for (var index = 0; index < jobs.length; index++) {
+        _check();
+        final message = plan.videoChanges[index] || plan.audioChanges[index]
+            ? '第 ${jobs[index].episode.number} 集格式不符，轉檔中'
+            : '預備第 ${jobs[index].episode.number} 集';
+        final output = path.join(
+          workspace.path,
+          'episode-$index.${plan.transportStream ? 'ts' : 'mkv'}',
+        );
+        _update(message, .2 + index / jobs.length * .5);
+        await executor.run(
+          plan.normalizeArguments(
+            prepared[index],
+            output,
+            probes[index],
+            index,
           ),
+          duration: probes[index].duration,
+          progress: (value) =>
+              _update(message, .2 + (index + value) / jobs.length * .5),
         );
         files.add(path.basename(output));
       }
@@ -153,7 +169,7 @@ class DownloadMerger extends ChangeNotifier {
         flush: true,
       );
       final merged = File(path.join(workspace.path, 'merged.mp4'));
-      _update('合并影片', .7);
+      _update('合併第 ${jobs.first.episode.number} 集中', .7);
       await executor.run(
         [
           '-f',
@@ -173,31 +189,26 @@ class DownloadMerger extends ChangeNotifier {
           merged.path,
         ],
         duration: totalDuration,
-        progress: (value) => _update('合并影片', .7 + value * .15),
+        progress: (value) {
+          final elapsed = value * totalDuration;
+          var boundary = 0.0;
+          var index = jobs.length - 1;
+          for (var i = 0; i < probes.length; i++) {
+            boundary += probes[i].duration;
+            if (elapsed < boundary) {
+              index = i;
+              break;
+            }
+          }
+          _update('合併第 ${jobs[index].episode.number} 集中', .7 + value * .25);
+        },
       );
       _check();
-      verifyMediaDuration(await executor.probe(merged.path), totalDuration);
-      _update('验证成品', .85);
-      await executor.run(
-        [
-          '-xerror',
-          '-err_detect',
-          'explode',
-          '-i',
-          merged.path,
-          '-map',
-          '0:v:0',
-          '-map',
-          '0:a:0?',
-          '-f',
-          'null',
-          '-',
-        ],
-        duration: totalDuration,
-        progress: (value) => _update('验证成品', .85 + value * .1),
+      final base = downloadMergeName(
+        jobs.first.drama.title,
+        jobs.first.episode.number,
+        jobs.last.episode.number,
       );
-      _check();
-      final base = downloadMergeName(jobs.first.drama.title);
       for (var index = 0; index < 10000; index++) {
         final file = File(
           path.join(root, index == 0 ? '$base.mp4' : '$base ($index).mp4'),

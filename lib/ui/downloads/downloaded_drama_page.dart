@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../../download_merge.dart';
 
 import '../../download_collections.dart';
@@ -130,7 +131,7 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
                 Text(merger.status),
                 const SizedBox(height: 8),
                 const Text(
-                  '成品验证并保存成功后，会删除所选原分集及下载产生的文件与空资料夹。合并失败或取消不清理；清理失败会保留成品并提示。',
+                  '先統一為最低解析度與相容格式，再合併，不進行影片驗證。成品儲存成功後，刪除所選原分集、下載檔案與空資料夾；失敗時保留原分集。',
                 ),
               ],
             ),
@@ -218,9 +219,9 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([widget.store, widget.downloads, _updater]),
     builder: (context, _) {
-      final item = downloadedDramas(
-        widget.downloads.jobs,
-      ).where((entry) => entry.drama.id == widget.drama.id).firstOrNull;
+      final item = downloadedDramas(widget.downloads.jobs)
+          .where((entry) => entry.drama.id == widget.drama.id)
+          .firstOrNull;
       final selection = item == null
           ? null
           : _selection?.intersection({for (final job in item.episodes) job.id});
