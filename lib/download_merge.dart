@@ -102,6 +102,12 @@ class DownloadMerger extends ChangeNotifier {
         if (!local.local || !await File(local.url).exists()) {
           throw AppFailure('第 ${job.episode.number} 集没有完整本地影片，请重新下载');
         }
+        if (local.decryptionKey.isEmpty &&
+            path.extension(local.url).toLowerCase() != '.m3u8') {
+          probes.add(await executor.probe(local.url));
+          prepared.add(local.url);
+          continue;
+        }
         final output = path.join(workspace.path, 'original-$index.mkv');
         await executor.run([
           if (local.decryptionKey.isNotEmpty) ...[

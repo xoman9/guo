@@ -62,8 +62,18 @@ class _MergeExecutor implements MediaExecutor {
         {
           'codec_type': 'video',
           'codec_name': 'h264',
-          'width': mixed && file.endsWith('original-1.mkv') ? 360 : 720,
-          'height': mixed && file.endsWith('original-1.mkv') ? 640 : 1280,
+          'width':
+              mixed &&
+                  (file.endsWith('original-1.mkv') ||
+                      path.basename(file) == '2.mp4')
+              ? 360
+              : 720,
+          'height':
+              mixed &&
+                  (file.endsWith('original-1.mkv') ||
+                      path.basename(file) == '2.mp4')
+              ? 640
+              : 1280,
           'pix_fmt': 'yuv420p',
         },
       ],
@@ -199,23 +209,21 @@ void main() {
     expect(directory.listSync().whereType<Directory>(), isEmpty);
     expect(merger.busy, false);
     expect(executor.probed, hasLength(2));
-    expect(
-      executor.probed.every(
-        (file) => path.basename(file).startsWith('original-'),
-      ),
-      isTrue,
-    );
+    expect(executor.probed.map(path.basename), ['1.mp4', '2.mp4']);
     expect(executor.commands.any((args) => args.contains('null')), isFalse);
     final conversions = executor.commands
         .where((args) => args.contains('libx264'))
         .toList();
-    expect(conversions, hasLength(2));
+    expect(conversions, hasLength(1));
     expect(
       conversions.every((args) => args.join(' ').contains('pad=360:640')),
       isTrue,
     );
     expect(statuses, contains('預備第 1 集'));
-    expect(statuses, contains('第 2 集格式不符，轉檔中'));
+    expect(statuses, contains('第 1 集格式不符，轉檔中'));
+    expect(statuses, contains('預備第 2 集'));
+    expect(conversions.single, contains('ultrafast'));
+    expect(executor.commands, hasLength(3));
     expect(statuses, contains('合併第 2 集中'));
   });
 
@@ -225,7 +233,10 @@ void main() {
     final repository = _MergeRepository(directory);
     final show = drama('a');
     repository.jobs = [downloadJob(show, 1), downloadJob(show, 2)];
-    await File(path.join(directory.path, '1.mp4')).writeAsString('keep');
+    for (var number = 1; number <= 2; number++) {
+      await File(path.join(directory.path, '$number.mp4'))
+          .writeAsString('keep');
+    }
     final merger = DownloadMerger(
       repository,
       executor: _MergeExecutor()..fail = true,

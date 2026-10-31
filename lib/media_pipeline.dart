@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:ffmpeg_kit_flutter_new_min_gpl/ffmpeg_kit.dart';
@@ -119,10 +120,9 @@ class MergePlan {
     final audio = withAudio.isEmpty
         ? null
         : _majority(withAudio, (p) => p.audioSignature);
-    final needsVideo = probes.any(
-      (p) => p.videoSignature != video.videoSignature,
-    );
-    final vc = List<bool>.filled(probes.length, needsVideo);
+    final vc = probes
+        .map((p) => p.videoSignature != video.videoSignature)
+        .toList();
     var ac = probes
         .map((p) => audio != null && p.audioSignature != audio.audioSignature)
         .toList();
@@ -204,11 +204,11 @@ class MergePlan {
         '-c:v',
         video.videoCodec == 'hevc' ? 'libx265' : 'libx264',
         '-preset',
-        'veryfast',
+        'ultrafast',
         '-crf',
         '18',
         '-threads',
-        '2',
+        '${(Platform.numberOfProcessors - 1).clamp(1, 4)}',
         '-vf',
         'scale=w=min(iw\\,$width):h=min(ih\\,$height):force_original_aspect_ratio=decrease:force_divisible_by=2,pad=$width:$height:(ow-iw)/2:(oh-ih)/2,setsar=$aspect,format=$pixel',
         '-r',
@@ -218,7 +218,10 @@ class MergePlan {
             : '${video.video['r_frame_rate']}',
       ]);
       if (video.videoCodec == 'hevc') {
-        args.addAll(['-x265-params', 'pools=2:frame-threads=1']);
+        args.addAll([
+          '-x265-params',
+          'pools=${(Platform.numberOfProcessors - 1).clamp(1, 4)}:frame-threads=1',
+        ]);
       }
     } else {
       args.addAll(['-c:v', 'copy']);
