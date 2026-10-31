@@ -82,11 +82,11 @@ jobs:
           grep -Fq '78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a' cert.txt
           unzip -Z1 "$apk" | grep -Fx 'lib/arm64-v8a/libduanju_core.so'
           mkdir -p dist/coexist
-          cp "$apk" dist/coexist/zhenguojian-coexist-1.0.5+2105-arm64-v8a.apk
+          cp "$apk" dist/coexist/zhenguojian-coexist-1.0.5+105-arm64-v8a.apk
           sha256sum dist/coexist/*.apk > dist/coexist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: zhenguojian-coexist-1.0.5-2105-arm64
+          name: zhenguojian-coexist-1.0.5-105-arm64
           path: dist/coexist/
           retention-days: 14
           if-no-files-found: error
