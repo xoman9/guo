@@ -76,17 +76,17 @@ jobs:
           grep -Fq "application-label:'真果鉴-共存'" apk-badging.txt
           grep -Fq "launchable-activity: name='com.duanju.duanju_app.MainActivity'" apk-badging.txt
           grep -Fq "native-code: 'arm64-v8a'" apk-badging.txt
-          grep -Fq "versionCode='2107'" apk-badging.txt
-          grep -Fq "versionName='1.0.7'" apk-badging.txt
+          grep -Fq "versionCode='2108'" apk-badging.txt
+          grep -Fq "versionName='1.0.8'" apk-badging.txt
           "$apksigner" verify --verbose --print-certs "$apk" | tee cert.txt
           grep -Fq '78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a' cert.txt
           unzip -Z1 "$apk" | grep -Fx 'lib/arm64-v8a/libduanju_core.so'
           mkdir -p dist/coexist
-          cp "$apk" dist/coexist/zhenguojian-coexist-1.0.7+107-arm64-v8a.apk
+          cp "$apk" dist/coexist/zhenguojian-coexist-1.0.8+108-arm64-v8a.apk
           sha256sum dist/coexist/*.apk > dist/coexist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: zhenguojian-coexist-1.0.7-107-arm64
+          name: zhenguojian-coexist-1.0.8-108-arm64
           path: dist/coexist/
           retention-days: 14
           if-no-files-found: error

@@ -48,6 +48,17 @@ class MediaProbe {
         ].join('|');
 }
 
+class AvcHardwareEncoder {
+  const AvcHardwareEncoder({
+    required this.name,
+    required this.bitrate,
+    required this.bitrateMode,
+    required this.pixelFormat,
+  });
+  final String name, pixelFormat;
+  final int bitrate, bitrateMode;
+}
+
 class MergePlan {
   MergePlan._(
     this.video,
@@ -175,8 +186,9 @@ class MergePlan {
     String input,
     String output,
     MediaProbe probe,
-    int index,
-  ) {
+    int index, {
+    AvcHardwareEncoder? hardware,
+  }) {
     final args = <String>['-i', input];
     final addSilence = audio != null && !probe.hasAudio;
     if (addSilence) {
@@ -197,18 +209,38 @@ class MergePlan {
     if (videoChanges[index]) {
       final width = intValue(video.video['width']),
           height = intValue(video.video['height']);
-      final pixel = video.video['pix_fmt'] as String? ?? 'yuv420p';
+      final accelerated = hardware != null && video.videoCodec == 'h264';
+      final pixel = accelerated
+          ? hardware.pixelFormat
+          : video.video['pix_fmt'] as String? ?? 'yuv420p';
       final aspect = (video.video['sample_aspect_ratio'] as String? ?? '1:1')
           .replaceAll(':', '/');
+      if (accelerated) {
+        args.addAll([
+          '-c:v',
+          'h264_mediacodec',
+          '-codec_name',
+          hardware.name,
+          '-bitrate_mode',
+          '${hardware.bitrateMode}',
+          '-b:v',
+          '${hardware.bitrate}',
+          '-bf',
+          '0',
+        ]);
+      } else {
+        args.addAll([
+          '-c:v',
+          video.videoCodec == 'hevc' ? 'libx265' : 'libx264',
+          '-preset',
+          'ultrafast',
+          '-crf',
+          '18',
+          '-threads',
+          '${(Platform.numberOfProcessors - 1).clamp(1, 4)}',
+        ]);
+      }
       args.addAll([
-        '-c:v',
-        video.videoCodec == 'hevc' ? 'libx265' : 'libx264',
-        '-preset',
-        'ultrafast',
-        '-crf',
-        '18',
-        '-threads',
-        '${(Platform.numberOfProcessors - 1).clamp(1, 4)}',
         '-vf',
         'scale=w=min(iw\\,$width):h=min(ih\\,$height):force_original_aspect_ratio=decrease:force_divisible_by=2,pad=$width:$height:(ow-iw)/2:(oh-ih)/2,setsar=$aspect,format=$pixel',
         '-r',

@@ -242,6 +242,12 @@ class MainActivity : FlutterActivity() {
             .also { channel ->
                 channel.setMethodCallHandler { call, result ->
                     when (call.method) {
+                        "h264HardwareEncoder" -> result.success(HardwareVideoEncoder.findAvc(
+                            call.argument<Number>("width")?.toInt() ?: 0,
+                            call.argument<Number>("height")?.toInt() ?: 0,
+                            call.argument<Number>("frameRate")?.toDouble() ?: 30.0,
+                            call.argument<Number>("bitrate")?.toInt() ?: 2000000
+                        ))
                         "selectDownloadDirectory" -> {
                             if (folderChoiceResult != null) {
                                 result.error("picker_busy", "已有資料夾選擇器開啟", null)

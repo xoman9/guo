@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as path;
 
 import 'core_bridge.dart';
+import 'hardware_video_encoder.dart';
 import 'media_pipeline.dart';
 import 'models.dart';
 
@@ -38,10 +39,14 @@ String downloadMergeName(String title, int firstEpisode, int lastEpisode) {
 }
 
 class DownloadMerger extends ChangeNotifier {
-  DownloadMerger(this.repository, {MediaExecutor? executor})
-    : executor = executor ?? FFmpegExecutor();
+  DownloadMerger(
+    this.repository, {
+    MediaExecutor? executor,
+    this.hardwareEncoderLookup = findAndroidAvcEncoder,
+  }) : executor = executor ?? FFmpegExecutor();
   final AppRepository repository;
   final MediaExecutor executor;
+  final Future<AvcHardwareEncoder?> Function(MergePlan) hardwareEncoderLookup;
   String status = '';
   double progress = 0;
   bool busy = false, _cancelled = false, _disposed = false, _cleaning = false;
@@ -144,28 +149,55 @@ class DownloadMerger extends ChangeNotifier {
         0,
         (sum, probe) => sum + probe.duration,
       );
+      final hardware = await hardwareEncoderLookup(plan);
+      _check();
+      var hardwareFailed = false;
       final files = <String>[];
       for (var index = 0; index < jobs.length; index++) {
         _check();
-        final message = plan.videoChanges[index] || plan.audioChanges[index]
-            ? '第 ${jobs[index].episode.number} 集格式不符，轉檔中'
+        final accelerated =
+            hardware != null && !hardwareFailed && plan.videoChanges[index];
+        final message = accelerated
+            ? '第 ${jobs[index].episode.number} 集 H.264 硬體轉檔中'
+            : plan.videoChanges[index] || plan.audioChanges[index]
+            ? '第 ${jobs[index].episode.number} 集格式不符，CPU 轉檔中'
             : '預備第 ${jobs[index].episode.number} 集';
         final output = path.join(
           workspace.path,
           'episode-$index.${plan.transportStream ? 'ts' : 'mkv'}',
         );
         _update(message, .2 + index / jobs.length * .5);
-        await executor.run(
-          plan.normalizeArguments(
-            prepared[index],
-            output,
-            probes[index],
-            index,
-          ),
-          duration: probes[index].duration,
-          progress: (value) =>
-              _update(message, .2 + (index + value) / jobs.length * .5),
-        );
+        try {
+          await executor.run(
+            plan.normalizeArguments(
+              prepared[index],
+              output,
+              probes[index],
+              index,
+              hardware: accelerated ? hardware : null,
+            ),
+            duration: probes[index].duration,
+            progress: (value) =>
+                _update(message, .2 + (index + value) / jobs.length * .5),
+          );
+        } catch (_) {
+          _check();
+          if (!accelerated) rethrow;
+          hardwareFailed = true;
+          final fallback = '第 ${jobs[index].episode.number} 集硬體轉檔不可用，改用 CPU 轉檔';
+          _update(fallback, .2 + index / jobs.length * .5);
+          await executor.run(
+            plan.normalizeArguments(
+              prepared[index],
+              output,
+              probes[index],
+              index,
+            ),
+            duration: probes[index].duration,
+            progress: (value) =>
+                _update(fallback, .2 + (index + value) / jobs.length * .5),
+          );
+        }
         files.add(path.basename(output));
       }
       _check();

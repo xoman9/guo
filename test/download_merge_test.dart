@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:duanju_app/core_bridge.dart';
@@ -50,7 +51,8 @@ class _MergeRepository extends FakeRepository {
 }
 
 class _MergeExecutor implements MediaExecutor {
-  bool fail = false, mixed = false;
+  bool fail = false, mixed = false, rejectHardware = false;
+  void Function()? onHardware;
   final commands = <List<String>>[];
   final probed = <String>[];
   @override
@@ -89,6 +91,11 @@ class _MergeExecutor implements MediaExecutor {
     commands.add(List.of(arguments));
     if (arguments.contains('libx264') && probed.length != 2)
       throw StateError('all episodes must be probed before conversion');
+    if (arguments.contains('h264_mediacodec')) {
+      onHardware?.call();
+      if (rejectHardware)
+        throw AppFailure('synthetic hardware initialization failure');
+    }
     if (fail) throw AppFailure('synthetic media failure');
     if (arguments.last != '-')
       await File(arguments.last).writeAsString('synthetic-video');
@@ -220,7 +227,7 @@ void main() {
       isTrue,
     );
     expect(statuses, contains('預備第 1 集'));
-    expect(statuses, contains('第 1 集格式不符，轉檔中'));
+    expect(statuses, contains('第 1 集格式不符，CPU 轉檔中'));
     expect(statuses, contains('預備第 2 集'));
     expect(conversions.single, contains('ultrafast'));
     expect(executor.commands, hasLength(3));
@@ -279,6 +286,105 @@ void main() {
     expect(await File(path.join(directory.path, '1.mp4')).exists(), true);
     expect(repository.leases.last, 'media:end');
   });
+  for (final rejected in [false, true]) {
+    test(
+      'hardware AVC ${rejected ? 'falls back to software' : 'is preferred'}',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'guo-hardware-',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final repository = _MergeRepository(directory);
+        final show = drama('hardware', title: '硬體合成');
+        repository.jobs = [downloadJob(show, 1), downloadJob(show, 2)];
+        for (var n = 1; n <= 2; n++) {
+          await File(path.join(directory.path, '$n.mp4'))
+              .writeAsString('source');
+        }
+        final executor = _MergeExecutor()
+          ..mixed = true
+          ..rejectHardware = rejected;
+        final merger = DownloadMerger(
+          repository,
+          executor: executor,
+          hardwareEncoderLookup: (_) async => const AvcHardwareEncoder(
+            name: 'c2.vendor.avc.encoder',
+            bitrate: 2000000,
+            bitrateMode: 1,
+            pixelFormat: 'nv12',
+          ),
+        );
+        addTearDown(merger.dispose);
+        final statuses = <String>[];
+        merger.addListener(() => statuses.add(merger.status));
+        final output = await merger.merge(repository.jobs!);
+        expect(await File(output).exists(), isTrue);
+        expect(
+          executor.commands.where((args) => args.contains('h264_mediacodec')),
+          hasLength(1),
+        );
+        expect(
+          executor.commands.where((args) => args.contains('libx264')),
+          hasLength(rejected ? 1 : 0),
+        );
+        final hardware = executor.commands.firstWhere(
+          (args) => args.contains('h264_mediacodec'),
+        );
+        expect(hardware, contains('c2.vendor.avc.encoder'));
+        expect(hardware, isNot(contains('-preset')));
+        expect(hardware, isNot(contains('-crf')));
+        expect(hardware.join(' '), contains('format=nv12'));
+        expect(statuses, contains('第 1 集 H.264 硬體轉檔中'));
+        if (rejected) expect(statuses, contains('第 1 集硬體轉檔不可用，改用 CPU 轉檔'));
+        expect(repository.jobs, isEmpty);
+        expect(directory.listSync().whereType<Directory>(), isEmpty);
+      },
+    );
+  }
+
+  test(
+    'cancelling hardware encoding never retries CPU or deletes originals',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'guo-hardware-cancel-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final repository = _MergeRepository(directory);
+      final show = drama('cancel');
+      repository.jobs = [downloadJob(show, 1), downloadJob(show, 2)];
+      for (var n = 1; n <= 2; n++) {
+        await File(path.join(directory.path, '$n.mp4')).writeAsString('source');
+      }
+      final executor = _MergeExecutor()
+        ..mixed = true
+        ..rejectHardware = true;
+      final merger = DownloadMerger(
+        repository,
+        executor: executor,
+        hardwareEncoderLookup: (_) async => const AvcHardwareEncoder(
+          name: 'c2.vendor.avc.encoder',
+          bitrate: 2000000,
+          bitrateMode: 1,
+          pixelFormat: 'nv12',
+        ),
+      );
+      addTearDown(merger.dispose);
+      executor.onHardware = () => unawaited(merger.cancel());
+      await expectLater(
+        merger.merge(repository.jobs!),
+        throwsA(isA<AppFailure>()),
+      );
+      expect(
+        executor.commands.any((args) => args.contains('libx264')),
+        isFalse,
+      );
+      expect(await File(path.join(directory.path, '1.mp4')).exists(), isTrue);
+      expect(await File(path.join(directory.path, '2.mp4')).exists(), isTrue);
+      expect(repository.jobs, hasLength(2));
+      expect(directory.listSync().whereType<Directory>(), isEmpty);
+    },
+  );
+
   bool ffmpegAvailable;
   try {
     ffmpegAvailable = Process.runSync('ffmpeg', ['-version']).exitCode == 0;
