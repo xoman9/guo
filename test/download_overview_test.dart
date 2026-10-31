@@ -18,6 +18,65 @@ void main() {
   final first = drama('a', title: '剧甲');
   final second = drama('b', title: '剧乙');
 
+  test('download speed sums byte deltas over elapsed time', () {
+    final sampler = DownloadSpeedSampler();
+    sampler.update([
+      downloadJob(first, 1, state: 'downloading', bytes: 1000),
+      downloadJob(second, 1, state: 'downloading', bytes: 2000),
+    ], Duration.zero);
+    expect(sampler.bytesPerSecond, 0);
+    sampler.update([
+      downloadJob(first, 1, state: 'downloading', bytes: 3048),
+      downloadJob(second, 1, state: 'downloading', bytes: 6096),
+    ], const Duration(seconds: 2));
+    expect(sampler.bytesPerSecond, 3072);
+    sampler.update([
+      downloadJob(first, 1, state: 'downloading', bytes: 3048),
+      downloadJob(second, 1, state: 'downloading', bytes: 6096),
+    ], const Duration(seconds: 4));
+    expect(sampler.bytesPerSecond, 0);
+  });
+
+  test('download speed ignores completed history and replaced counters', () {
+    final sampler = DownloadSpeedSampler();
+    sampler.update([
+      downloadJob(first, 1, state: 'downloading', bytes: 1000),
+    ], Duration.zero);
+    sampler.update([
+      downloadJob(first, 1, state: 'downloading', bytes: 3000),
+      downloadJob(second, 1, bytes: 1 << 30),
+    ], const Duration(seconds: 2));
+    expect(sampler.bytesPerSecond, 1000);
+    sampler.update([
+      downloadJob(first, 1, state: 'downloading', bytes: 10000000, created: 1),
+    ], const Duration(seconds: 4));
+    expect(sampler.bytesPerSecond, 0);
+    sampler.update([
+      downloadJob(first, 1, state: 'downloading', bytes: 10, created: 1),
+    ], const Duration(seconds: 6));
+    expect(sampler.bytesPerSecond, 0);
+  });
+
+  test('pausing and reset clear the speed immediately', () {
+    final sampler = DownloadSpeedSampler();
+    sampler.update([
+      downloadJob(first, 1, state: 'downloading', bytes: 0),
+    ], Duration.zero);
+    sampler.update([
+      downloadJob(first, 1, state: 'downloading', bytes: 2048),
+    ], const Duration(seconds: 2));
+    expect(sampler.bytesPerSecond, 1024);
+    sampler.update([
+      downloadJob(first, 1, state: 'paused', bytes: 2048),
+    ], const Duration(milliseconds: 2100));
+    expect(sampler.bytesPerSecond, 0);
+    sampler.reset();
+    sampler.update([
+      downloadJob(first, 1, state: 'downloading', bytes: 1 << 30),
+    ], const Duration(seconds: 3));
+    expect(sampler.bytesPerSecond, 0);
+  });
+
   test('summarizes running and finished jobs', () async {
     final repository = FakeRepository()
       ..jobs = [

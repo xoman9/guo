@@ -85,9 +85,9 @@ class _DownloadsPageState extends State<DownloadsPage>
   }
 
   void _control(DownloadJob job) => _run(
-    () => AppScope.of(
-      context,
-    ).repository.controlDownloads(job.active ? 'pause' : 'resume', id: job.id),
+    () =>
+        AppScope.of(context).repository
+            .controlDownloads(job.active ? 'pause' : 'resume', id: job.id),
   );
 
   void _controlAll(String command, List<DownloadJob> jobs) => _run(() async {
@@ -250,18 +250,40 @@ class _DownloadsPageState extends State<DownloadsPage>
     final downloaded = downloadedDramas(widget.downloads.jobs).length;
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: inset),
-      child: TabBar(
-        controller: _tabs,
-        isScrollable: true,
-        tabAlignment: TabAlignment.start,
-        labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-        unselectedLabelStyle: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-        ),
-        tabs: [
-          Tab(text: pending == 0 ? '下载中' : '下载中 $pending'),
-          Tab(text: downloaded == 0 ? '已下载' : '已下载 $downloaded'),
+      child: Row(
+        children: [
+          Expanded(
+            child: TabBar(
+              controller: _tabs,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              labelStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+              tabs: [
+                Tab(text: pending == 0 ? '下载中' : '下载中 $pending'),
+                Tab(text: downloaded == 0 ? '已下载' : '已下载 $downloaded'),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 8, right: 4),
+            child: Text(
+              '${formatBytes(widget.downloads.bytesPerSecond.round())}/s',
+              key: const ValueKey('download-speed'),
+              semanticsLabel:
+                  '下載速度 ${formatBytes(widget.downloads.bytesPerSecond.round())} 每秒',
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
         ],
       ),
     );
