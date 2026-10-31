@@ -108,6 +108,7 @@ class _MergeExecutor implements MediaExecutor {
 
 class _ProcessMergeExecutor implements MediaExecutor {
   final commands = <List<String>>[];
+  final inputLists = <String>[];
   @override
   Future<MediaProbe> probe(String file) async {
     final result = await Process.run('ffprobe', [
@@ -134,6 +135,11 @@ class _ProcessMergeExecutor implements MediaExecutor {
     void Function(double)? progress,
   }) async {
     commands.add(List.of(arguments));
+    if (arguments.contains('concat')) {
+      inputLists.add(
+        await File(arguments[arguments.indexOf('-i') + 1]).readAsString(),
+      );
+    }
     final result = await Process.run('ffmpeg', [
       '-v',
       'error',
@@ -408,12 +414,120 @@ void main() {
     },
   );
 
+  test('direct concatenation requires identical headers, containers and time bases', () {
+    MediaProbe input({
+      String hash = 'SHA256:same',
+      String timeBase = '1/15360',
+      String format = 'mov,mp4,m4a,3gp,3g2,mj2',
+    }) => MediaProbe({
+      'format': {'duration': '12', 'format_name': format},
+      'streams': [
+        {
+          'index': 0,
+          'codec_type': 'video',
+          'codec_name': 'h264',
+          'width': 640,
+          'height': 360,
+          'pix_fmt': 'yuv420p',
+          'r_frame_rate': '30/1',
+          'extradata_hash': hash,
+          'time_base': timeBase,
+        },
+      ],
+    });
+    final original = input();
+    final same = [original, input()];
+    expect(MergePlan.create(same).canDirectConcat(same), isTrue);
+    for (final other in [
+      input(hash: 'SHA256:different'),
+      input(hash: ''),
+      input(timeBase: '1/12800'),
+      input(format: 'matroska,webm'),
+    ]) {
+      final probes = [original, other];
+      expect(MergePlan.create(probes).canDirectConcat(probes), isFalse);
+    }
+  });
+
   bool ffmpegAvailable;
   try {
     ffmpegAvailable = Process.runSync('ffmpeg', ['-version']).exitCode == 0;
   } catch (_) {
     ffmpegAvailable = false;
   }
+  test(
+    'compatible ordinary videos merge directly without temporary episodes',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        "guo 'direct-merge-",
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final repository = _MergeRepository(directory);
+      final show = drama('direct', title: '原片直合');
+      repository.jobs = [downloadJob(show, 1), downloadJob(show, 2)];
+      for (var n = 1; n <= 2; n++) {
+        final result = await Process.run('ffmpeg', [
+          '-v',
+          'error',
+          '-y',
+          '-f',
+          'lavfi',
+          '-i',
+          'testsrc2=size=160x90:rate=12',
+          '-f',
+          'lavfi',
+          '-i',
+          'sine=frequency=440:sample_rate=44100',
+          '-t',
+          '1',
+          '-c:v',
+          'libx264',
+          '-threads',
+          '1',
+          '-c:a',
+          'aac',
+          '-ac',
+          '2',
+          path.join(directory.path, '$n.mp4'),
+        ]);
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+      }
+      final executor = _ProcessMergeExecutor();
+      final merger = DownloadMerger(repository, executor: executor);
+      addTearDown(merger.dispose);
+      final statuses = <String>[];
+      merger.addListener(() => statuses.add(merger.status));
+      final output = await merger.merge(repository.jobs!);
+      expect(path.basename(output), '原片直合(1-2).mp4');
+      expect(executor.commands, hasLength(1));
+      expect(executor.commands.single, contains('concat'));
+      expect(executor.commands.single, contains('copy'));
+      expect(
+        executor.inputLists.single,
+        contains(concatFileLine(path.join(directory.path, '1.mp4'))),
+      );
+      expect(
+        executor.inputLists.single,
+        contains(concatFileLine(path.join(directory.path, '2.mp4'))),
+      );
+      expect(statuses, contains('格式完全相容，直接合併原影片'));
+      expect(repository.jobs, isEmpty);
+      expect(directory.listSync().whereType<Directory>(), isEmpty);
+      final decoded = await Process.run('ffmpeg', [
+        '-v',
+        'error',
+        '-xerror',
+        '-i',
+        output,
+        '-f',
+        'null',
+        '-',
+      ]);
+      expect(decoded.exitCode, 0, reason: '${decoded.stderr}');
+    },
+    skip: ffmpegAvailable ? false : 'requires ffmpeg and ffprobe',
+  );
+
   test(
     'real mixed-resolution merge is playable after deleting downloaded inputs',
     () async {

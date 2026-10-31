@@ -97,6 +97,7 @@ class DownloadMerger extends ChangeNotifier {
       if (!path.isAbsolute(root)) throw AppFailure('下载资料夹无效');
       workspace = await Directory(root).createTemp('.guo-merge-');
       final prepared = <String>[];
+      final directInputs = <bool>[];
       final probes = <MediaProbe>[];
       for (var index = 0; index < jobs.length; index++) {
         _check();
@@ -111,6 +112,14 @@ class DownloadMerger extends ChangeNotifier {
             path.extension(local.url).toLowerCase() != '.m3u8') {
           probes.add(await executor.probe(local.url));
           prepared.add(local.url);
+          directInputs.add(
+            {
+              '.mp4',
+              '.m4v',
+              '.mov',
+              '.mkv',
+            }.contains(path.extension(local.url).toLowerCase()),
+          );
           continue;
         }
         final output = path.join(workspace.path, 'original-$index.mkv');
@@ -142,6 +151,7 @@ class DownloadMerger extends ChangeNotifier {
         _check();
         probes.add(await executor.probe(output));
         prepared.add(output);
+        directInputs.add(false);
       }
       _check();
       final plan = MergePlan.create(probes);
@@ -149,11 +159,17 @@ class DownloadMerger extends ChangeNotifier {
         0,
         (sum, probe) => sum + probe.duration,
       );
-      final hardware = await hardwareEncoderLookup(plan);
+      final direct =
+          directInputs.every((value) => value) && plan.canDirectConcat(probes);
+      final hardware = direct ? null : await hardwareEncoderLookup(plan);
       _check();
       var hardwareFailed = false;
       final files = <String>[];
-      for (var index = 0; index < jobs.length; index++) {
+      if (direct) {
+        files.addAll(prepared);
+        _update('格式完全相容，直接合併原影片', .7);
+      }
+      for (var index = 0; !direct && index < jobs.length; index++) {
         _check();
         final accelerated =
             hardware != null && !hardwareFailed && plan.videoChanges[index];
@@ -203,7 +219,7 @@ class DownloadMerger extends ChangeNotifier {
       _check();
       final playlist = File(path.join(workspace.path, 'concat.txt'));
       await playlist.writeAsString(
-        files.map((file) => "file '$file'").join('\n'),
+        files.map(concatFileLine).join('\n'),
         flush: true,
       );
       final merged = File(path.join(workspace.path, 'merged.mp4'));
@@ -213,7 +229,7 @@ class DownloadMerger extends ChangeNotifier {
           '-f',
           'concat',
           '-safe',
-          '1',
+          '0',
           '-i',
           playlist.path,
           '-map',
@@ -262,9 +278,14 @@ class DownloadMerger extends ChangeNotifier {
       final target = reserved;
       if (target == null) throw AppFailure('同名合并成品过多');
       _update('保存合并成品', .95);
-      await merged.openRead().pipe(target.openWrite());
+      final outputBytes = await merged.length();
+      try {
+        await merged.rename(target.path);
+      } on FileSystemException {
+        await merged.openRead().pipe(target.openWrite());
+      }
       _check();
-      if (await target.length() != await merged.length())
+      if (await target.length() != outputBytes)
         throw AppFailure('保存不完整，原分集已保留');
       final saved = await target.open(mode: FileMode.append);
       try {

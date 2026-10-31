@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -76,6 +77,74 @@ class MergePlan {
   final bool canonicalAac;
   int get videoTranscodes => videoChanges.where((change) => change).length;
   int get audioTranscodes => audioChanges.where((change) => change).length;
+
+  bool canDirectConcat(List<MediaProbe> probes) {
+    if (probes.isEmpty ||
+        videoChanges.any((change) => change) ||
+        audioChanges.any((change) => change) ||
+        !{'h264', 'hevc'}.contains(video.videoCodec) ||
+        (audio != null &&
+            !{
+              'aac',
+              'ac3',
+              'eac3',
+              'mp3',
+            }.contains(audio!.audio['codec_name'])))
+      return false;
+    final format =
+        (probes.first.raw['format'] as Map?)?['format_name'] as String? ?? '';
+    if (!format.split(',').any({'mov', 'mp4', 'matroska'}.contains))
+      return false;
+    String signature(MediaProbe probe) => jsonEncode([
+      (probe.raw['format'] as Map?)?['format_name'],
+      for (final stream in probe.streams)
+        [
+          for (final key in [
+            'index',
+            'codec_type',
+            'codec_name',
+            'codec_tag_string',
+            'time_base',
+            'extradata_hash',
+            'profile',
+            'level',
+            'width',
+            'height',
+            'pix_fmt',
+            'sample_aspect_ratio',
+            'r_frame_rate',
+            'avg_frame_rate',
+            'color_transfer',
+            'color_primaries',
+            'color_space',
+            'color_range',
+            'sample_rate',
+            'channels',
+            'channel_layout',
+          ])
+            stream[key],
+        ],
+    ]);
+    final expected = signature(probes.first);
+    return probes.every(
+      (probe) =>
+          probe.streams
+                  .where((stream) => stream['codec_type'] == 'video')
+                  .length ==
+              1 &&
+          probe.streams
+                  .where((stream) => stream['codec_type'] == 'audio')
+                  .length <=
+              1 &&
+          probe.streams.every(
+            (stream) =>
+                {'video', 'audio'}.contains(stream['codec_type']) &&
+                '${stream['time_base'] ?? ''}'.isNotEmpty,
+          ) &&
+          '${probe.video['extradata_hash'] ?? ''}'.isNotEmpty &&
+          signature(probe) == expected,
+    );
+  }
 
   static MediaProbe _majority(
     List<MediaProbe> probes,
