@@ -19,7 +19,7 @@ class _ControlledMerger extends DownloadMerger {
   @override
   Future<String> merge(List<DownloadJob> selected) async {
     busy = true;
-    drama = selected.first.drama;
+    this.drama = selected.first.drama;
     progress = .4;
     status = '合併第 1 集中';
     notifyListeners();
