@@ -13,6 +13,7 @@ import '../widgets/drama_tile.dart';
 import '../widgets/focus_ring.dart';
 import '../widgets/status_view.dart';
 import 'download_actions.dart';
+import 'download_merge_progress.dart';
 import 'downloaded_drama_page.dart';
 
 typedef _View = ({
@@ -342,6 +343,7 @@ class _DownloadsPageState extends State<DownloadsPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            DownloadMergeBanner(merger: widget.downloads.mergeTask),
             ?_sourceChips(view, inset: 16, scroll: true),
             Expanded(child: body),
           ],
@@ -409,6 +411,7 @@ class _DownloadsPageState extends State<DownloadsPage>
             ),
           ),
           _tabBar(24),
+          DownloadMergeBanner(merger: widget.downloads.mergeTask),
           const SizedBox(height: 8),
           ?_sourceChips(view, inset: 24),
           Expanded(child: body),

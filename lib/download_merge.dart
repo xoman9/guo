@@ -48,6 +48,8 @@ class DownloadMerger extends ChangeNotifier {
   final MediaExecutor executor;
   final Future<AvcHardwareEncoder?> Function(MergePlan) hardwareEncoderLookup;
   String status = '';
+  Drama? drama;
+  String? output, error;
   double progress = 0;
   bool busy = false, _cancelled = false, _disposed = false, _cleaning = false;
   bool get cancellable => busy && !_cleaning;
@@ -68,10 +70,22 @@ class DownloadMerger extends ChangeNotifier {
     await executor.cancel();
   }
 
+  void clearResult() {
+    if (busy) return;
+    drama = null;
+    output = null;
+    error = null;
+    _update('', 0);
+  }
+
   Future<String> merge(List<DownloadJob> selected) async {
+    if (_disposed) throw AppFailure('合併管理器已關閉');
     if (busy) throw AppFailure('已有影片正在合并');
     final jobs = continuousDownloadJobs(selected);
     busy = true;
+    drama = jobs.first.drama;
+    output = null;
+    error = null;
     _cancelled = false;
     Directory? workspace;
     File? reserved;
@@ -295,6 +309,7 @@ class DownloadMerger extends ChangeNotifier {
       }
       _check();
       completed = true;
+      output = target.path;
       _cleaning = true;
       _update('成品已保存，正在清理原分集与下载文件', .98);
       try {
@@ -304,6 +319,10 @@ class DownloadMerger extends ChangeNotifier {
       }
       _update('合并完成，原分集与下载文件已清理', 1);
       return target.path;
+    } catch (failure) {
+      error = failure.toString();
+      status = _cancelled ? '已取消合併' : '合併未完成';
+      rethrow;
     } finally {
       try {
         if (!completed && reserved != null && await reserved.exists())

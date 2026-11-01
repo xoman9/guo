@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../download_merge.dart';
-
 import '../../download_collections.dart';
 import '../../download_overview.dart';
 import '../../local_store.dart';
@@ -14,6 +12,7 @@ import '../widgets/cover_image.dart';
 import '../widgets/focus_ring.dart';
 import '../widgets/status_view.dart';
 import 'download_actions.dart';
+import 'download_merge_progress.dart';
 
 class DownloadedDramaPage extends StatefulWidget {
   const DownloadedDramaPage({
@@ -36,11 +35,12 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
   Set<String>? _selection;
   bool _busy = false;
   bool _playing = false;
+  bool get _mutating => _busy || (_merger?.busy ?? false);
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _merger ??= DownloadMerger(AppScope.of(context).repository);
+    _merger ??= widget.downloads.merger;
     _updater ??= DownloadCollectionUpdater(
       AppScope.of(context).repository,
       widget.store,
@@ -49,7 +49,6 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
 
   @override
   void dispose() {
-    _merger?.dispose();
     _updater?.dispose();
     super.dispose();
   }
@@ -100,89 +99,33 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
   }
 
   Future<void> _merge(DownloadedDrama item, Set<String> selection) async {
-    if (_busy || selection.isEmpty) return;
+    if (_busy) return;
+    final merger = _merger!;
+    if (merger.busy) {
+      if (widget.downloads.mergeTask != null)
+        await showDownloadMergeProgress(context, merger);
+      return;
+    }
+    if (selection.isEmpty) return;
     final jobs = [
       for (final job in item.episodes)
         if (selection.contains(job.id)) job,
     ];
     try {
-      continuousDownloadJobs(jobs);
+      widget.downloads.startMerge(jobs);
+      setState(() => _selection = null);
+      await showDownloadMergeProgress(context, merger);
     } catch (error) {
-      showMessage(context, '$error');
-      return;
+      if (mounted) showMessage(context, '$error');
     }
-    final merger = _merger!;
-    setState(() => _busy = true);
-    final navigator = Navigator.of(context, rootNavigator: true);
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: ListenableBuilder(
-          listenable: merger,
-          builder: (context, _) => AlertDialog(
-            title: const Text('合并已下载分集'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                LinearProgressIndicator(value: merger.progress),
-                const SizedBox(height: 12),
-                Text(merger.status),
-                const SizedBox(height: 8),
-                const Text(
-                  '先統一為最低解析度與相容格式，再合併，不進行影片驗證。成品儲存成功後，刪除所選原分集、下載檔案與空資料夾；失敗時保留原分集。',
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: merger.cancellable ? merger.cancel : null,
-                child: const Text('取消合并'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    String? output, failure;
-    try {
-      output = await merger.merge(jobs);
-      await widget.downloads.refresh();
-    } catch (error) {
-      failure = '$error';
-    } finally {
-      navigator.pop();
-      if (mounted) setState(() => _busy = false);
-    }
-    if (!mounted) return;
-    if (failure != null) {
-      showMessage(context, failure);
-      return;
-    }
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('合并完成'),
-        content: SelectableText(output!),
-        actions: [
-          TextButton(
-            onPressed: () => Clipboard.setData(ClipboardData(text: output!)),
-            child: const Text('复制路径'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('完成'),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _mergeButton(DownloadedDrama item, Set<String> selection) =>
       _textButton(
-        '合并影片',
-        _busy || selection.isEmpty ? null : () => _merge(item, selection),
+        _merger!.busy ? '查看合併進度' : '合并影片',
+        _busy || (!_merger!.busy && selection.isEmpty)
+            ? null
+            : () => _merge(item, selection),
         icon: Icons.merge_rounded,
       );
 
@@ -252,7 +195,7 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
 
   Widget _fillButton(Drama drama, {bool icon = true}) => _textButton(
     '补齐缺集',
-    _updater!.busy || _busy ? null : () => _fill(drama),
+    _updater!.busy || _mutating ? null : () => _fill(drama),
     icon: icon ? Icons.refresh_rounded : null,
   );
 
@@ -280,7 +223,7 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
           backgroundColor: colors.error,
           foregroundColor: colors.onError,
         ),
-        onPressed: selection.isEmpty || _busy
+        onPressed: selection.isEmpty || _mutating
             ? null
             : () => _remove(item, selection),
         icon: const Icon(Icons.delete_outline_rounded, size: 18),
@@ -317,7 +260,12 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
       body: SafeArea(
         top: false,
         bottom: false,
-        child: _content(context, item, selection, inset: 16),
+        child: Column(
+          children: [
+            DownloadMergeBanner(merger: widget.downloads.mergeTask),
+            Expanded(child: _content(context, item, selection, inset: 16)),
+          ],
+        ),
       ),
       bottomNavigationBar: selection == null || item == null
           ? null
@@ -397,6 +345,7 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
                 ),
               ),
             ),
+            DownloadMergeBanner(merger: widget.downloads.mergeTask),
             Expanded(
               child: _content(context, item, selection, inset: 24, lead: 68),
             ),

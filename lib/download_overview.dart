@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'core_bridge.dart';
+import 'download_merge.dart';
 import 'local_store.dart';
 import 'models.dart';
 
@@ -43,7 +44,13 @@ class DownloadSpeedSampler {
 }
 
 class DownloadOverview extends ChangeNotifier {
-  DownloadOverview(this.repository, this.store, {this.interval = _interval}) {
+  DownloadOverview(
+    this.repository,
+    this.store, {
+    this.interval = _interval,
+    DownloadMerger? merger,
+  }) : _merger = merger {
+    _merger?.addListener(_mergeChanged);
     store.addListener(_sync);
     _sync();
   }
@@ -62,6 +69,73 @@ class DownloadOverview extends ChangeNotifier {
   final _clock = Stopwatch()..start();
   double get bytesPerSecond => _speed.bytesPerSecond;
 
+  DownloadMerger? _merger;
+  int? _mergeEpoch;
+  ({bool busy, String? drama, String? output, String? error})? _mergeState;
+  DownloadMerger get merger {
+    final existing = _merger;
+    if (existing != null) return existing;
+    final created = _merger = DownloadMerger(repository);
+    created.addListener(_mergeChanged);
+    return created;
+  }
+
+  DownloadMerger? get mergeTask =>
+      available && _mergeEpoch == store.profileEpoch ? _merger : null;
+
+  void _mergeChanged() {
+    final task = _merger;
+    if (task == null || _disposed) return;
+    final state = (
+      busy: task.busy,
+      drama: task.drama?.id,
+      output: task.output,
+      error: task.error,
+    );
+    if (state == _mergeState) return;
+    _mergeState = state;
+    notifyListeners();
+  }
+
+  void startMerge(List<DownloadJob> selected) {
+    if (_disposed ||
+        !available ||
+        selected.any((job) => !store.allowsSource(job.drama.source))) {
+      throw AppFailure('目前無權合併所選分集');
+    }
+    final jobs = continuousDownloadJobs(selected);
+    final task = merger;
+    if (task.busy) throw AppFailure('已有影片正在合併，請先查看目前進度');
+    final epoch = _mergeEpoch = store.profileEpoch;
+    unawaited(_runMerge(task, jobs, epoch));
+  }
+
+  Future<void> _runMerge(
+    DownloadMerger task,
+    List<DownloadJob> jobs,
+    int epoch,
+  ) async {
+    try {
+      await task.merge(jobs);
+    } catch (_) {
+    } finally {
+      if (!_disposed) {
+        if (epoch != store.profileEpoch) task.clearResult();
+        await refresh();
+      }
+    }
+  }
+
+  void _leaveMergeProfile() {
+    final task = _merger;
+    if (task == null) return;
+    if (task.busy) {
+      unawaited(task.cancel());
+    } else {
+      task.clearResult();
+    }
+  }
+
   bool get available => store.canDownload && repository.supportsDownloads;
   List<DownloadJob> get jobs => _jobs;
   int get active => _jobs.where((job) => job.active || job.converting).length;
@@ -79,6 +153,7 @@ class DownloadOverview extends ChangeNotifier {
       return;
     }
     if (_epoch != store.profileEpoch) {
+      if (_epoch != null) _leaveMergeProfile();
       _epoch = store.profileEpoch;
       _request++;
       _loading = false;
@@ -91,6 +166,7 @@ class DownloadOverview extends ChangeNotifier {
   }
 
   void _stop() {
+    _leaveMergeProfile();
     _timer?.cancel();
     _timer = null;
     _epoch = null;
@@ -134,6 +210,8 @@ class DownloadOverview extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _merger?.removeListener(_mergeChanged);
+    _merger?.dispose();
     _timer?.cancel();
     store.removeListener(_sync);
     super.dispose();
