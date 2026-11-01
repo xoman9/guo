@@ -62,56 +62,59 @@ void main() {
         interval: const Duration(hours: 1),
         merger: merger,
       );
-      addTearDown(overview.dispose);
-      await tester.pump();
-      overview.startMerge(repository.jobs!);
-      expect(overview.mergeTask, same(merger));
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: Column(
-                children: [
-                  DownloadMergeBanner(merger: overview.mergeTask),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => Scaffold(
-                          appBar: AppBar(title: const Text('其他頁面')),
-                          body: const Text('繼續瀏覽'),
+      try {
+        await tester.pump();
+        overview.startMerge(repository.jobs!);
+        expect(overview.mergeTask, same(merger));
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: Column(
+                  children: [
+                    DownloadMergeBanner(merger: overview.mergeTask),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => Scaffold(
+                            appBar: AppBar(title: const Text('其他頁面')),
+                            body: const Text('繼續瀏覽'),
+                          ),
                         ),
                       ),
+                      child: const Text('前往其他頁面'),
                     ),
-                    child: const Text('前往其他頁面'),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.tap(find.text('查看進度'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('close-merge-progress')));
-      await tester.pumpAndSettle();
-      expect(merger.busy, isTrue);
-      expect(merger.cancellations, 0);
-      expect(overview.merger, same(merger));
-      await tester.tap(find.text('前往其他頁面'));
-      await tester.pumpAndSettle();
-      merger.completion.complete('/downloads/movie(1-1).mp4');
-      await tester.pumpAndSettle();
-      expect(find.text('繼續瀏覽'), findsOneWidget);
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(merger.cancellations, 0);
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('查看進度'));
-      await tester.pumpAndSettle();
-      expect(find.text('合併完成'), findsWidgets);
-      expect(find.text('/downloads/movie(1-1).mp4'), findsOneWidget);
-      expect(find.text('複製路徑'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox.shrink());
+        );
+        await tester.tap(find.text('查看進度'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('close-merge-progress')));
+        await tester.pumpAndSettle();
+        expect(merger.busy, isTrue);
+        expect(merger.cancellations, 0);
+        expect(overview.merger, same(merger));
+        await tester.tap(find.text('前往其他頁面'));
+        await tester.pumpAndSettle();
+        merger.completion.complete('/downloads/movie(1-1).mp4');
+        await tester.pumpAndSettle();
+        expect(find.text('繼續瀏覽'), findsOneWidget);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(merger.cancellations, 0);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('查看進度'));
+        await tester.pumpAndSettle();
+        expect(find.text('合併完成'), findsWidgets);
+        expect(find.text('/downloads/movie(1-1).mp4'), findsOneWidget);
+        expect(find.text('複製路徑'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+      } finally {
+        overview.dispose();
+      }
     },
   );
 
@@ -126,30 +129,35 @@ void main() {
         interval: const Duration(hours: 1),
         merger: merger,
       );
-      addTearDown(overview.dispose);
-      await tester.pump();
-      overview.startMerge(repository.jobs!);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: DownloadMergeBanner(merger: overview.mergeTask)),
-        ),
-      );
-      await tester.tap(find.text('查看進度'));
-      await tester.pumpAndSettle();
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(merger.busy, isTrue);
-      expect(merger.cancellations, 0);
-      await tester.tap(find.text('查看進度'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('取消合併'));
-      await tester.pumpAndSettle();
-      expect(merger.cancellations, 1);
-      expect(merger.busy, isFalse);
-      expect(merger.error, contains('已取消合併'));
-      expect(find.text('合併未完成'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox.shrink());
+      try {
+        await tester.pump();
+        overview.startMerge(repository.jobs!);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: DownloadMergeBanner(merger: overview.mergeTask),
+            ),
+          ),
+        );
+        await tester.tap(find.text('查看進度'));
+        await tester.pumpAndSettle();
+        await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(merger.busy, isTrue);
+        expect(merger.cancellations, 0);
+        await tester.tap(find.text('查看進度'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('取消合併'));
+        await tester.pumpAndSettle();
+        expect(merger.cancellations, 1);
+        expect(merger.busy, isFalse);
+        expect(merger.error, contains('已取消合併'));
+        expect(find.text('合併未完成'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+      } finally {
+        overview.dispose();
+      }
     },
   );
 
