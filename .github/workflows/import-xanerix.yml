@@ -1,0 +1,55 @@
+name: Import Xanerix base into isolated guo rebuild
+on:
+  push:
+    branches:
+      - rebuild/xanerix-base-legacy110-20261107
+    paths:
+      - .github/workflows/import-xanerix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'ci: import Xanerix base into rebuild branch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Import upstream source and retain legacy UI overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p /tmp/guo-import
+          for p in MIGRATION_XANERIX_110.md lib/ui/widgets/source_bar.dart lib/ui/settings/sources_view.dart .github/workflows/import-xanerix.yml; do
+            mkdir -p "/tmp/guo-import/$(dirname "$p")"
+            git show "HEAD:$p" > "/tmp/guo-import/$p"
+          done
+          git fetch --no-tags https://github.com/Xanerix/guoapp.git main:refs/remotes/xanerix/main
+          git rm -r -q --ignore-unmatch .
+          git checkout refs/remotes/xanerix/main -- .
+          for p in MIGRATION_XANERIX_110.md lib/ui/widgets/source_bar.dart lib/ui/settings/sources_view.dart .github/workflows/import-xanerix.yml; do
+            mkdir -p "$(dirname "$p")"
+            cp "/tmp/guo-import/$p" "$p"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("pubspec.yaml")
+          s=p.read_text()
+          assert "version: 1.0.4+104" in s
+          p.write_text(s.replace("version: 1.0.4+104","version: 1.0.11+111"))
+          p=Path("android/app/build.gradle.kts")
+          s=p.read_text()
+          before='applicationId = if (allSources) "com.guoapp.all" else "com.guoapp.phoenix"'
+          assert before in s
+          p.write_text(s.replace(before,'applicationId = if (allSources) "com.duanju.duanju_app.coexist" else "com.guoapp.phoenix"'))
+          PY
+          git add -A
+          git diff --cached --stat
+          git commit -m "refactor: import Xanerix guoapp as base and preserve 1.0.10 UI controls"
+          git push origin HEAD:rebuild/xanerix-base-legacy110-20261107
