@@ -20,15 +20,20 @@ Future<void> mergeDownloads(
 ) async {
   final messenger = ScaffoldMessenger.of(context);
   final merge = DownloadMerge(AppScope.of(context).repository);
-  final message = await showDialog<String>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => _MergeDialog(merge, () => _run(merge, jobs)),
+  // The merge job is not owned by the dialog. Closing its UI must not cancel
+  // conversion or dispose of the running FFmpeg executor.
+  final operation = _run(merge, jobs).then((result) => result).catchError(
+    (Object error) => merge.cancelled ? '已取消合并' : '$error',
   );
-  merge.dispose();
-  if (message != null) {
-    messenger.showSnackBar(SnackBar(content: Text(message)));
-  }
+  operation.then((message) {
+    if (message != null && messenger.mounted) {
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
+  }).whenComplete(merge.dispose);
+  await showDialog<void>(
+    context: context,
+    builder: (context) => _MergeDialog(merge, operation),
+  );
 }
 
 Future<String?> _run(DownloadMerge merge, List<DownloadJob> jobs) async {
@@ -77,9 +82,9 @@ String _unusedFile(String directory, String name) {
 }
 
 class _MergeDialog extends StatefulWidget {
-  const _MergeDialog(this.merge, this.task);
+  const _MergeDialog(this.merge, this.operation);
   final DownloadMerge merge;
-  final Future<String?> Function() task;
+  final Future<String?> operation;
 
   @override
   State<_MergeDialog> createState() => _MergeDialogState();
@@ -89,49 +94,45 @@ class _MergeDialogState extends State<_MergeDialog> {
   @override
   void initState() {
     super.initState();
-    _start();
-  }
-
-  Future<void> _start() async {
-    String? message;
-    try {
-      message = await widget.task();
-    } catch (error) {
-      message = widget.merge.cancelled ? '已取消合并' : '$error';
-    }
-    if (mounted) Navigator.pop(context, message);
+    widget.operation.then((_) {
+      if (mounted) Navigator.pop(context);
+    });
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: false,
-    onPopInvokedWithResult: (didPop, _) {
-      if (!didPop) widget.merge.cancel();
-    },
-    child: ListenableBuilder(
-      listenable: widget.merge,
-      builder: (context, _) => AlertDialog(
-        title: const Text('合并视频'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 16,
-          children: [
-            Text(widget.merge.status),
-            LinearProgressIndicator(value: widget.merge.progress),
-          ],
-        ),
-        actions: [
-          FocusRing(
-            radius: 20,
-            child: TextButton(
-              autofocus: true,
-              onPressed: widget.merge.cancelled ? null : widget.merge.cancel,
-              child: const Text('取消'),
-            ),
-          ),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.merge,
+    builder: (context, _) => AlertDialog(
+      title: const Text('合并视频'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 16,
+        children: [
+          Text(widget.merge.status),
+          LinearProgressIndicator(value: widget.merge.progress),
+          const Text('可以关闭此窗口，合并仍会继续执行。'),
         ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('背景继续'),
+        ),
+        FocusRing(
+          radius: 20,
+          child: TextButton(
+            autofocus: true,
+            onPressed: widget.merge.cancelled
+                ? null
+                : () {
+                    widget.merge.cancel();
+                    Navigator.pop(context);
+                  },
+            child: const Text('取消合并'),
+          ),
+        ),
+      ],
     ),
   );
 }
