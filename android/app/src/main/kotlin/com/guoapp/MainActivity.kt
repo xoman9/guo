@@ -54,6 +54,7 @@ private const val SURFACE_RESIZE_REDRAW_WAIT_MS = 100L
 private const val ORIENTATION_SETTLE_MS = 800L
 private const val CREATE_DOCUMENT_REQUEST = 7301
 private const val MERGE_DIRECTORY_REQUEST = 7303
+private const val DOWNLOAD_DIRECTORY_REQUEST = 7304
 private const val STORAGE_PERMISSION_REQUEST = 7302
 private const val PICTURE_IN_PICTURE_ACTION = "com.guoapp.PICTURE_IN_PICTURE_ACTION"
 
@@ -74,6 +75,7 @@ class MainActivity : FlutterActivity() {
     private var pictureInPictureReceiver: BroadcastReceiver? = null
     private var documentResult: MethodChannel.Result? = null
     private var mergeDirectoryResult: MethodChannel.Result? = null
+    private var downloadDirectoryResult: MethodChannel.Result? = null
     private var permissionResult: MethodChannel.Result? = null
     private var textInput: TextInputBridge? = null
     private var headroomReadAt = 0L
@@ -475,6 +477,45 @@ class MainActivity : FlutterActivity() {
                                 result.error("invalid_url", "播放地址为空", null)
                             }
                         }
+                        "hasDownloadFileAccess" -> {
+                            result.success(Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
+                                Environment.isExternalStorageManager())
+                        }
+                        "requestDownloadFileAccess" -> {
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
+                                Environment.isExternalStorageManager()) {
+                                result.success(true)
+                            } else {
+                                try {
+                                    startActivity(Intent(
+                                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                        Uri.parse("package:$packageName")
+                                    ))
+                                    result.success(false)
+                                } catch (error: Exception) {
+                                    result.error("storage_permission", "无法打开文件存取权限设置", null)
+                                }
+                            }
+                        }
+                        "chooseDownloadDirectory" -> {
+                            if (downloadDirectoryResult != null) {
+                                result.error("picker_busy", "已有下载资料夹选择器开启", null)
+                            } else {
+                                try {
+                                    downloadDirectoryResult = result
+                                    startActivityForResult(
+                                        Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                                                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                                        }, DOWNLOAD_DIRECTORY_REQUEST
+                                    )
+                                } catch (error: Exception) {
+                                    downloadDirectoryResult = null
+                                    result.error("folder_picker", "无法打开系统资料夹选择器", null)
+                                }
+                            }
+                        }
                         "chooseMergeDirectory" -> {
                             if (mergeDirectoryResult != null) {
                                 result.error("picker_busy", "正在选择合并目录", null)
@@ -724,6 +765,41 @@ class MainActivity : FlutterActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == DOWNLOAD_DIRECTORY_REQUEST) {
+            val pending = downloadDirectoryResult
+            downloadDirectoryResult = null
+            if (pending == null) return
+            val uri = if (resultCode == RESULT_OK) data?.data else null
+            if (uri == null) {
+                pending.success(null)
+                return
+            }
+            try {
+                // The Go download manager works on filesystem paths, not SAF URIs.
+                // Only primary storage can be mapped to a usable absolute path.
+                if (uri.authority != "com.android.externalstorage.documents") {
+                    pending.error("unsupported_volume", "请选择装置内部共享储存空间", null)
+                    return
+                }
+                val id = DocumentsContract.getTreeDocumentId(uri)
+                if (!id.startsWith("primary:")) {
+                    pending.error("unsupported_volume", "目前不支持外接 SD 卡，请选择内部储存空间", null)
+                    return
+                }
+                val root = Environment.getExternalStorageDirectory().canonicalFile
+                val relative = id.removePrefix("primary:")
+                val folder = File(root, relative).canonicalFile
+                if (folder == root || !folder.path.startsWith(root.path + File.separator) ||
+                    !folder.isDirectory) {
+                    pending.error("invalid_directory", "请选择内部储存空间中有效的子资料夹", null)
+                    return
+                }
+                pending.success(folder.absolutePath)
+            } catch (error: Exception) {
+                pending.error("folder_picker", "无法读取所选资料夹", null)
+            }
+            return
+        }
         if (requestCode == MERGE_DIRECTORY_REQUEST) {
             val result = mergeDirectoryResult
             mergeDirectoryResult = null
