@@ -36,6 +36,7 @@ class _StorageViewState extends State<StorageView> {
   String? _error;
   bool _loaded = false;
   String? _mergeTreeUri;
+  String? _pendingMigrationParent;
 
   @override
   void initState() {
@@ -118,15 +119,17 @@ class _StorageViewState extends State<StorageView> {
     try {
       if (Platform.isAndroid) {
         const channel = MethodChannel('duanju/device');
-        parent = await channel.invokeMethod<String>('chooseDownloadDirectory');
+        parent = _pendingMigrationParent ??
+            await channel.invokeMethod<String>('chooseDownloadDirectory');
         if (parent == null || !mounted) return;
+        _pendingMigrationParent = parent;
         final hasAccess =
             await channel.invokeMethod<bool>('hasDownloadFileAccess') ?? false;
         if (!hasAccess) {
           await channel.invokeMethod<bool>('requestDownloadFileAccess');
           if (mounted) {
             setState(() => _error =
-                '已选择资料夹：$parent。请在系统设置允许「所有文件存取」，返回后再次点选该资料夹以套用。');
+                '已选择资料夹：$parent。请在系统设置允许「所有文件存取」，返回後再次點選「更改並遷移目錄」即可套用，無須重新選擇。');
           }
           return;
         }
@@ -138,6 +141,7 @@ class _StorageViewState extends State<StorageView> {
           ? '$parent/zhenguojian-downloads'
           : parent;
       await _migrate(parent, destination);
+      _pendingMigrationParent = null;
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
     }
