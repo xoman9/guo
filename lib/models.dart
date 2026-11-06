@@ -14,6 +14,18 @@ class SourceSite {
       id == 'yeguo' ||
       id == 'jinguoduanju' ||
       id == 'jinguo' ||
+      id == 'liuguo' ||
+      id == 'xiaoguo' ||
+      id == 'youguo' ||
+      id == 'meiguo' ||
+      id == 'yingguo' ||
+      id == 'luguo' ||
+      id == 'liguo' ||
+      id == 'juguo' ||
+      id == 'ningguo' ||
+      id == 'mangguo' ||
+      id == 'chengguodj' ||
+      id == 'jiaoguo' ||
       id == 'dsd' ||
       id == 'sorani' ||
       id == 'guipian' ||
@@ -51,6 +63,18 @@ class SourceSite {
     dsd,
     SourceSite('jinguoduanju', '禁果短剧', '推荐 · 分类短剧 · 在线搜索'),
     SourceSite('jinguo', '禁果', '精选 · 最新 · 分类短剧 · 在线搜索'),
+    SourceSite('liuguo', '榴果 +', '即時分類 · 影片 · 播放線路'),
+    SourceSite('xiaoguo', '宵果 +', '即時分類 · 線上搜尋 · 播放線路'),
+    SourceSite('youguo', '柚果 +', '站源移植中'),
+    SourceSite('meiguo', '美果 +', '站源移植中'),
+    SourceSite('yingguo', '櫻果 +', '站源移植中'),
+    SourceSite('luguo', '露果 +', '站源移植中'),
+    SourceSite('liguo', '荔果 +', '站源移植中'),
+    SourceSite('juguo', '橘果 +', '站源移植中'),
+    SourceSite('ningguo', '檸果 +', '站源移植中'),
+    SourceSite('mangguo', '芒果 +', '站源移植中'),
+    SourceSite('chengguodj', '橙果 +', '站源移植中'),
+    SourceSite('jiaoguo', '角果 +', '站源移植中'),
     SourceSite('huangguo-video', '黄果视频', '视频剧集'),
     SourceSite('huangguoai', '黄果 AI', 'AI 短剧'),
     SourceSite('cloudfront', '黄果旧版', '旧 API 剧库'),
