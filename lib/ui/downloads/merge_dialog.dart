@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../app_device.dart';
 import '../../core_bridge.dart';
 import '../../download_merge.dart';
+import '../../merge_location.dart';
 import '../../models.dart';
 import '../app_scope.dart';
 import '../widgets/focus_ring.dart';
@@ -48,7 +49,8 @@ Future<String?> _run(DownloadMerge merge, List<DownloadJob> jobs) async {
     return '已保存到「文件」App 里本应用的「合并视频」文件夹';
   }
   if (Platform.isAndroid) {
-    final uri = await AppDevice.createDocument(merge.fileName, 'video/mp4');
+    final uri = await MergeLocation.createDocument(merge.fileName) ??
+        await AppDevice.createDocument(merge.fileName, 'video/mp4');
     if (uri == null) return null;
     try {
       final output = await FFmpegKitConfig.getSafParameterForWrite(uri);
