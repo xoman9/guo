@@ -42,7 +42,9 @@ android {
         applicationId = if (allSources) "com.duanju.duanju_app.coexist" else "com.guoapp.phoenix"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
-        versionCode = if (allSources) 2111 else flutter.versionCode
+        // Flutter --split-per-abi adds 2000 to the ARM64 version code.
+        // Base 111 produces the desired ARM64 coexist versionCode 2111.
+        versionCode = if (allSources) 111 else flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders["appLabel"] = if (allSources) "真果鉴-共存" else "红果鉴"
         manifestPlaceholders["appBanner"] = if (allSources) "@drawable/tv_banner_all_sources" else "@drawable/tv_banner"
