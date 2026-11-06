@@ -39,6 +39,9 @@ jobs:
             mkdir -p "$(dirname "$p")"
             cp "/tmp/guo-import/$p" "$p"
           done
+          # GitHub App token cannot update workflow files: keep the destination workflows unchanged.
+          git rm -r -q --ignore-unmatch .github/workflows
+          git checkout HEAD -- .github/workflows
           python3 - <<'PY'
           from pathlib import Path
           p=Path("pubspec.yaml")
