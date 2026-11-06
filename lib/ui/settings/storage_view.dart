@@ -112,9 +112,35 @@ class _StorageViewState extends State<StorageView> {
   }
 
   Future<void> _move() async {
-    final parent = await _pickParent();
-    if (parent == null || !mounted) return;
-    await _migrate(parent, parent);
+    // The native Go download manager requires an absolute filesystem path.
+    // Android's system picker resolves supported primary-storage directories.
+    String? parent;
+    try {
+      if (Platform.isAndroid) {
+        const channel = MethodChannel('duanju/device');
+        parent = await channel.invokeMethod<String>('chooseDownloadDirectory');
+        if (parent == null || !mounted) return;
+        final hasAccess =
+            await channel.invokeMethod<bool>('hasDownloadFileAccess') ?? false;
+        if (!hasAccess) {
+          await channel.invokeMethod<bool>('requestDownloadFileAccess');
+          if (mounted) {
+            setState(() => _error =
+                '已选择资料夹：$parent。请在系统设置允许「所有文件存取」，返回后再次点选该资料夹以套用。');
+          }
+          return;
+        }
+      } else {
+        parent = await _pickParent();
+      }
+      if (parent == null || !mounted) return;
+      final destination = Platform.isAndroid
+          ? '$parent/zhenguojian-downloads'
+          : parent;
+      await _migrate(parent, destination);
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
   }
 
   Future<void> _restore() => _migrate('', '应用默认目录');
@@ -127,6 +153,7 @@ class _StorageViewState extends State<StorageView> {
   });
 
   Future<void> _migrate(String parent, String destination) async {
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -168,6 +195,10 @@ class _StorageViewState extends State<StorageView> {
     );
     try {
       await repository.moveDownloads(parent);
+      // The native manager has persisted its new directory; refresh from it
+      // rather than displaying the parent selected in the system picker.
+      await _refresh();
+      if (mounted) setState(() => _error = null);
     } catch (failure) {
       if (mounted) setState(() => _error = '$failure');
     } finally {
@@ -243,8 +274,12 @@ class _StorageViewState extends State<StorageView> {
             ),
             const Divider(indent: 16, endIndent: 16),
             SettingsTile(
-              title: '更改并迁移目录',
-              subtitle: admin ? '下载会先暂停，复制成功后清理旧目录' : '需要管理员',
+              title: '更改並遷移目錄',
+              subtitle: admin
+                  ? (Platform.isAndroid
+                      ? '開啟系統檔案管理員選擇資料夾，確認後搬移並更新目前下載目錄'
+                      : '選擇資料夾，確認後搬移並更新目前下載目錄')
+                  : '需要管理員',
               enabled: admin,
               onTap: _move,
             ),
