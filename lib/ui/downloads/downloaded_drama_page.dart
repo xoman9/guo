@@ -269,7 +269,7 @@ class _DownloadedDramaPageState extends State<DownloadedDramaPage> {
   Widget _mergeButton(DownloadedDrama item, Set<String> selection) => FocusRing(
     radius: 20,
     child: FilledButton.tonalIcon(
-      onPressed: selection.length < 2 || _busy
+      onPressed: selection.isEmpty || _busy
           ? null
           : () => _merge(item, selection),
       icon: const Icon(Icons.merge_rounded, size: 18),
