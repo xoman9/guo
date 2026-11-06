@@ -109,7 +109,7 @@ class DownloadMerge extends ChangeNotifier {
     final jobs = List<DownloadJob>.of(selected)
       ..sort((a, b) => a.episode.number.compareTo(b.episode.number));
     final numbers = [for (final job in jobs) job.episode.number];
-    if (jobs.length < 2) throw AppFailure('至少选择 2 集');
+    if (jobs.isEmpty) throw AppFailure('请选择至少 1 集');
     fileName = mergeFileName(jobs.first.drama.title, numbers);
     final groups = <String, List<int>>{};
     for (final job in jobs) {
