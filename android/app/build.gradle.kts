@@ -42,9 +42,9 @@ android {
         applicationId = if (allSources) "com.duanju.duanju_app.coexist" else "com.guoapp.phoenix"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
+        versionCode = if (allSources) 2111 else flutter.versionCode
         versionName = flutter.versionName
-        manifestPlaceholders["appLabel"] = if (allSources) "真果鉴" else "红果鉴"
+        manifestPlaceholders["appLabel"] = if (allSources) "真果鉴-共存" else "红果鉴"
         manifestPlaceholders["appBanner"] = if (allSources) "@drawable/tv_banner_all_sources" else "@drawable/tv_banner"
     }
 
