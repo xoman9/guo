@@ -44,6 +44,7 @@ class _SourcesViewState extends State<SourcesView> {
       const legacyHiddenIds = <String>{
         'dsd', 'huangdou', 'huangju', 'yeguo',
         'huangguo-video', 'huangguoai', 'cloudfront',
+        'jinguoduanju', 'jinguo',
       };
       final hidden = SourceSite.values.where((s) => legacyHiddenIds.contains(s.id)).toList();
       final hiddenOff = hidden.every((s) => !store.sourceEnabled(s.id));
