@@ -29,10 +29,11 @@ class SourceBar extends StatelessWidget {
     final form = AppScope.formFactorOf(context);
     final hint = '在 $source 中搜索';
     final switcher = Builder(
-      builder: (anchor) => BarButton(
-        icon: Icons.public_rounded,
-        tooltip: '切换站源',
+      builder: (anchor) => TextButton.icon(
         onPressed: () => onSwitchSource(anchor),
+        icon: const Icon(Icons.expand_more_rounded, size: 18),
+        iconAlignment: IconAlignment.end,
+        label: Text(source, overflow: TextOverflow.ellipsis),
       ),
     );
     final search = BarButton(
@@ -42,11 +43,11 @@ class SourceBar extends StatelessWidget {
     );
     return switch (form) {
       FormFactor.phone => PageHeader(
-        title: source,
+        title: '',
         actions: [switcher, search, ...actions],
       ),
       FormFactor.pad || FormFactor.window => PageHeader(
-        title: source,
+        title: '',
         actions: [
           switcher,
           const SizedBox(width: 4),
@@ -69,10 +70,6 @@ class SourceBar extends StatelessWidget {
           children: [
             ?televisionLeading,
             const Spacer(),
-            Text(
-              source,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
             switcher,
             search,
             ...actions,
