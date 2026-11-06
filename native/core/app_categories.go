@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
@@ -62,6 +63,10 @@ func validNativeCategory(source, category string) bool {
 		return category == huangjuNewestCategory || validHuangjuID(category) && !strings.HasPrefix(category, "@")
 	case sourceYeguo:
 		return validYeguoCategory(category)
+	case sourceJinguoDuanju:
+		return validJinguoDuanjuCategory(category)
+	case sourceJinguo:
+		return validJinguoCategory(category)
 	case sourceDSD:
 		return webProviderNumericID.MatchString(category)
 	case sourceSorani:
@@ -121,6 +126,18 @@ func (engine *nativeEngine) nativeCategories(ctx context.Context, source string,
 	case sourceYeguo:
 		var categories []nativeCategory
 		categories, err = d.fetchYeguoCategories(ctx)
+		if err == nil {
+			all = append(all, categories...)
+		}
+	case sourceJinguoDuanju:
+		var categories []nativeCategory
+		categories, err = d.fetchJinguoDuanjuCategories(ctx)
+		if err == nil {
+			all = append(all, categories...)
+		}
+	case sourceJinguo:
+		var categories []nativeCategory
+		categories, err = d.fetchJinguoCategories(ctx)
 		if err == nil {
 			all = append(all, categories...)
 		}
@@ -229,10 +246,11 @@ func (d *Downloader) fetchHuangguoAICatalogPage(ctx context.Context, page int, c
 				results[index].err = ctx.Err()
 				return
 			}
-			address := fmt.Sprintf("%s/api/videos/category/%s?sort=hot&page=%d&size=24", d.providerBaseURL(sourceHuangguoAI), url.PathEscape(entry.ID), page)
-			body, err := d.fetchProviderText(ctx, address, d.providerBaseURL(sourceHuangguoAI)+"/"+entry.ID+"/")
+			path := fmt.Sprintf("/api/videos/category/%s?sort=hot&page=%d&size=24", url.PathEscape(entry.ID), page)
+			var body json.RawMessage
+			err := d.huangguoAIAPI(ctx, path, &body)
 			if err == nil {
-				results[index].items = parseHuangguoAIJSONCards([]byte(body), address, entry.Name)
+				results[index].items = parseHuangguoAIJSONCards(body, d.providerBaseURL(sourceHuangguoAI)+"/", entry.Name)
 			}
 			if err != nil {
 				results[index].err = fmt.Errorf("%s: %w", entry.Name, err)

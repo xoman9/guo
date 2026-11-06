@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
-import 'package:window_manager/window_manager.dart';
 
 import '../../app_device.dart';
 import '../../local_store.dart';
@@ -16,14 +14,20 @@ import '../../playback_session.dart';
 import '../app_scope.dart';
 import '../downloads/download_actions.dart';
 import '../theme/app_theme.dart';
+import '../theme/motion.dart';
+import '../widgets/contained_slider.dart';
+import '../widgets/motion/motion_widgets.dart';
 import 'danmaku_overlay.dart';
 import '../widgets/status_view.dart';
 import '../widgets/follow_button.dart';
 import 'episode_grid.dart';
+import 'mini_player.dart';
 import 'playback_handle.dart';
 import 'playback_sheets.dart';
+import 'fade_presence.dart';
 import 'player_surface.dart';
 import 'swipe_controls.dart';
+import 'window_fullscreen.dart';
 
 enum _Panel { episodes, settings, speed, quality }
 
@@ -33,10 +37,12 @@ class LandscapePlayerPage extends StatefulWidget {
     required this.store,
     required this.handle,
     this.onFullscreen,
+    this.onMiniWindow,
   });
   final LocalStore store;
   final PlaybackHandle handle;
   final VoidCallback? onFullscreen;
+  final VoidCallback? onMiniWindow;
 
   @override
   State<LandscapePlayerPage> createState() => _LandscapePlayerPageState();
@@ -64,6 +70,8 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
   int _streakTaps = 0;
   int _tab = 1;
   _Panel? _panel;
+  int _sidePanelMount = 0;
+  bool _sidePanelShown = false;
   DateTime _now = DateTime.now();
   ({int level, bool charging})? _battery;
 
@@ -117,8 +125,8 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
     _seekTimer?.cancel();
     if (_holding) _session.endBoost();
     if (widget.onFullscreen == null) {
-      if (_full == true && defaultTargetPlatform == TargetPlatform.windows) {
-        unawaited(windowManager.setFullScreen(false).catchError((Object _) {}));
+      if (_full == true && desktopPlatform) {
+        unawaited(setWindowFullScreen(false));
       }
       unawaited(AppDevice.releaseOrientation());
       unawaited(
@@ -132,11 +140,7 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) =>
-      _session.setForeground(
-        state == AppLifecycleState.resumed ||
-            defaultTargetPlatform == TargetPlatform.windows &&
-                state == AppLifecycleState.inactive,
-      );
+      _session.setForeground(playerVisible(state));
 
   void _bind() {
     final player = _session.player;
@@ -297,8 +301,8 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
   }
 
   void _rotate(bool full) => unawaited(
-    defaultTargetPlatform == TargetPlatform.windows
-        ? windowManager.setFullScreen(!full).catchError((Object _) {})
+    desktopPlatform
+        ? setWindowFullScreen(!full)
         : AppDevice.setPlayerOrientation(
             full ? PlayerOrientation.portrait : PlayerOrientation.landscape,
           ),
@@ -415,6 +419,12 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
   Widget _video(BuildContext context, bool full) {
     final session = _session;
     final visible = _visible || _pinned;
+    final sidePanel = switch (_panel) {
+      final panel? when full && _sidePanel(panel) => _panelBody(context, panel),
+      _ => null,
+    };
+    if (sidePanel != null && !_sidePanelShown) _sidePanelMount++;
+    _sidePanelShown = sidePanel != null;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -443,14 +453,29 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
             ),
           ),
         ),
-        if (session.ready && session.stalled)
-          const IgnorePointer(
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        if (session.loading) PlaybackLoading(session: session),
-        if (session.error case final error?)
-          PlaybackFailure(session: session, error: error),
-        if (_streak != 0) _streakBadge(full),
+        FadePresence(
+          duration: Motion.medium,
+          child: session.ready && session.stalled
+              ? const IgnorePointer(
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : null,
+        ),
+        FadePresence(
+          duration: Motion.medium,
+          child: session.loading ? PlaybackLoading(session: session) : null,
+        ),
+        FadePresence(
+          duration: Motion.medium,
+          child: switch (session.error) {
+            final error? => PlaybackFailure(session: session, error: error),
+            null => null,
+          },
+        ),
+        FadePresence(
+          scaleFrom: .9,
+          child: _streak != 0 ? _streakBadge(full) : null,
+        ),
         IgnorePointer(
           ignoring: !visible,
           child: AnimatedOpacity(
@@ -470,13 +495,16 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
             height: 2,
             child: IgnorePointer(child: _thinProgress(context)),
           ),
-        if (session.boosting)
-          Positioned(
-            left: 0,
-            right: 0,
-            top: full ? 24 : 12,
-            child: IgnorePointer(child: Center(child: _boostBadge())),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: full ? 24 : 12,
+          child: FadePresence(
+            child: session.boosting
+                ? IgnorePointer(child: Center(child: _boostBadge()))
+                : null,
           ),
+        ),
         if (session.saveWarning case final warning?)
           Positioned(
             left: 12,
@@ -484,24 +512,37 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
             bottom: full ? 120 : 64,
             child: _saveWarning(warning),
           ),
-        if (_panel case final panel? when full) ...[
-          GestureDetector(
-            onTap: _closePanel,
-            child: ColoredBox(
-              color: panel == _Panel.episodes || panel == _Panel.settings
-                  ? const Color(0x4D000000)
-                  : Colors.transparent,
-            ),
+        Positioned.fill(
+          child: FadePresence(
+            child: switch (_panel) {
+              final panel? when full => GestureDetector(
+                onTap: _closePanel,
+                child: ColoredBox(
+                  color: _sidePanel(panel)
+                      ? const Color(0x4D000000)
+                      : Colors.transparent,
+                ),
+              ),
+              _ => null,
+            },
           ),
-          if (panel == _Panel.episodes || panel == _Panel.settings)
-            Positioned(
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: 360,
-              child: _panelBody(context, panel),
-            )
-          else
+        ),
+        Positioned(
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: 360,
+          child: FadePresence(
+            // A fresh key on every show keeps reopen-during-fade from reusing
+            // the closing panel's state, matching the old unmount behavior.
+            key: ValueKey(_sidePanelMount),
+            duration: Motion.long,
+            slideFrom: const Offset(1, 0),
+            child: sidePanel,
+          ),
+        ),
+        if (_panel case final panel? when full)
+          if (!_sidePanel(panel))
             Positioned(
               left: 0,
               top: 0,
@@ -514,10 +555,12 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
                 child: _popup(context, panel),
               ),
             ),
-        ],
       ],
     );
   }
+
+  bool _sidePanel(_Panel panel) =>
+      panel == _Panel.episodes || panel == _Panel.settings;
 
   Widget _miniControls(BuildContext context) {
     final session = _session;
@@ -549,7 +592,8 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
                 () => unawaited(Navigator.maybePop(context)),
               ),
               const Spacer(),
-              _icon(Icons.picture_in_picture_alt_rounded, '小窗', null),
+              if (widget.onMiniWindow case final onMiniWindow?)
+                _icon(Icons.picture_in_picture_alt_rounded, '小窗', onMiniWindow),
               _icon(Icons.settings_rounded, '播放设置', _openSettings),
             ],
           ),
@@ -678,7 +722,8 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
               ),
               const SizedBox(width: 4),
               if (session.danmakuSupported) _danmakuButton(context),
-              _icon(Icons.picture_in_picture_alt_rounded, '小窗', null),
+              if (widget.onMiniWindow case final onMiniWindow?)
+                _icon(Icons.picture_in_picture_alt_rounded, '小窗', onMiniWindow),
               _icon(
                 Icons.settings_rounded,
                 '播放设置',
@@ -803,7 +848,7 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
     Color? color,
   }) => IconButton(
     onPressed: onPressed,
-    icon: Icon(icon),
+    icon: ToggleIconSwitcher(child: Icon(icon, key: ValueKey(icon))),
     iconSize: iconSize,
     tooltip: label,
     color: color ?? Colors.white,
@@ -867,44 +912,46 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
         overlayShape: SliderComponentShape.noOverlay,
         trackShape: const RoundedRectSliderTrackShape(),
       ),
-      child: Slider(
-        value: position,
-        max: max,
-        secondaryTrackValue: state.buffer.inMilliseconds.toDouble().clamp(
-          0.0,
-          max,
+      child: ContainedSlider(
+        slider: Slider(
+          value: position,
+          max: max,
+          secondaryTrackValue: state.buffer.inMilliseconds.toDouble().clamp(
+            0.0,
+            max,
+          ),
+          semanticFormatterCallback: (value) =>
+              formatClock(Duration(milliseconds: value.round())),
+          onChangeStart: seekable
+              ? (value) {
+                  _seekTimer?.cancel();
+                  _seekTarget = null;
+                  _hideTimer?.cancel();
+                  setState(() {
+                    _dragging = true;
+                    _seekValue = value;
+                  });
+                }
+              : null,
+          onChanged: seekable
+              ? (value) => setState(() => _seekValue = value)
+              : null,
+          onChangeEnd: (value) {
+            _dragging = false;
+            if (seekable) {
+              _seekTarget = value;
+              _seekTimer?.cancel();
+              _seekTimer = Timer(const Duration(seconds: 2), () {
+                if (mounted) setState(_endSeek);
+              });
+              unawaited(session.seekTo(Duration(milliseconds: value.round())));
+              setState(() {});
+            } else {
+              setState(_endSeek);
+            }
+            _scheduleHide();
+          },
         ),
-        semanticFormatterCallback: (value) =>
-            formatClock(Duration(milliseconds: value.round())),
-        onChangeStart: seekable
-            ? (value) {
-                _seekTimer?.cancel();
-                _seekTarget = null;
-                _hideTimer?.cancel();
-                setState(() {
-                  _dragging = true;
-                  _seekValue = value;
-                });
-              }
-            : null,
-        onChanged: seekable
-            ? (value) => setState(() => _seekValue = value)
-            : null,
-        onChangeEnd: (value) {
-          _dragging = false;
-          if (seekable) {
-            _seekTarget = value;
-            _seekTimer?.cancel();
-            _seekTimer = Timer(const Duration(seconds: 2), () {
-              if (mounted) setState(_endSeek);
-            });
-            unawaited(session.seekTo(Duration(milliseconds: value.round())));
-            setState(() {});
-          } else {
-            setState(_endSeek);
-          }
-          _scheduleHide();
-        },
       ),
     );
   }

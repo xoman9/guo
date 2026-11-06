@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -13,7 +15,9 @@ import '../follow/follow_page.dart';
 import '../mine/mine_page.dart';
 import '../update_prompt.dart';
 import '../widgets/bar_button.dart';
+import '../theme/motion.dart';
 import '../widgets/focus_ring.dart';
+import '../widgets/motion/motion_widgets.dart';
 import '../widgets/source_bar.dart';
 
 enum AppTab {
@@ -45,6 +49,9 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  final _heroes = [
+    for (final _ in AppTab.values) MaterialApp.createMaterialHeroController(),
+  ];
   final _navigators = [
     for (final _ in AppTab.values) GlobalKey<NavigatorState>(),
   ];
@@ -57,6 +64,7 @@ class _AppShellState extends State<AppShell> {
   var _tab = AppTab.explore;
   var _headerFocused = false;
   FocusNode? _lastFocus;
+  Timer? _exitWindow;
   DownloadOverview? _downloads;
   DownloadConverter? _converter;
   FollowUpdater? _followUpdater;
@@ -95,9 +103,13 @@ class _AppShellState extends State<AppShell> {
     for (final node in _tabFocus) {
       node.dispose();
     }
+    for (final hero in _heroes) {
+      hero.dispose();
+    }
     _followEntry.dispose();
     _mineEntry.dispose();
     _header.dispose();
+    _exitWindow?.cancel();
     _converter?.dispose();
     _downloads?.dispose();
     _followUpdater?.dispose();
@@ -122,9 +134,28 @@ class _AppShellState extends State<AppShell> {
     final navigator = _navigator;
     if (navigator != null && await navigator.maybePop()) return;
     if (!mounted) return;
+    final television = AppScope.of(context).television;
+    if (_tab == AppTab.explore && (!television || _headerFocused)) {
+      _armExit();
+      return;
+    }
     if (_tab == AppTab.explore) _explore.currentState?.refresh();
     _select(AppTab.explore);
-    if (AppScope.of(context).television) _tabFocus.first.requestFocus();
+    if (television) _tabFocus.first.requestFocus();
+  }
+
+  void _armExit() {
+    const window = Duration(seconds: 2);
+    setState(() {
+      _exitWindow = Timer(window, () {
+        if (mounted) setState(() => _exitWindow = null);
+      });
+    });
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('再按一次返回退出应用'), duration: window),
+      );
   }
 
   Widget _root(AppTab tab) => switch (tab) {
@@ -154,14 +185,20 @@ class _AppShellState extends State<AppShell> {
         index: _tab.index,
         children: [
           for (final tab in AppTab.values)
-            Navigator(
-              key: _navigators[tab.index],
-              routeTraversalEdgeBehavior: TraversalEdgeBehavior.parentScope,
-              routeDirectionalTraversalEdgeBehavior:
-                  TraversalEdgeBehavior.parentScope,
-              onGenerateInitialRoutes: (_, _) => [
-                MaterialPageRoute<void>(builder: (_) => _root(tab)),
-              ],
+            _TabFade(
+              selected: tab == _tab,
+              child: HeroControllerScope(
+                controller: _heroes[tab.index],
+                child: Navigator(
+                  key: _navigators[tab.index],
+                  routeTraversalEdgeBehavior: TraversalEdgeBehavior.parentScope,
+                  routeDirectionalTraversalEdgeBehavior:
+                      TraversalEdgeBehavior.parentScope,
+                  onGenerateInitialRoutes: (_, _) => [
+                    MaterialPageRoute<void>(builder: (_) => _root(tab)),
+                  ],
+                ),
+              ),
             ),
         ],
       ),
@@ -170,7 +207,10 @@ class _AppShellState extends State<AppShell> {
     final covered = _navigator?.canPop() ?? false;
     return PopScope(
       canPop:
-          _tab == AppTab.explore && !covered && (!television || _headerFocused),
+          _exitWindow != null &&
+          _tab == AppTab.explore &&
+          !covered &&
+          (!television || _headerFocused),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _back();
       },
@@ -258,7 +298,7 @@ class _AppShellState extends State<AppShell> {
       ],
     );
     final store = widget.store;
-    if (_tab != AppTab.explore || store.source.isEmpty) {
+    if (store.source.isEmpty) {
       return SizedBox(height: 48, child: tabs);
     }
     final source = SourceSite.byId(store.source);
@@ -288,10 +328,12 @@ class _AppShellState extends State<AppShell> {
                 : null,
           ),
           Expanded(
-            child: MediaQuery.removePadding(
-              context: context,
-              removeLeft: true,
-              child: pages,
+            child: RepaintBoundary(
+              child: MediaQuery.removePadding(
+                context: context,
+                removeLeft: true,
+                child: pages,
+              ),
             ),
           ),
         ],
@@ -337,7 +379,21 @@ _SideMetrics _sideMetrics({required bool desktop, required bool expanded}) =>
         labelPadding: const EdgeInsets.fromLTRB(16, 0, 20, 0),
       );
 
-class _SideBar extends StatelessWidget {
+class _TabFade extends StatelessWidget {
+  const _TabFade({required this.selected, required this.child});
+  final bool selected;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnimatedOpacity(
+    opacity: selected ? 1 : 0,
+    duration: selected ? Motion.of(context, Motion.medium) : Duration.zero,
+    curve: Motion.enter,
+    child: child,
+  );
+}
+
+class _SideBar extends StatefulWidget {
   const _SideBar({
     required this.selected,
     required this.expanded,
@@ -352,17 +408,33 @@ class _SideBar extends StatelessWidget {
   final VoidCallback? onToggle;
 
   @override
+  State<_SideBar> createState() => _SideBarState();
+}
+
+class _SideBarState extends State<_SideBar> {
+  bool? _desktop;
+  bool _roomy = false;
+
+  @override
   Widget build(BuildContext context) {
-    final metrics = _sideMetrics(
-      desktop: AppScope.formFactorOf(context) == FormFactor.window,
-      expanded: expanded,
-    );
+    final desktop = AppScope.formFactorOf(context) == FormFactor.window;
+    final roomy = widget.onToggle != null;
+    final animate = _desktop == desktop && _roomy == roomy;
+    _desktop = desktop;
+    _roomy = roomy;
+    final expanded = widget.expanded;
+    final onToggle = widget.onToggle;
+    final metrics = _sideMetrics(desktop: desktop, expanded: expanded);
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainer,
       child: SafeArea(
         right: false,
-        child: SizedBox(
+        child: AnimatedContainer(
           key: const ValueKey('side-bar'),
+          duration: animate
+              ? Motion.of(context, expanded ? Motion.long : Motion.medium)
+              : Duration.zero,
+          curve: expanded ? Motion.enter : Motion.exit,
           width: metrics.width,
           child: Padding(
             padding: EdgeInsets.fromLTRB(
@@ -397,11 +469,11 @@ class _SideBar extends StatelessWidget {
                 for (final tab in AppTab.values)
                   _SideItem(
                     tab: tab,
-                    selected: tab == selected,
+                    selected: tab == widget.selected,
                     expanded: expanded,
                     metrics: metrics,
-                    badged: badged,
-                    onTap: () => onSelect(tab),
+                    badged: widget.badged,
+                    onTap: () => widget.onSelect(tab),
                   ),
               ],
             ),
@@ -437,46 +509,76 @@ class _SideItem extends StatelessWidget {
         : colors.onSurfaceVariant;
     final icon = badged(
       tab,
-      Icon(
-        selected ? tab.selectedIcon : tab.icon,
-        color: color,
-        size: metrics.iconSize,
+      ToggleIconSwitcher(
+        child: Icon(
+          selected ? tab.selectedIcon : tab.icon,
+          key: ValueKey(selected),
+          color: color,
+          size: metrics.iconSize,
+        ),
       ),
     );
-    final item = Material(
-      color: selected ? colors.secondaryContainer : Colors.transparent,
-      shape: const StadiumBorder(),
+    final duration = Motion.of(context, Motion.medium);
+    final item = AnimatedContainer(
+      duration: duration,
+      curve: Motion.standard,
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        key: ValueKey('nav-${tab.name}'),
-        onTap: onTap,
-        child: SizedBox(
-          height: metrics.itemHeight,
-          child: expanded
-              ? Padding(
-                  padding: metrics.labelPadding,
-                  child: Row(
-                    spacing: 12,
-                    children: [
-                      icon,
-                      Expanded(
-                        child: Text(
-                          tab.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
+      decoration: ShapeDecoration(
+        shape: const StadiumBorder(),
+        color: selected ? colors.secondaryContainer : Colors.transparent,
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          key: ValueKey('nav-${tab.name}'),
+          onTap: onTap,
+          child: SizedBox(
+            height: metrics.itemHeight,
+            child: Padding(
+              padding: EdgeInsets.only(left: metrics.labelPadding.left),
+              child: Row(
+                children: [
+                  icon,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ExcludeSemantics(
+                      excluding: !expanded,
+                      child: AnimatedOpacity(
+                        opacity: expanded ? 1 : 0,
+                        alwaysIncludeSemantics: true,
+                        duration: Motion.of(context, Motion.short),
+                        curve: expanded
+                            ? const Interval(0.4, 1, curve: Motion.enter)
+                            : Motion.exit,
+                        child: AnimatedDefaultTextStyle(
+                          duration: duration,
+                          curve: Motion.standard,
+                          style: theme.textTheme.titleSmall!.copyWith(
                             fontSize: metrics.labelSize,
                             fontWeight: selected
                                 ? FontWeight.w700
                                 : FontWeight.w500,
                             color: color,
                           ),
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              right: metrics.labelPadding.right,
+                            ),
+                            child: Text(
+                              tab.label,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                )
-              : Center(child: icon),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -502,7 +604,12 @@ class _DownloadBadge extends StatelessWidget {
       final count = downloads.active;
       return Badge(
         isLabelVisible: count > 0,
-        label: Text(count > 99 ? '99+' : '$count'),
+        label: ToggleIconSwitcher(
+          child: Text(
+            count > 99 ? '99+' : '$count',
+            key: ValueKey(count > 99 ? 100 : count),
+          ),
+        ),
         child: child,
       );
     },

@@ -20,6 +20,7 @@ import 'download_collections.dart';
 import 'resource_settings.dart';
 import 'diary_service.dart';
 import 'app_update.dart';
+import 'sorani_account.dart';
 
 typedef _NativeRequest = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef _DartRequest = Pointer<Utf8> Function(Pointer<Utf8>);
@@ -34,10 +35,10 @@ String _nativeRequest(String body) {
     library = DynamicLibrary.open(
       path.join(path.dirname(Platform.resolvedExecutable), 'duanju_core.dll'),
     );
-  } else if (Platform.isIOS) {
+  } else if (Platform.isIOS || Platform.isMacOS) {
     library = DynamicLibrary.process();
   } else {
-    throw UnsupportedError('当前首版支持 Android 手机和 Windows 电脑');
+    throw UnsupportedError('当前支持 Android、iOS、Windows 和 macOS');
   }
   final request = library.lookupFunction<_NativeRequest, _DartRequest>(
     'DuanjuRequest',
@@ -111,8 +112,6 @@ abstract class AppRepository {
   Future<Map<String, dynamic>> storage() async => {};
   Future<String> downloadDirectory() async =>
       (await storage())['directory'] as String? ?? '';
-  Future<void> changeDownloadDirectory(String directory) async =>
-      throw AppFailure('当前环境不支持切换下载资料夹');
   Future<void> moveDownloads(String directory) async =>
       throw AppFailure('当前环境不支持迁移');
   Future<int> workLease(String id, String command) async => 0;
@@ -127,10 +126,6 @@ abstract class AppRepository {
   Future<DownloadConversion> beginConversion(String id) async =>
       throw AppFailure('当前环境不支持处理下载');
   Future<void> finishConversion(String id, String result) async {}
-  Future<void> cleanupMergedDownloads(
-    List<DownloadJob> jobs,
-    String output,
-  ) async => throw AppFailure('当前环境不支持合并后清理');
   Future<DownloadBatchResult> controlDownloadBatch(
     String command,
     List<String> ids,
@@ -161,6 +156,17 @@ abstract class AppRepository {
   }) => resolve(drama, episode, quality: quality);
   Future<AppUpdate?> checkUpdate(String version) async => null;
   Future<void> reportUsage(String version) async {}
+  Future<bool> hongguoDevices({bool register = false}) async => true;
+  Future<SoraniAccount> soraniAccount() async => const SoraniAccount();
+  Future<SoraniCaptcha> soraniCaptcha() async =>
+      throw AppFailure('当前版本不支持登录青空次元');
+  Future<SoraniAccount> soraniLogin({
+    required String identifier,
+    required String password,
+    required String captchaId,
+    required SoraniCaptchaTrack track,
+  }) async => throw AppFailure('当前版本不支持登录青空次元');
+  Future<SoraniAccount> soraniLogout() async => const SoraniAccount();
   Future<void> initialize();
   Future<CatalogPage> catalog(
     String source, {
@@ -419,24 +425,6 @@ class NativeRepository extends AppRepository {
   }
 
   @override
-  Future<void> changeDownloadDirectory(String directory) async {
-    _downloadPermission();
-    if (access != null && !access!.profile.admin) {
-      throw AppFailure('仅管理员可更改下载目录');
-    }
-    await BackgroundDownloads.ensureStarted();
-    await workLease('storage', 'start');
-    try {
-      await _call({
-        'action': 'changeDownloadDirectory',
-        'directory': directory,
-      });
-    } finally {
-      await workLease('storage', 'end');
-    }
-  }
-
-  @override
   Future<void> moveDownloads(String directory) async {
     _downloadPermission();
     if (access != null && !access!.profile.admin) {
@@ -452,18 +440,13 @@ class NativeRepository extends AppRepository {
   }
 
   @override
-  Future<int> workLease(String id, String command) async {
-    if (id == 'media' && command == 'start')
-      await BackgroundDownloads.ensureStarted();
-    return intValue(
-      (await _call({
-        'action': 'workLease',
-        'jobId': id,
-        'command': command,
-      }))['count'],
-    );
-  }
-
+  Future<int> workLease(String id, String command) async => intValue(
+    (await _call({
+      'action': 'workLease',
+      'jobId': id,
+      'command': command,
+    }))['count'],
+  );
   int _playbackSequence = DateTime.now().microsecondsSinceEpoch;
 
   @override
@@ -480,6 +463,62 @@ class NativeRepository extends AppRepository {
   @override
   Future<void> reportUsage(String version) async {
     await _call({'action': 'reportUsage', 'version': version});
+  }
+
+  @override
+  Future<bool> hongguoDevices({bool register = false}) async =>
+      (await _call({
+        'action': 'hongguoDevices',
+        if (register) 'command': 'register',
+      }))['ready'] ==
+      true;
+
+  void _soraniPermission() {
+    if (access != null && (access!.locked || !access!.profile.admin)) {
+      throw AppFailure('仅管理员可登录或退出青空次元账号');
+    }
+  }
+
+  @override
+  Future<SoraniAccount> soraniAccount() async =>
+      SoraniAccount.fromJson(await _call({'action': 'soraniAccount'}));
+
+  @override
+  Future<SoraniCaptcha> soraniCaptcha() async {
+    _soraniPermission();
+    return SoraniCaptcha.fromJson(
+      await _call({'action': 'soraniAccount', 'command': 'captcha'}),
+    );
+  }
+
+  @override
+  Future<SoraniAccount> soraniLogin({
+    required String identifier,
+    required String password,
+    required String captchaId,
+    required SoraniCaptchaTrack track,
+  }) async {
+    _soraniPermission();
+    return SoraniAccount.fromJson(
+      await _call({
+        'action': 'soraniAccount',
+        'command': 'login',
+        'account': {
+          'identifier': identifier,
+          'password': password,
+          'captchaId': captchaId,
+          'track': track.toJson(),
+        },
+      }),
+    );
+  }
+
+  @override
+  Future<SoraniAccount> soraniLogout() async {
+    _soraniPermission();
+    return SoraniAccount.fromJson(
+      await _call({'action': 'soraniAccount', 'command': 'logout'}),
+    );
   }
 
   Future<Map<String, dynamic>> _call(Map<String, dynamic> input) async {
@@ -536,12 +575,10 @@ class NativeRepository extends AppRepository {
             'downloads',
             'controlDownloads',
             'controlDownloadBatch',
-            'cleanupMergedDownloads',
             'beginConversion',
             'storage',
             'downloadDirectory',
             'moveDownloads',
-            'changeDownloadDirectory',
             'workLease',
           }.contains(action)) {
         _downloadPermission();
@@ -555,9 +592,7 @@ class NativeRepository extends AppRepository {
             () => jsonDecode(_nativeRequest(body)) as Map<String, dynamic>,
           ).timeout(
             Duration(
-              seconds: action == 'cleanupMergedDownloads'
-                  ? 300
-                  : action == 'moveDownloads'
+              seconds: action == 'moveDownloads'
                   ? 620
                   : action == 'danmaku'
                   ? 15
@@ -617,9 +652,13 @@ class NativeRepository extends AppRepository {
     if (!background) {
       DiaryService.nativeLogPath = path.join(directory.path, 'logs', 'app.log');
     }
+    final external = Platform.isAndroid
+        ? await getExternalStorageDirectory()
+        : null;
     final build = await _call({
       'action': 'initialize',
       'directory': directory.path,
+      if (external != null) 'downloads': path.join(external.path, 'downloads'),
     });
     if (build['allSources'] != allSourcesEnabled) {
       throw AppFailure('应用与原生核心的站源版本不一致，请使用完整安装包重新安装');
@@ -804,33 +843,6 @@ class NativeRepository extends AppRepository {
           .toList(),
     });
     return intValue(result['added']);
-  }
-
-  @override
-  Future<void> cleanupMergedDownloads(
-    List<DownloadJob> jobs,
-    String output,
-  ) async {
-    _downloadPermission();
-    for (final job in jobs) {
-      _authorize(job.drama.source, download: true);
-    }
-    final response = DownloadBatchResult.fromJson(
-      await _call({
-        'action': 'cleanupMergedDownloads',
-        'mergedFile': output,
-        'jobIds': jobs.map((job) => job.id).toList(),
-        'expected': {
-          for (final job in jobs)
-            job.id:
-                '${job.created}-${job.revision}-${job.bytes}-${job.actualQuality}',
-        },
-      }),
-    );
-    if (response.failures.isNotEmpty ||
-        response.completed.length != jobs.map((job) => job.id).toSet().length) {
-      throw AppFailure('部分原分集未能清理，请在下载页重试删除');
-    }
   }
 
   @override

@@ -18,7 +18,7 @@ func withUpdateServer(t *testing.T, handler http.HandlerFunc) *nativeEngine {
 	previous := nativeUpdateServer
 	nativeUpdateServer = server.URL
 	t.Cleanup(func() { nativeUpdateServer = previous })
-	engine, err := newNativeEngine(t.TempDir())
+	engine, err := newNativeEngine(t.TempDir(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestNativeUpdateServerUnset(t *testing.T) {
 	previous := nativeUpdateServer
 	nativeUpdateServer = ""
 	defer func() { nativeUpdateServer = previous }()
-	engine, err := newNativeEngine(t.TempDir())
+	engine, err := newNativeEngine(t.TempDir(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,5 +104,29 @@ func TestNativeReportUsage(t *testing.T) {
 	}
 	if payloads[1]["id"] != first["id"] {
 		t.Fatalf("install id changed: %q -> %q", first["id"], payloads[1]["id"])
+	}
+}
+
+func TestNativeUpdateServerFallback(t *testing.T) {
+	down := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		http.Error(writer, "unavailable", http.StatusBadGateway)
+	}))
+	t.Cleanup(down.Close)
+	pings := 0
+	engine := withUpdateServer(t, func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/v1/ping" {
+			pings++
+			writer.WriteHeader(http.StatusNoContent)
+			return
+		}
+		writer.Write([]byte(`{"version":"1.0.2+102","url":"https://github.com/Xanerix/guoapp/releases/tag/app-v1.0.2-102"}`))
+	})
+	nativeUpdateServer = down.URL + "/ , " + nativeUpdateServer
+
+	if update, err := engine.checkUpdate(context.Background(), "1.0.1+101"); err != nil || !update.Available {
+		t.Fatalf("update = %+v, err = %v", update, err)
+	}
+	if err := engine.reportUsage(context.Background(), "1.0.1+101"); err != nil || pings != 1 {
+		t.Fatalf("pings = %d, err = %v", pings, err)
 	}
 }

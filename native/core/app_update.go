@@ -31,6 +31,23 @@ type nativeUpdate struct {
 	URL       string `json:"url,omitempty"`
 }
 
+func nativeUpdateServers() []string {
+	servers := []string{}
+	for _, server := range strings.Split(nativeUpdateServer, ",") {
+		if server = strings.TrimRight(strings.TrimSpace(server), "/"); server != "" {
+			servers = append(servers, server)
+		}
+	}
+	return servers
+}
+
+func nativeAppBuildSlug() string {
+	if buildAllSources == "true" {
+		return "zhenguojian"
+	}
+	return "hongguojian"
+}
+
 func nativeAppBuildNumber(version string) (int, bool) {
 	match := nativeAppVersionPattern.FindStringSubmatch(version)
 	if match == nil {
@@ -57,22 +74,28 @@ func (engine *nativeEngine) reportUsage(ctx context.Context, version string) err
 	if _, valid := nativeAppBuildNumber(version); !valid {
 		return errors.New("应用版本号无效")
 	}
-	if nativeUpdateServer == "" {
+	servers := nativeUpdateServers()
+	if len(servers) == 0 {
 		return nil
 	}
 	id, err := engine.installID()
 	if err != nil {
 		return err
 	}
-	appBuild := "hongguojian"
-	if buildAllSources == "true" {
-		appBuild = "zhenguojian"
-	}
-	payload, err := json.Marshal(map[string]string{"id": id, "version": version, "platform": runtime.GOOS, "build": appBuild})
+	payload, err := json.Marshal(map[string]string{"id": id, "version": version, "platform": runtime.GOOS, "build": nativeAppBuildSlug()})
 	if err != nil {
 		return err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, nativeUpdateServer+"/v1/ping", bytes.NewReader(payload))
+	for _, server := range servers {
+		if err = engine.postUsage(ctx, server, payload); err == nil || ctx.Err() != nil {
+			return err
+		}
+	}
+	return err
+}
+
+func (engine *nativeEngine) postUsage(ctx context.Context, server string, payload []byte) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, server+"/v1/ping", bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
@@ -93,10 +116,29 @@ func (engine *nativeEngine) checkUpdate(ctx context.Context, version string) (na
 	if !valid {
 		return nativeUpdate{}, errors.New("应用版本号无效")
 	}
-	if nativeUpdateServer == "" {
+	servers := nativeUpdateServers()
+	if len(servers) == 0 {
 		return nativeUpdate{}, nil
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, nativeUpdateServer+"/v1/latest", nil)
+	var latest nativeUpdate
+	var err error
+	for _, server := range servers {
+		if latest, err = engine.fetchLatest(ctx, server); err == nil || ctx.Err() != nil {
+			break
+		}
+	}
+	if err != nil {
+		return nativeUpdate{}, err
+	}
+	number, valid := nativeAppBuildNumber(latest.Version)
+	if !valid || number <= current || !strings.HasPrefix(latest.URL, nativeReleasePrefix) {
+		return nativeUpdate{}, nil
+	}
+	return nativeUpdate{Available: true, Version: latest.Version, URL: latest.URL}, nil
+}
+
+func (engine *nativeEngine) fetchLatest(ctx context.Context, server string) (nativeUpdate, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, server+"/v1/latest", nil)
 	if err != nil {
 		return nativeUpdate{}, err
 	}
@@ -108,16 +150,6 @@ func (engine *nativeEngine) checkUpdate(ctx context.Context, version string) (na
 	if response.StatusCode != http.StatusOK {
 		return nativeUpdate{}, fmt.Errorf("检查更新失败：HTTP %d", response.StatusCode)
 	}
-	var latest struct {
-		Version string `json:"version"`
-		URL     string `json:"url"`
-	}
-	if err := json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&latest); err != nil {
-		return nativeUpdate{}, err
-	}
-	number, valid := nativeAppBuildNumber(latest.Version)
-	if !valid || number <= current || !strings.HasPrefix(latest.URL, nativeReleasePrefix) {
-		return nativeUpdate{}, nil
-	}
-	return nativeUpdate{Available: true, Version: latest.Version, URL: latest.URL}, nil
+	var latest nativeUpdate
+	return latest, json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&latest)
 }

@@ -80,7 +80,7 @@ func (manager *nativeDownloads) outputFolderTakenLocked(drama, folder string) bo
 		return true
 	}
 	for _, other := range manager.jobs {
-		if other.Drama.ID != drama && (other.Output != "" && strings.EqualFold(path.Dir(other.Output), folder) || other.Folder != "" && strings.EqualFold(path.Dir(other.Folder), folder)) {
+		if other.Drama.ID != drama && other.Output != "" && strings.EqualFold(path.Dir(other.Output), folder) {
 			return true
 		}
 	}
@@ -92,9 +92,6 @@ func (manager *nativeDownloads) outputPathLocked(record nativeDownloadRecord) st
 	file := nativeDownloadEpisodeFile(record.Index)
 	if record.Output != "" {
 		return record.Output
-	}
-	if record.Folder != "" && record.Folder != record.Drama.Source+"/"+record.ID {
-		return path.Dir(record.Folder) + "/" + file
 	}
 	for _, other := range manager.jobs {
 		if other.Drama.ID == record.Drama.ID && other.Output != "" {
@@ -207,13 +204,6 @@ func (manager *nativeDownloads) finishConversion(id, result string) error {
 	if err == nil {
 		err = os.MkdirAll(filepath.Dir(target), 0700)
 	}
-	if err == nil && record.Output != output {
-		if _, check := os.Lstat(target); check == nil {
-			err = errors.New("target already exists")
-		} else if !os.IsNotExist(check) {
-			err = check
-		}
-	}
 	if err == nil {
 		err = os.Rename(temporary, target)
 	}
@@ -228,9 +218,6 @@ func (manager *nativeDownloads) finishConversion(id, result string) error {
 	record.Bytes, record.Total = info.Size(), info.Size()
 	if err := manager.saveLocked(); err != nil {
 		*record = previous
-		if previous.Output != output {
-			_ = os.Remove(target)
-		}
 		return err
 	}
 	_ = os.RemoveAll(directory)

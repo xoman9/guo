@@ -1,7 +1,7 @@
 name: duanju_app
 description: 独立运行的多端短剧应用
 publish_to: none
-version: 1.0.3+103
+version: 1.0.11+111
 
 environment:
   sdk: '>=3.12.0 <4.0.0'
@@ -20,13 +20,14 @@ dependencies:
   path_provider: ^2.1.5
   shared_preferences: ^2.5.5
   flutter_foreground_task: 11.0.3
-  ffmpeg_kit_flutter_new_min_gpl: 2.6.2
+  ffmpeg_kit_flutter_new_min_gpl: 2.6.7
   file_picker: 13.1.0
   crypto: ^3.0.7
   window_manager: ^0.5.1
   package_info_plus: ^10.2.1
   dynamic_color: ^2.1.0
   url_launcher: ^6.3.3
+  lpinyin: ^2.0.3
 
 dev_dependencies:
   flutter_test:
@@ -44,5 +45,3 @@ flutter:
   config:
     enable-swift-package-manager: false
   uses-material-design: true
-  assets:
-    - assets/video_enhancement/

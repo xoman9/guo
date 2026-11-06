@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../../local_store.dart';
 import '../../theme_color.dart';
 import '../app_scope.dart';
+import '../theme/motion.dart';
 import '../widgets/focus_ring.dart';
 import '../widgets/group_card.dart';
+import '../widgets/motion/motion_widgets.dart';
 import 'settings_rows.dart';
 
 const themeModes = {'light': '浅色', 'dark': '深色', 'system': '跟随系统'};
@@ -143,6 +145,18 @@ class AppearanceSettings extends StatelessWidget {
                 }
               },
             ),
+            if (AppScope.of(context).television) ...[
+              const Divider(indent: 16, endIndent: 16),
+              SwitchTile(
+                title: '搜索用字母键盘',
+                subtitle: '开启后按确认键弹出字母键盘，可按拼音首字母搜；关闭时使用系统输入法',
+                value: store.televisionKeyboard,
+                onChanged: (value) => saveSetting(
+                  context,
+                  () => store.setTelevisionKeyboard(value),
+                ),
+              ),
+            ],
           ],
         ),
       ],
@@ -177,7 +191,9 @@ class _Swatch extends StatelessWidget {
           excludeSemantics: true,
           child: FocusRing(
             radius: 999,
-            child: Container(
+            child: AnimatedContainer(
+              duration: Motion.of(context, Motion.short),
+              curve: Motion.standard,
               width: 50,
               height: 50,
               padding: const EdgeInsets.all(3),
@@ -195,9 +211,15 @@ class _Swatch extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: onPressed,
-                  child: selected
-                      ? Icon(Icons.check_rounded, color: scheme.onPrimary)
-                      : null,
+                  child: ToggleIconSwitcher(
+                    child: selected
+                        ? Icon(
+                            Icons.check_rounded,
+                            key: const ValueKey(true),
+                            color: scheme.onPrimary,
+                          )
+                        : const SizedBox.shrink(key: ValueKey(false)),
+                  ),
                 ),
               ),
             ),

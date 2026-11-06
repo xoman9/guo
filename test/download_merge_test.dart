@@ -1,200 +1,97 @@
-import 'dart:io';
-
 import 'package:duanju_app/core_bridge.dart';
 import 'package:duanju_app/download_merge.dart';
 import 'package:duanju_app/media_pipeline.dart';
 import 'package:duanju_app/models.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:path/path.dart' as path;
 
 import 'support/fakes.dart';
 
-class _MergeRepository extends FakeRepository {
-  _MergeRepository(this.directory);
-  final Directory directory;
-  final leases = <String>[];
-  bool failCleanup = false;
+class _LocalRepository extends FakeRepository {
   @override
-  Future<void> cleanupMergedDownloads(
-    List<DownloadJob> selected,
-    String output,
-  ) async {
-    if (failCleanup) throw AppFailure('synthetic cleanup failure');
-    if (!await File(output).exists()) throw AppFailure('missing merged output');
-    for (final job in selected) {
-      await File(
-        path.join(directory.path, '${job.episode.number}.mp4'),
-      ).delete();
-    }
-    final removed = selected.map((job) => job.id).toSet();
-    jobs = jobs!.where((job) => !removed.contains(job.id)).toList();
-  }
-
-  @override
-  Future<String> downloadDirectory() async => directory.path;
-  @override
-  Future<int> workLease(String id, String command) async {
-    leases.add('$id:$command');
-    return command == 'start' ? 1 : 0;
-  }
-
-  @override
-  Future<PlaybackPlan> resolve(
-    Drama drama,
-    Episode episode, {
-    int quality = 0,
-  }) async => PlaybackPlan(
-    url: path.join(directory.path, '${episode.number}.mp4'),
-    local: true,
-  );
+  Future<PlaybackPlan?> localPlayback(Drama drama, Episode episode) async =>
+      PlaybackPlan(url: '/videos/${episode.number}.mp4', local: true);
 }
 
-class _MergeExecutor implements MediaExecutor {
-  bool fail = false;
+class _Executor implements MediaExecutor {
+  final heights = <String, int>{};
+  final runs = <List<String>>[];
+
   @override
   Future<MediaProbe> probe(String file) async => MediaProbe({
-    'format': {'duration': file.endsWith('merged.mp4') ? '24' : '12'},
+    'format': {'duration': '12'},
     'streams': [
-      {
-        'codec_type': 'video',
-        'codec_name': 'h264',
-        'width': 720,
-        'height': 1280,
-      },
+      {'codec_type': 'video', 'codec_name': 'h264', 'height': heights[file]},
+      {'codec_type': 'audio', 'codec_name': 'aac', 'sample_rate': '44100'},
     ],
   });
+
   @override
   Future<void> run(
     List<String> arguments, {
     double duration = 0,
     void Function(double)? progress,
-  }) async {
-    if (fail) throw AppFailure('synthetic media failure');
-    if (arguments.last != '-')
-      await File(arguments.last).writeAsString('synthetic-video');
-    progress?.call(1);
-  }
+  }) async => runs.add(arguments);
 
   @override
   Future<void> cancel() async {}
 }
 
 void main() {
-  test('merge selection must be completed, same drama and consecutive', () {
-    final show = drama('a');
-    expect(() => continuousDownloadJobs([]), throwsA(isA<AppFailure>()));
+  final show = drama('a', title: '剧甲');
+
+  test('episode numbers collapse into ranges', () {
+    expect(episodeRanges([1, 2, 3, 5, 7, 8, 9]), '1-3、5、7-9');
+    expect(episodeRanges([4]), '4');
+  });
+
+  test('file names keep short ranges and summarize long ones', () {
+    expect(mergeFileName('剧/甲', [1, 2, 3, 5]), '剧_甲 第1-3、5集.mp4');
     expect(
-      () =>
-          continuousDownloadJobs([downloadJob(show, 1), downloadJob(show, 3)]),
-      throwsA(isA<AppFailure>()),
+      mergeFileName('剧甲', [for (var i = 1; i <= 40; i += 2) i]),
+      '剧甲 第1-39集等20集.mp4',
     );
-    expect(
-      () =>
-          continuousDownloadJobs([downloadJob(show, 1), downloadJob(show, 1)]),
-      throwsA(isA<AppFailure>()),
-    );
-    expect(
-      () => continuousDownloadJobs([
+  });
+
+  test('episodes with a different format are refused', () async {
+    final executor = _Executor()
+      ..heights.addAll({
+        '/videos/1.mp4': 1080,
+        '/videos/2.mp4': 720,
+        '/videos/3.mp4': 1080,
+        '/videos/5.mp4': 720,
+      });
+    final merge = DownloadMerge(_LocalRepository(), executor: executor);
+    addTearDown(merge.dispose);
+
+    await expectLater(
+      merge.prepare([
+        downloadJob(show, 5),
         downloadJob(show, 1),
-        downloadJob(drama('b'), 2),
-      ]),
-      throwsA(isA<AppFailure>()),
-    );
-    expect(
-      () => continuousDownloadJobs([downloadJob(show, 1, state: 'paused')]),
-      throwsA(isA<AppFailure>()),
-    );
-    expect(
-      continuousDownloadJobs([
         downloadJob(show, 2),
-        downloadJob(show, 1),
-      ]).first.episode.number,
-      1,
+        downloadJob(show, 3),
+      ]),
+      throwsA(
+        isA<AppFailure>().having(
+          (failure) => failure.message,
+          'message',
+          startsWith('第 2、5 集的画面或声音格式和其余集不同'),
+        ),
+      ),
     );
   });
 
-  test('merge names are safe on Android and Windows', () {
-    expect(downloadMergeName('  甲:剧/名?  '), '甲_剧_名_-合');
-    expect(downloadMergeName('..'), '未命名-合');
-    expect(downloadMergeName('CON'), '_CON-合');
-  });
+  test('selected episodes are concatenated in episode order', () async {
+    final executor = _Executor();
+    final merge = DownloadMerge(_LocalRepository(), executor: executor);
+    addTearDown(merge.dispose);
 
-  test(
-    'merge publishes verified unique output then removes originals',
-    () async {
-      final directory = await Directory.systemTemp.createTemp(
-        'guo-merge-test-',
-      );
-      addTearDown(() => directory.delete(recursive: true));
-      final repository = _MergeRepository(directory);
-      final show = drama('a', title: '样本');
-      repository.jobs = [downloadJob(show, 1), downloadJob(show, 2)];
-      for (var number = 1; number <= 2; number++) {
-        await File(
-          path.join(directory.path, '$number.mp4'),
-        ).writeAsString('source-$number');
-      }
-      final existing = File(path.join(directory.path, '样本-合.mp4'));
-      await existing.writeAsString('keep-existing');
-      final merger = DownloadMerger(repository, executor: _MergeExecutor());
-      addTearDown(merger.dispose);
-      final output = await merger.merge(repository.jobs!);
-      expect(path.basename(output), '样本-合 (1).mp4');
-      expect(await existing.readAsString(), 'keep-existing');
-      expect(await File(path.join(directory.path, '1.mp4')).exists(), false);
-      expect(await File(path.join(directory.path, '2.mp4')).exists(), false);
-      expect(repository.jobs, isEmpty);
-      expect(repository.leases, ['media:start', 'media:end']);
-      expect(directory.listSync().whereType<Directory>(), isEmpty);
-      expect(merger.busy, false);
-    },
-  );
+    await merge.prepare([downloadJob(show, 3), downloadJob(show, 1)]);
+    expect(merge.fileName, '剧甲 第1、3集.mp4');
+    await merge.write('saf:1.mp4');
 
-  test('media failure releases lease and preserves all source files', () async {
-    final directory = await Directory.systemTemp.createTemp('guo-merge-test-');
-    addTearDown(() => directory.delete(recursive: true));
-    final repository = _MergeRepository(directory);
-    final show = drama('a');
-    repository.jobs = [downloadJob(show, 1), downloadJob(show, 2)];
-    await File(path.join(directory.path, '1.mp4')).writeAsString('keep');
-    final merger = DownloadMerger(
-      repository,
-      executor: _MergeExecutor()..fail = true,
-    );
-    addTearDown(merger.dispose);
-    await expectLater(
-      merger.merge(repository.jobs!),
-      throwsA(isA<AppFailure>()),
-    );
-    expect(
-      await File(path.join(directory.path, '1.mp4')).readAsString(),
-      'keep',
-    );
-    expect(directory.listSync().whereType<Directory>(), isEmpty);
-    expect(repository.leases, ['media:start', 'media:end']);
-    expect(merger.busy, false);
-  });
-  test('cleanup failure preserves the published merged output', () async {
-    final directory = await Directory.systemTemp.createTemp(
-      'guo-cleanup-test-',
-    );
-    addTearDown(() => directory.delete(recursive: true));
-    final repository = _MergeRepository(directory)..failCleanup = true;
-    final show = drama('a', title: '保存测试');
-    repository.jobs = [downloadJob(show, 1), downloadJob(show, 2)];
-    for (var number = 1; number <= 2; number++) {
-      await File(
-        path.join(directory.path, '$number.mp4'),
-      ).writeAsString('source');
-    }
-    final merger = DownloadMerger(repository, executor: _MergeExecutor());
-    addTearDown(merger.dispose);
-    await expectLater(
-      merger.merge(repository.jobs!),
-      throwsA(isA<AppFailure>()),
-    );
-    expect(await File(path.join(directory.path, '保存测试-合.mp4')).exists(), true);
-    expect(await File(path.join(directory.path, '1.mp4')).exists(), true);
-    expect(repository.leases.last, 'media:end');
+    final arguments = executor.runs.single;
+    expect(arguments.take(4), ['-f', 'concat', '-safe', '0']);
+    expect(arguments, isNot(contains('+faststart')));
+    expect(arguments.last, 'saf:1.mp4');
   });
 }

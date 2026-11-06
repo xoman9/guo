@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../app_device.dart';
+import '../../core_bridge.dart';
 import '../../local_store.dart';
 import '../app_scope.dart';
 import '../widgets/focus_ring.dart';
 import '../widgets/group_card.dart';
+import '../widgets/motion/motion_widgets.dart';
 import '../widgets/status_view.dart';
 import 'settings_rows.dart';
 
@@ -30,12 +33,14 @@ class StorageView extends StatefulWidget {
 class _StorageViewState extends State<StorageView> {
   Map<String, dynamic>? _info;
   String? _error;
-  bool _busy = false;
+  bool _loaded = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_info == null && _error == null) _refresh();
+    if (_loaded) return;
+    _loaded = true;
+    _refresh();
   }
 
   Future<void> _refresh() async {
@@ -78,87 +83,28 @@ class _StorageViewState extends State<StorageView> {
     );
   }
 
-  Future<bool> _authorizeSharedStorage() async {
-    if (!Platform.isAndroid) return true;
-    const channel = MethodChannel('duanju/device');
-    final granted =
-        await channel.invokeMethod<bool>('sharedStorageAccess') ?? false;
-    if (granted) return true;
-    await channel.invokeMethod<bool>('requestSharedStorageAccess');
-    if (mounted) setState(() => _error = '请到系统设置允许所有文件存取，返回后重新选择资料夹');
-    return false;
-  }
-
-  Future<void> _change({
-    bool sharedDefault = false,
-    bool appPrivate = false,
-  }) async {
-    if (_busy) return;
-    try {
-      String? selected;
-      if (appPrivate) {
-        selected = '${(await getApplicationSupportDirectory()).path}/downloads';
-      } else if (Platform.isAndroid) {
-        if (!await _authorizeSharedStorage()) return;
-        const channel = MethodChannel('duanju/device');
-        selected = await channel.invokeMethod<String>(
-          sharedDefault ? 'sharedDownloadDirectory' : 'selectDownloadDirectory',
-        );
-      } else {
-        selected = await _pickParent();
-        if (Platform.isIOS && selected != null)
-          selected = '$selected/guo-downloads';
-      }
-      if (selected == null || !mounted) return;
-      if (sharedDefault || appPrivate || Platform.isIOS)
-        await Directory(selected).create(recursive: true);
-      if (!mounted) return;
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('更换下载资料夹'),
-          content: Text(
-            '日后下载使用：\n$selected\n\n不搬移或删除原有文件。下载列表只显示所选目录的记录，切回原目录可恢复查看。请先暂停全部下载。',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('使用此资料夹'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-      setState(() {
-        _busy = true;
-        _error = null;
-      });
-      final repository = AppScope.of(context).repository;
-      await repository.changeDownloadDirectory(selected);
-      final active = await repository.downloadDirectory();
-      if (mounted) setState(() => _info = {...?_info, 'directory': active});
-      await _refresh();
-    } catch (failure) {
-      if (mounted) setState(() => _error = '$failure');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   Future<void> _move() async {
-    if (_busy) return;
     final parent = await _pickParent();
     if (parent == null || !mounted) return;
+    await _migrate(parent, parent);
+  }
+
+  Future<void> _restore() => _migrate('', '应用默认目录');
+
+  Future<void> _setAutoExport(bool value) => saveSetting(context, () async {
+    if (value && !await AppDevice.requestVideoExport()) {
+      throw AppFailure('未获得存储权限，无法自动导出');
+    }
+    await widget.store.setAutoExport(value);
+  });
+
+  Future<void> _migrate(String parent, String destination) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('迁移已下载内容？'),
         content: Text(
-          '将下载目录里的全部内容迁移到：\n$parent\n\n下载会先暂停，复制成功后清理旧目录。请保证目标有足够空间，并在完成后继续下载。',
+          '将下载目录里的全部内容迁移到：\n$destination\n\n下载会先暂停，复制成功后清理旧目录。请保证目标有足够空间，并在完成后继续下载。',
         ),
         actions: [
           TextButton(
@@ -192,20 +138,26 @@ class _StorageViewState extends State<StorageView> {
         ),
       ),
     );
-    setState(() => _busy = true);
     try {
       await repository.moveDownloads(parent);
     } catch (failure) {
       if (mounted) setState(() => _error = '$failure');
     } finally {
       navigator.pop();
-      if (mounted) setState(() => _busy = false);
     }
     await _refresh();
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => FadeSwitcher(
+    alignment: Alignment.topCenter,
+    child: KeyedSubtree(
+      key: ValueKey(_info != null ? 'content' : _error ?? 'loading'),
+      child: _body(context),
+    ),
+  );
+
+  Widget _body(BuildContext context) {
     final info = _info;
     if (info == null) {
       return _error == null
@@ -222,6 +174,7 @@ class _StorageViewState extends State<StorageView> {
     final colors = Theme.of(context).colorScheme;
     final directory = info['directory'] as String? ?? '';
     final admin = widget.store.profile.admin;
+    final isDefault = info['default'] == true;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
@@ -262,57 +215,66 @@ class _StorageViewState extends State<StorageView> {
             ),
             const Divider(indent: 16, endIndent: 16),
             SettingsTile(
-              title: '更换下载资料夹',
-              subtitle: admin ? '使用系统选择器；保留原目录，可切回查看' : '需要管理员',
-              enabled: admin && !_busy,
-              onTap: () => _change(),
-            ),
-            if (Platform.isAndroid) ...[
-              const Divider(indent: 16, endIndent: 16),
-              SettingsTile(
-                title: '使用共享下载目录',
-                subtitle: 'Download/guo',
-                enabled: admin && !_busy,
-                onTap: () => _change(sharedDefault: true),
-              ),
-              const Divider(indent: 16, endIndent: 16),
-              SettingsTile(
-                title: '授权所有文件存取',
-                enabled: admin && !_busy,
-                onTap: () async {
-                  try {
-                    await _authorizeSharedStorage();
-                  } catch (failure) {
-                    if (mounted) setState(() => _error = '$failure');
-                  }
-                },
-              ),
-            ],
-            const Divider(indent: 16, endIndent: 16),
-            SettingsTile(
-              title: '使用原应用下载目录',
-              subtitle: '切回应用内部 downloads，保留共享资料夹的文件',
-              enabled: admin && !_busy,
-              onTap: () => _change(appPrivate: true),
-            ),
-            const Divider(indent: 16, endIndent: 16),
-            SettingsTile(
               title: '更改并迁移目录',
               subtitle: admin ? '下载会先暂停，复制成功后清理旧目录' : '需要管理员',
-              enabled: admin && !_busy,
+              enabled: admin,
               onTap: _move,
             ),
             const Divider(indent: 16, endIndent: 16),
-            SettingsTile(title: '刷新用量', enabled: !_busy, onTap: _refresh),
+            SettingsTile(
+              title: '恢复默认下载目录',
+              subtitle: !admin
+                  ? '需要管理员'
+                  : isDefault
+                  ? '正在使用默认目录'
+                  : '迁移回应用默认目录',
+              enabled: admin && !isDefault,
+              onTap: _restore,
+            ),
+            const Divider(indent: 16, endIndent: 16),
+            SettingsTile(title: '刷新用量', onTap: _refresh),
           ],
         ),
+        if (Platform.isAndroid) ...[
+          const SizedBox(height: 16),
+          ListenableBuilder(
+            listenable: widget.store,
+            builder: (context, _) => GroupCard(
+              children: [
+                SwitchTile(
+                  title: '下载完成后自动导出',
+                  subtitle: '导出到 Movies/剧名/，相册和文件管理器可见，卸载后保留',
+                  value: widget.store.autoExport,
+                  onChanged: _setAutoExport,
+                ),
+                const Divider(indent: 16, endIndent: 16),
+                SwitchTile(
+                  title: '自动导出后删除 App 内副本',
+                  subtitle: '删除后 App 内不能再离线播放',
+                  value: widget.store.deleteAfterAutoExport,
+                  onChanged: (value) => saveSetting(
+                    context,
+                    () => widget.store.setDeleteAfterAutoExport(value),
+                  ),
+                ),
+                const Divider(indent: 16, endIndent: 16),
+                SwitchTile(
+                  title: '手动导出后删除 App 内副本',
+                  subtitle: '在已下载剧页「编辑」里点「导出」后删除',
+                  value: widget.store.deleteAfterManualExport,
+                  onChanged: (value) => saveSetting(
+                    context,
+                    () => widget.store.setDeleteAfterManualExport(value),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: Text(
-            _error ??
-                (_busy
-                    ? '正在更新下载资料夹…'
-                    : '原始文件保存在 剧名/0001/ 等分集目录；转换后的 第1集.mp4 位于剧名目录，成功转换后会删除该集原始影片与金钥，失败则保留以便重试。更换目录不搬移旧文件，原有迁移功能仍可使用。'),
+            _error ?? '在下载页删除不需要的分集，在本地媒体页删除合并成品，可释放空间。',
             style: text.bodyMedium?.copyWith(
               color: _error == null ? colors.onSurfaceVariant : colors.error,
             ),

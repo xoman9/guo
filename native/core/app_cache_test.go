@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -50,7 +51,7 @@ func TestNativeCoverDecryptsAndPersistsAcrossRestart(t *testing.T) {
 	}))
 	defer upstream.Close()
 	directory := t.TempDir()
-	engine, err := newNativeEngine(directory)
+	engine, err := newNativeEngine(directory, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +76,7 @@ func TestNativeCoverDecryptsAndPersistsAcrossRestart(t *testing.T) {
 	if calls.Load() != 1 {
 		t.Fatal("concurrent cover requests were not coalesced", calls.Load())
 	}
-	restarted, err := newNativeEngine(directory)
+	restarted, err := newNativeEngine(directory, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +118,7 @@ func TestNativeCoverFormatsFailuresAndOfflineFallback(t *testing.T) {
 	}))
 	defer upstream.Close()
 	directory := t.TempDir()
-	engine, err := newNativeEngine(directory)
+	engine, err := newNativeEngine(directory, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +134,7 @@ func TestNativeCoverFormatsFailuresAndOfflineFallback(t *testing.T) {
 	if err := os.Chtimes(path, old, old); err != nil {
 		t.Fatal(err)
 	}
-	restarted, err := newNativeEngine(directory)
+	restarted, err := newNativeEngine(directory, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +164,7 @@ func TestNativeCoverRedirectAndBoundedDiskCache(t *testing.T) {
 		w.Write(plain)
 	}))
 	defer upstream.Close()
-	engine, err := newNativeEngine(t.TempDir())
+	engine, err := newNativeEngine(t.TempDir(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,17 +184,18 @@ func TestNativeCoverRedirectAndBoundedDiskCache(t *testing.T) {
 func TestNativeCatalogCacheFreshnessPagingAndRefresh(t *testing.T) {
 	var calls atomic.Int32
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.URL.Path, "/api/videos/category/ai-") {
-			t.Error("test must only request synthetic catalog metadata", r.URL.Path)
+		target := huangguoEdgeTarget(t, r)
+		if !strings.HasPrefix(target.Path, "/api/videos/category/ai-") {
+			t.Error("test must only request synthetic catalog metadata", target.Path)
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		if r.URL.Path != "/api/videos/category/ai-duanju" {
-			json.NewEncoder(w).Encode(map[string]any{"data": []any{}})
+		if target.Path != "/api/videos/category/ai-duanju" {
+			io.WriteString(w, huangguoEdgeReply([]any{}))
 			return
 		}
 		calls.Add(1)
-		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		page, _ := strconv.Atoi(target.Query().Get("page"))
 		count := 24
 		if page > 1 {
 			count = 1
@@ -202,12 +204,12 @@ func TestNativeCatalogCacheFreshnessPagingAndRefresh(t *testing.T) {
 		for index := range count {
 			rows = append(rows, map[string]any{"id": strconv.Itoa(page*100 + index), "title": fmt.Sprintf("合成剧集%d", page*100+index), "cover": "https://example.test/synthetic-cover"})
 		}
-		json.NewEncoder(w).Encode(map[string]any{"data": rows})
+		io.WriteString(w, huangguoEdgeReply(rows))
 	}))
 	defer upstream.Close()
 	directory := t.TempDir()
 	open := func() *nativeEngine {
-		engine, err := newNativeEngine(directory)
+		engine, err := newNativeEngine(directory, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -255,7 +257,7 @@ func TestNativeCatalogCacheMigratesAndKeepsHongguoCursorItems(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(directory, "catalogs.json"), legacy, 0600); err != nil {
 		t.Fatal(err)
 	}
-	engine, err := newNativeEngine(directory)
+	engine, err := newNativeEngine(directory, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +270,7 @@ func TestNativeCatalogCacheMigratesAndKeepsHongguoCursorItems(t *testing.T) {
 	if result.Page != 4 || len(result.Items) != 2 || result.Items[0].ID != "hongguo:102" || result.Items[1].ID != old.ID {
 		t.Fatal("refresh lost catalog items preceding the saved feed cursor", result)
 	}
-	restarted, err := newNativeEngine(directory)
+	restarted, err := newNativeEngine(directory, "")
 	if err != nil || !restarted.nativeCached(sourceHongguo).Fresh {
 		t.Fatal("upgraded cache could not be reopened", err)
 	}
