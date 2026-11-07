@@ -137,17 +137,16 @@ class _StorageViewState extends State<StorageView> {
         parent = await _pickParent();
       }
       if (parent == null || !mounted) return;
-      final destination = Platform.isAndroid
-          ? '$parent/zhenguojian-downloads'
-          : parent;
-      await _migrate(parent, destination);
-      _pendingMigrationParent = null;
+      final completed = await _migrate(parent, parent);
+      if (completed) _pendingMigrationParent = null;
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
     }
   }
 
-  Future<void> _restore() => _migrate('', '应用默认目录');
+  Future<void> _restore() async {
+    await _migrate('', '应用默认目录');
+  }
 
   Future<void> _setAutoExport(bool value) => saveSetting(context, () async {
     if (value && !await AppDevice.requestVideoExport()) {
@@ -156,8 +155,8 @@ class _StorageViewState extends State<StorageView> {
     await widget.store.setAutoExport(value);
   });
 
-  Future<void> _migrate(String parent, String destination) async {
-    if (!mounted) return;
+  Future<bool> _migrate(String parent, String destination) async {
+    if (!mounted) return false;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -178,7 +177,7 @@ class _StorageViewState extends State<StorageView> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted) return false;
     final repository = AppScope.of(context).repository;
     final navigator = Navigator.of(context, rootNavigator: true);
     showDialog<void>(
@@ -197,18 +196,36 @@ class _StorageViewState extends State<StorageView> {
         ),
       ),
     );
+    String? failureMessage;
     try {
       await repository.moveDownloads(parent);
-      // The native manager has persisted its new directory; refresh from it
-      // rather than displaying the parent selected in the system picker.
+      // Refresh the actual persisted path from the native download manager.
       await _refresh();
       if (mounted) setState(() => _error = null);
     } catch (failure) {
-      if (mounted) setState(() => _error = '$failure');
+      failureMessage = '$failure';
+      if (mounted) setState(() => _error = failureMessage);
     } finally {
       navigator.pop();
     }
-    await _refresh();
+    if (!mounted) return failureMessage == null;
+    if (failureMessage != null) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('下載目錄遷移失敗'),
+          content: Text('$failureMessage\\n\\n原下載目錄與檔案已保留，請確認目標資料夾為空及具有存取權限。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('確定'),
+            ),
+          ],
+        ),
+      );
+      return false;
+    }
+    return true;
   }
 
   @override
