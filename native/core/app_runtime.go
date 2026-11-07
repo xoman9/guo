@@ -772,6 +772,26 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	return result, nil
 }
 
+
+// preserveMeiguoCatalogIdentity keeps the selected catalog card's verified
+// title/cover when a MacCMS detail/player page offers conflicting metadata.
+// It does not change the source ID, chapters, or media resolution.
+func preserveMeiguoCatalogIdentity(catalog, detail nativeDrama) nativeDrama {
+    if catalog.Source != "meiguo" || catalog.ID == "" ||
+        catalog.ID != detail.ID || catalog.SourceID != detail.SourceID {
+        return detail
+    }
+    if title := strings.TrimSpace(catalog.Title); title != "" &&
+        title != "短剧" && title != "影片 "+catalog.SourceID &&
+        !apk391BadTitle("meiguo", title) {
+        detail.Title = catalog.Title
+    }
+    if isProviderHTTPMediaURL(catalog.Cover) {
+        detail.Cover = catalog.Cover
+    }
+    return detail
+}
+
 func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama) (any, error) {
 	source, sourceID, valid := splitProviderDramaID(drama.ID)
 	if !valid {
@@ -827,9 +847,16 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 		drama.Title = title
 	}
 	if raw.ID == drama.ID {
-		drama = mergeNativeDrama(drama, nativeNormalize(raw))
-	}
-	if source == sourceHongguo {
+        fresh := nativeNormalize(raw)
+        // Meiguo detail/player pages may expose an unrelated poster or heading.
+        // The selected catalog card is already tied to the requested film ID;
+        // keep that identity while updating episodes and playback separately.
+        if source == "meiguo" {
+            fresh = preserveMeiguoCatalogIdentity(drama, fresh)
+        }
+        drama = mergeNativeDrama(drama, fresh)
+    }
+    if source == sourceHongguo {
 		raw := engine.downloader.hongguoCachedDrama(Drama{ID: drama.ID, Title: drama.Title, Source: source})
 		drama = mergeNativeDrama(drama, nativeNormalize(raw))
 	}
