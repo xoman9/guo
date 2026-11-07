@@ -477,15 +477,29 @@ class MainActivity : FlutterActivity() {
                                 result.error("invalid_url", "播放地址为空", null)
                             }
                         }
-                        "hasDownloadFileAccess" -> {
-                            result.success(Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
-                                Environment.isExternalStorageManager())
-                        }
-                        "requestDownloadFileAccess" -> {
-                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
-                                Environment.isExternalStorageManager()) {
-                                result.success(true)
+                        // Legacy 1.0.10+110 shared-storage permission semantics.
+                        "sharedStorageAccess", "hasDownloadFileAccess" -> {
+                            result.success(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                Environment.isExternalStorageManager()
                             } else {
+                                checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+                                    PackageManager.PERMISSION_GRANTED
+                            })
+                        }
+                        "requestSharedStorageAccess", "requestDownloadFileAccess" -> {
+                            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                                if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+                                    PackageManager.PERMISSION_GRANTED) {
+                                    requestPermissions(
+                                        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE,
+                                            Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                                        9812
+                                    )
+                                    result.success(false)
+                                } else {
+                                    result.success(true)
+                                }
+                            } else if (!Environment.isExternalStorageManager()) {
                                 try {
                                     startActivity(Intent(
                                         Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
@@ -493,8 +507,17 @@ class MainActivity : FlutterActivity() {
                                     ))
                                     result.success(false)
                                 } catch (error: Exception) {
-                                    result.error("storage_permission", "无法打开文件存取权限设置", null)
+                                    try {
+                                        startActivity(Intent(
+                                            Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                                        result.success(false)
+                                    } catch (fallback: Exception) {
+                                        result.error("storage_permission",
+                                            "無法開啟所有檔案存取權限設定", null)
+                                    }
                                 }
+                            } else {
+                                result.success(true)
                             }
                         }
                         "chooseDownloadDirectory" -> {
