@@ -10,8 +10,8 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
     <!-- Required for legacy Go download manager migration to an arbitrary shared filesystem path. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
-    <!-- Dedicated TV package requires a Leanback-compatible Android TV environment. -->
-    <uses-feature android:name="android.software.leanback" android:required="true"/>
+    <!-- Some Android 11 TV boxes omit the Leanback feature flag despite supporting TV launcher. -->
+    <uses-feature android:name="android.software.leanback" android:required="false"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
     <uses-feature android:name="android.hardware.faketouch" android:required="false"/>
     <application
