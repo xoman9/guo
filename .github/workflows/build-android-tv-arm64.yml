@@ -110,8 +110,8 @@ jobs:
         run: |
           set -euo pipefail
           gh release view coexist-v1.0.4-104 --repo "$GITHUB_REPOSITORY" >/dev/null
-          gh release upload coexist-v1.0.4-104 \\
-            "dist/coexist/zhenguojian-androidTV11-1.0.4+104coexist-meiguo-fix-armeabi-v7a.apk" \\
-            "dist/coexist/zhenguojian-androidTV11-1.0.4+104coexist-meiguo-fix-arm64-v8a.apk" \\
-            "dist/coexist/SHA256SUMS-androidTV11-dualabi.txt" \\
+          gh release upload coexist-v1.0.4-104 \
+            "dist/coexist/zhenguojian-androidTV11-1.0.4+104coexist-meiguo-fix-armeabi-v7a.apk" \
+            "dist/coexist/zhenguojian-androidTV11-1.0.4+104coexist-meiguo-fix-arm64-v8a.apk" \
+            "dist/coexist/SHA256SUMS-androidTV11-dualabi.txt" \
             --repo "$GITHUB_REPOSITORY"
