@@ -79,17 +79,17 @@ jobs:
           apk=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | tee apk-badging.txt
           grep -Fq "package: name='com.duanju.duanju_app.coexist'" apk-badging.txt
-          grep -Fq "versionCode='2112'" apk-badging.txt
+          grep -Fq "versionCode='2113'" apk-badging.txt
           grep -Fq "versionName='1.0.4+104coexist'" apk-badging.txt
           grep -Fq "native-code: 'arm64-v8a'" apk-badging.txt
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | tee cert.txt
           grep -Fqi '78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a' cert.txt
           mkdir -p dist/coexist
-          cp "$apk" dist/coexist/zhenguojian-coexist-1.0.4+104coexist-xanerix-arm64-v8a.apk
-          sha256sum dist/coexist/*.apk > dist/coexist/SHA256SUMS-xanerix-1.0.4+104coexist.txt
+          cp "$apk" dist/coexist/zhenguojian-coexist-1.0.4+104coexist-xanerix-meiguo-fix-arm64-v8a.apk
+          sha256sum dist/coexist/*.apk > dist/coexist/SHA256SUMS-xanerix-meiguo-fix-1.0.4+104coexist.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: zhenguojian-xanerix-coexist-1.0.4-104-arm64
+          name: zhenguojian-xanerix-coexist-1.0.4-104-meiguo-fix-arm64
           path: dist/coexist/
           retention-days: 30
           if-no-files-found: error
@@ -101,6 +101,6 @@ jobs:
           gh release view coexist-v1.0.4-104 --repo "$GITHUB_REPOSITORY" >/dev/null
           # Unique asset names: never overwrite the original 1.0.4+104 APK.
           gh release upload coexist-v1.0.4-104 \
-            "dist/coexist/zhenguojian-coexist-1.0.4+104coexist-xanerix-arm64-v8a.apk" \
-            "dist/coexist/SHA256SUMS-xanerix-1.0.4+104coexist.txt" \
+            "dist/coexist/zhenguojian-coexist-1.0.4+104coexist-xanerix-meiguo-fix-arm64-v8a.apk" \
+            "dist/coexist/SHA256SUMS-xanerix-meiguo-fix-1.0.4+104coexist.txt" \
             --repo "$GITHUB_REPOSITORY"
