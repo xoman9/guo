@@ -105,6 +105,6 @@ jobs:
           gh release view coexist-v1.0.4-104 --repo "$GITHUB_REPOSITORY" >/dev/null
           # Unique TV asset names: keep the original mobile APKs untouched.
           gh release upload coexist-v1.0.4-104 \
-            "dist/coexist/zhenguojian-coexist-1.0.4+104coexist-xanerix-meiguo-fix-arm64-v8a.apk" \
-            "dist/coexist/SHA256SUMS-xanerix-meiguo-fix-1.0.4+104coexist.txt" \
+            "dist/coexist/zhenguojian-androidTV-1.0.4+104coexist-meiguo-fix-arm64-v8a.apk" \
+            "dist/coexist/SHA256SUMS-androidTV-1.0.4+104coexist.txt" \
             --repo "$GITHUB_REPOSITORY"
