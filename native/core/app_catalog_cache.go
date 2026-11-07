@@ -297,9 +297,15 @@ func (engine *nativeEngine) saveDetailMetadata(drama nativeDrama) error {
 	for _, items := range engine.catalogs {
 		for index := range items {
 			if items[index].ID == drama.ID {
-				items[index] = mergeNativeDrama(items[index], drama)
-				changed = true
-			}
+                incoming := drama
+                // Do not let an unrelated Meiguo detail/player heading overwrite
+                // an already-listed movie's poster and title on return.
+                if items[index].Source == "meiguo" {
+                    incoming = preserveMeiguoCatalogIdentity(items[index], incoming)
+                }
+                items[index] = mergeNativeDrama(items[index], incoming)
+                changed = true
+            }
 		}
 	}
 	if changed {
