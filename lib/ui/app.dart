@@ -168,7 +168,11 @@ class _DuanjuAppState extends State<DuanjuApp> with WidgetsBindingObserver {
 
   Widget _application(LocalStore? store) {
     _resetRoutes(store);
-    final formFactor = switch (store?.displayMode) {
+    // The dedicated Android TV package must always use the D-pad focused UI.
+    // A stale preference from another form factor cannot force phone layout.
+    final formFactor = AppDevice.tvBuild
+        ? FormFactor.television
+        : switch (store?.displayMode) {
       'television' => FormFactor.television,
       'phone' => FormFactor.phone,
       'pad' => FormFactor.pad,
