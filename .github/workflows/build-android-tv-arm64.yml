@@ -1,4 +1,4 @@
-name: Build guo Android TV ARM64 from Meiguo fixed coexist
+name: Build guo Android TV 11 ARMv7 and ARM64
 
 on:
   push:
@@ -17,7 +17,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: build-guo-tv-arm64-${{ github.ref }}
+  group: build-guo-tv-dualabi-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -65,46 +65,53 @@ jobs:
         run: |
           flutter test --dart-define=DISABLE_REMOTE_IMAGES=true --dart-define=ALL_SOURCES=true
           (cd native && go test ./...)
-      - name: Build native library
-        run: python scripts/build_native.py --platform android --abi arm64-v8a --all-sources
-      - name: Build ARM64 Android TV APK
+      - name: Build native libraries for both TV ABIs
+        run: python scripts/build_native.py --platform android --abi armeabi-v7a --abi arm64-v8a --all-sources
+      - name: Build Android TV 11 APKs for both ABIs
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: flutter build apk --release --split-per-abi --target-platform android-arm64 --no-pub --dart-define=ALL_SOURCES=true --dart-define=TV_BUILD=true
-      - name: Validate APK identity, signer, and ABI
+        run: flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64 --no-pub --dart-define=ALL_SOURCES=true --dart-define=TV_BUILD=true
+      - name: Validate TV 11 APK package, ABI, Leanback launcher, and signer
         run: |
           set -euo pipefail
-          apk=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" | tee apk-badging.txt
-          grep -Fq "package: name='com.duanju.duanju_app.coexist.tv'" apk-badging.txt
-          grep -Fq "versionCode='2114'" apk-badging.txt
-          grep -Fq "versionName='1.0.4+104coexist-TV'" apk-badging.txt
-          grep -Fq "native-code: 'arm64-v8a'" apk-badging.txt
-          grep -Fq 'android.software.leanback' apk-badging.txt
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump xmltree "$apk" AndroidManifest.xml | tee tv-manifest.txt
-          grep -q 'LEANBACK_LAUNCHER' tv-manifest.txt
-          grep -q 'tv_banner' tv-manifest.txt || grep -q 'banner' tv-manifest.txt
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" | tee cert.txt
-          grep -Fqi '78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a' cert.txt
           mkdir -p dist/coexist
-          cp "$apk" dist/coexist/zhenguojian-androidTV-1.0.4+104coexist-meiguo-fix-arm64-v8a.apk
-          sha256sum dist/coexist/*.apk > dist/coexist/SHA256SUMS-androidTV-1.0.4+104coexist.txt
+          for abi in armeabi-v7a arm64-v8a; do
+            apk="build/app/outputs/flutter-apk/app-${abi}-release.apk"
+            test -s "$apk"
+            "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" > "apk-${abi}-badging.txt"
+            grep -Fq "package: name='com.duanju.duanju_app.coexist.tv'" "apk-${abi}-badging.txt"
+            if [ "$abi" = "armeabi-v7a" ]; then
+              grep -Fq "versionCode='1115'" "apk-${abi}-badging.txt"
+            else
+              grep -Fq "versionCode='2115'" "apk-${abi}-badging.txt"
+            fi
+            grep -Fq "versionName='1.0.4+104coexist-TV11'" "apk-${abi}-badging.txt"
+            grep -Fq "native-code: '${abi}'" "apk-${abi}-badging.txt"
+            "$ANDROID_HOME/build-tools/36.0.0/aapt" dump xmltree "$apk" AndroidManifest.xml > "tv-${abi}-manifest.txt"
+            grep -q 'LEANBACK_LAUNCHER' "tv-${abi}-manifest.txt"
+            grep -q 'banner' "tv-${abi}-manifest.txt"
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$apk" > "cert-${abi}.txt"
+            grep -Fqi '78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a' "cert-${abi}.txt"
+            unzip -l "$apk" | grep -Fq "lib/${abi}/libduanju_core.so"
+            cp "$apk" "dist/coexist/zhenguojian-androidTV11-1.0.4+104coexist-meiguo-fix-${abi}.apk"
+          done
+          sha256sum dist/coexist/*.apk > dist/coexist/SHA256SUMS-androidTV11-dualabi.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: zhenguojian-androidTV-1.0.4-104-meiguo-fix-arm64
+          name: zhenguojian-androidTV11-1.0.4-104-meiguo-fix-dualabi
           path: dist/coexist/
           retention-days: 30
           if-no-files-found: error
-      - name: Publish separate Android TV APK to existing v1.0.4+104 release
+      - name: Publish both Android TV 11 architectures to existing release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh release view coexist-v1.0.4-104 --repo "$GITHUB_REPOSITORY" >/dev/null
-          # Unique TV asset names: keep the original mobile APKs untouched.
-          gh release upload coexist-v1.0.4-104 \
-            "dist/coexist/zhenguojian-androidTV-1.0.4+104coexist-meiguo-fix-arm64-v8a.apk" \
-            "dist/coexist/SHA256SUMS-androidTV-1.0.4+104coexist.txt" \
+          gh release upload coexist-v1.0.4-104 \\
+            "dist/coexist/zhenguojian-androidTV11-1.0.4+104coexist-meiguo-fix-armeabi-v7a.apk" \\
+            "dist/coexist/zhenguojian-androidTV11-1.0.4+104coexist-meiguo-fix-arm64-v8a.apk" \\
+            "dist/coexist/SHA256SUMS-androidTV11-dualabi.txt" \\
             --repo "$GITHUB_REPOSITORY"
