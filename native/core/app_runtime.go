@@ -489,7 +489,7 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 	}
 	page := max(1, input.Page)
 	query := strings.TrimSpace(input.Query)
-	if query == "" {
+	if query == "" && source != sourceLujj31 && source != sourceLiuguo && source != sourceXiaoguo && apk391BaseURL(source) == "" {
 		if retried, err := engine.retryCatalogSave(); retried {
 			cached := engine.nativeCached(cacheKey)
 			if err != nil || len(cached.Items) > 0 {
@@ -497,7 +497,7 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 			}
 		}
 	}
-	if query == "" && page == 1 && !input.Force {
+	if query == "" && page == 1 && !input.Force && source != sourceLujj31 && source != sourceLiuguo && source != sourceXiaoguo && apk391BaseURL(source) == "" {
 		if cached := engine.nativeCached(cacheKey); cached.Fresh {
 			return cached, nil
 		}
@@ -521,6 +521,46 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 			result.Items = append(result.Items, nativeNormalize(drama))
 		}
 		result.Warning, result.HasMore = entry.Warning, entry.HasMore
+		return result, nil
+	}
+	if query != "" && apk391BaseURL(source)!="" {
+		items,more,err:=d.fetchApk391CatalogPage(ctx,source,page,"",query)
+		if err!=nil{return result,err}
+		for _,item:=range items{result.Items=append(result.Items,nativeNormalize(item))}
+		result.HasMore=more
+		return result,nil
+	}
+	if query != "" && source == sourceXiaoguo {
+		items, more, err := d.fetchXiaoguoCatalogPage(ctx, page, "", query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = more
+		return result, nil
+	}
+	if query != "" && source == sourceLiuguo {
+		items, more, err := d.fetchLiuguoCatalogPage(ctx, page, "", query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = more
+		return result, nil
+	}
+	if query != "" && source == sourceLujj31 {
+		items, more, err := d.fetchLujj31CatalogPage(ctx, page, "", query)
+		if err != nil {
+			return result, err
+		}
+		for _, drama := range items {
+			result.Items = append(result.Items, nativeNormalize(drama))
+		}
+		result.HasMore = more
 		return result, nil
 	}
 	if query != "" && source == sourceHuangju {
@@ -687,6 +727,12 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		items, result.HasMore, err = d.fetchGuipianCatalogPage(ctx, page, category, "")
 	case sourceHanxiaoquan:
 		items, result.HasMore, err = d.fetchHanxiaoquanCatalogPage(ctx, page, category, "")
+	case sourceLujj31:
+		items, result.HasMore, err = d.fetchLujj31CatalogPage(ctx, page, category, "")
+	case sourceLiuguo:
+		items, result.HasMore, err = d.fetchLiuguoCatalogPage(ctx, page, category, "")
+	case sourceXiaoguo:
+		items, result.HasMore, err = d.fetchXiaoguoCatalogPage(ctx, page, category, "")
 	case sourceHuangguoVideo:
 		address := fmt.Sprintf("%s/videos?page=%d", d.providerBaseURL(source), page)
 		if category != "" {
@@ -700,6 +746,10 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		result.HasMore = len(items) >= 20
 	case sourceCloudFront:
 		items, result.HasMore, err = d.fetchLegacyCatalogCategoryPage(ctx, page, category)
+	default:
+		if _, ok := apk391Spec(source); ok {
+			items, result.HasMore, err = d.fetchApk391CatalogPage(ctx, source, page, category, "")
+		}
 	}
 	if err != nil && len(items) == 0 {
 		return result, err
@@ -718,7 +768,7 @@ func (engine *nativeEngine) nativeCatalog(ctx context.Context, input nativeInput
 		seen[drama.ID] = true
 		result.Items = append(result.Items, nativeNormalize(drama))
 	}
-	engine.saveCatalogCache(cacheKey, &result)
+	if source != sourceLujj31 && source != sourceLiuguo && source != sourceXiaoguo && apk391BaseURL(source) == "" { engine.saveCatalogCache(cacheKey, &result) }
 	return result, nil
 }
 
@@ -754,8 +804,18 @@ func (engine *nativeEngine) nativeDetail(ctx context.Context, drama nativeDrama)
 		raw, chapters, err = engine.downloader.fetchGuipianDetail(ctx, sourceID)
 	case sourceHanxiaoquan:
 		raw, chapters, err = engine.downloader.fetchHanxiaoquanDetail(ctx, sourceID)
+	case sourceLujj31:
+		raw, chapters, err = engine.downloader.fetchLujj31Detail(ctx, sourceID)
+	case sourceLiuguo:
+		raw, chapters, err = engine.downloader.fetchLiuguoDetail(ctx, sourceID)
+	case sourceXiaoguo:
+		raw, chapters, err = engine.downloader.fetchXiaoguoDetail(ctx, sourceID)
 	default:
-		title, chapters, err = engine.downloader.GetHuangguoChapters(ctx, source, sourceID)
+		if _, ok := apk391Spec(source); ok {
+			raw, chapters, err = engine.downloader.fetchApk391Detail(ctx, source, sourceID)
+		} else {
+			title, chapters, err = engine.downloader.GetHuangguoChapters(ctx, source, sourceID)
+		}
 	}
 	if err != nil {
 		return nil, err
