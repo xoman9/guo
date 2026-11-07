@@ -13,10 +13,16 @@ class AppDevice {
   static const channel = MethodChannel('duanju/device');
   static var _televisionMode = false;
   static var _phoneMode = false;
+  // TV-only APK forces the existing remote-friendly large-screen UI even on
+  // Android TV boxes that incorrectly report touchscreen/phone features.
+  static const bool tvBuild = bool.fromEnvironment('TV_BUILD', defaultValue: false);
 
   static Future<AppDevice> detect({
     AppDevice fallback = const AppDevice(),
   }) async {
+    if (tvBuild && defaultTargetPlatform == TargetPlatform.android) {
+      fallback = AppDevice(television: true, version: fallback.version);
+    }
     if (defaultTargetPlatform != TargetPlatform.android) {
       try {
         final info = await PackageInfo.fromPlatform();
@@ -33,7 +39,7 @@ class AppDevice {
       if (television is! bool) return fallback;
       final version = data?['version'];
       return AppDevice(
-        television: television,
+        television: television || tvBuild,
         version: version is String && version.isNotEmpty
             ? version
             : fallback.version,
