@@ -13,6 +13,7 @@ val dartDefines = providers.gradleProperty("dart-defines").orNull.orEmpty()
         decoded.substringBefore("=") to decoded.substringAfter("=", "")
     }
 val allSources = dartDefines["ALL_SOURCES"] == "true"
+val tvBuild = dartDefines["TV_BUILD"] == "true"
 
 val releaseKey = rootProject.file("key.properties")
 val releaseProperties = Properties()
@@ -39,14 +40,14 @@ android {
     }
 
     defaultConfig {
-        applicationId = if (allSources) "com.duanju.duanju_app.coexist" else "com.guoapp.phoenix"
+        applicationId = if (tvBuild) "com.duanju.duanju_app.coexist.tv" else if (allSources) "com.duanju.duanju_app.coexist" else "com.guoapp.phoenix"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         // Flutter --split-per-abi adds 2000 to the ARM64 version code.
         // Base 113 produces ARM64 coexist versionCode 2113, upgrading from 2112.
-        versionCode = if (allSources) 113 else flutter.versionCode
-        versionName = if (allSources) "1.0.4+104coexist" else flutter.versionName
-        manifestPlaceholders["appLabel"] = if (allSources) "真果鉴-共存" else "红果鉴"
+        versionCode = if (tvBuild) 114 else if (allSources) 113 else flutter.versionCode
+        versionName = if (tvBuild) "1.0.4+104coexist-TV" else if (allSources) "1.0.4+104coexist" else flutter.versionName
+        manifestPlaceholders["appLabel"] = if (tvBuild) "真果鑑 TV" else if (allSources) "真果鉴-共存" else "红果鉴"
         manifestPlaceholders["appBanner"] = if (allSources) "@drawable/tv_banner_all_sources" else "@drawable/tv_banner"
     }
 
