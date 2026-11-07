@@ -67,7 +67,7 @@ class _StorageViewState extends State<StorageView> with WidgetsBindingObserver {
     try {
       const channel = MethodChannel('duanju/device');
       final granted =
-          await channel.invokeMethod<bool>('hasDownloadFileAccess') ?? false;
+          await channel.invokeMethod<bool>('sharedStorageAccess') ?? false;
       if (mounted) setState(() => _fileAccessGranted = granted);
     } catch (error) {
       if (mounted) setState(() => _error = '無法檢查存取授權：$error');
@@ -80,7 +80,7 @@ class _StorageViewState extends State<StorageView> with WidgetsBindingObserver {
     try {
       const channel = MethodChannel('duanju/device');
       final granted =
-          await channel.invokeMethod<bool>('hasDownloadFileAccess') ?? false;
+          await channel.invokeMethod<bool>('sharedStorageAccess') ?? false;
       if (mounted) setState(() => _fileAccessGranted = granted);
       if (!mounted) return;
       if (granted) {
@@ -91,7 +91,7 @@ class _StorageViewState extends State<StorageView> with WidgetsBindingObserver {
       }
       // Android 11+: take the user to the app's All Files Access settings.
       // On returning, didChangeAppLifecycleState refreshes authorization.
-      await channel.invokeMethod<bool>('requestDownloadFileAccess');
+      await channel.invokeMethod<bool>('requestSharedStorageAccess');
     } catch (error) {
       if (mounted) setState(() => _error = '無法開啟存取授權：$error');
     } finally {
@@ -174,20 +174,21 @@ class _StorageViewState extends State<StorageView> with WidgetsBindingObserver {
     try {
       if (Platform.isAndroid) {
         const channel = MethodChannel('duanju/device');
-        parent = _pendingMigrationParent ??
-            await channel.invokeMethod<String>('chooseDownloadDirectory');
-        if (parent == null || !mounted) return;
-        _pendingMigrationParent = parent;
+        // Match 1.0.10+110: authorize shared storage before opening picker.
         final hasAccess =
-            await channel.invokeMethod<bool>('hasDownloadFileAccess') ?? false;
+            await channel.invokeMethod<bool>('sharedStorageAccess') ?? false;
         if (!hasAccess) {
-          await channel.invokeMethod<bool>('requestDownloadFileAccess');
+          await channel.invokeMethod<bool>('requestSharedStorageAccess');
           if (mounted) {
             setState(() => _error =
                 '已选择资料夹：$parent。请在系统设置允许「所有文件存取」，返回後再次點選「更改並遷移目錄」即可套用，無須重新選擇。');
           }
           return;
         }
+        parent = _pendingMigrationParent ??
+            await channel.invokeMethod<String>('chooseDownloadDirectory');
+        if (parent == null || !mounted) return;
+        _pendingMigrationParent = parent;
       } else {
         parent = await _pickParent();
       }
