@@ -43,8 +43,8 @@ android {
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
         // Flutter --split-per-abi adds 2000 to the ARM64 version code.
-        // Base 112 produces ARM64 coexist versionCode 2112, upgrading from 2111.
-        versionCode = if (allSources) 112 else flutter.versionCode
+        // Base 113 produces ARM64 coexist versionCode 2113, upgrading from 2112.
+        versionCode = if (allSources) 113 else flutter.versionCode
         versionName = if (allSources) "1.0.4+104coexist" else flutter.versionName
         manifestPlaceholders["appLabel"] = if (allSources) "真果鉴-共存" else "红果鉴"
         manifestPlaceholders["appBanner"] = if (allSources) "@drawable/tv_banner_all_sources" else "@drawable/tv_banner"
