@@ -34,6 +34,9 @@ const (
 	sourceSorani        = "sorani"
 	sourceGuipian       = "guipian"
 	sourceHanxiaoquan   = "hanxiaoquan"
+	sourceLujj31        = "lujj31"
+	sourceLiuguo        = "liuguo"
+	sourceXiaoguo       = "xiaoguo"
 
 	providerMaxBodyBytes = 20 * 1024 * 1024
 	providerTimeout      = 12 * time.Second
@@ -90,10 +93,11 @@ func splitProviderDramaID(id string) (source, sourceID string, ok bool) {
 
 func isHuangguoProviderSource(source string) bool {
 	switch canonicalProviderSource(source) {
-	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceJinguoDuanju, sourceJinguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan:
+	case sourceHuangguoAI, sourceHuangguoVideo, sourceHuangdou, sourceHongguo, sourceHuangju, sourceYeguo, sourceJinguoDuanju, sourceJinguo, sourceDSD, sourceCloudFront, sourceSorani, sourceGuipian, sourceHanxiaoquan, sourceLujj31, sourceLiuguo, sourceXiaoguo:
 		return true
 	default:
-		return false
+		_, registered := apk391Spec(source)
+		return registered
 	}
 }
 
@@ -125,8 +129,16 @@ func canonicalProviderSource(source string) string {
 		return sourceGuipian
 	case "hanxiaoquan", "jennyhow.com", "www.jennyhow.com":
 		return sourceHanxiaoquan
+	case "lujj31", "lujj31.lol", "www.lujj31.lol":
+		return sourceLujj31
+	case "liuguo", "llsp.me", "www.llsp.me":
+		return sourceLiuguo
+	case "xiaoguo", "yese.co", "www.yese.co":
+		return sourceXiaoguo
 	default:
-		return strings.TrimSpace(source)
+		original := strings.TrimSpace(source)
+		if id := apk391SourceForHost(strings.ToLower(original)); id != "" { return id }
+		return original
 	}
 }
 
