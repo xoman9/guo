@@ -31,17 +31,72 @@ class StorageView extends StatefulWidget {
   State<StorageView> createState() => _StorageViewState();
 }
 
-class _StorageViewState extends State<StorageView> {
+class _StorageViewState extends State<StorageView> with WidgetsBindingObserver {
   Map<String, dynamic>? _info;
   String? _error;
   bool _loaded = false;
+  bool? _fileAccessGranted;
+  bool _requestingFileAccess = false;
   String? _mergeTreeUri;
   String? _pendingMigrationParent;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadMergeLocation();
+    _checkFileAccess();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkFileAccess();
+      _refresh();
+    }
+  }
+
+  Future<void> _checkFileAccess() async {
+    if (!Platform.isAndroid) return;
+    try {
+      const channel = MethodChannel('duanju/device');
+      final granted =
+          await channel.invokeMethod<bool>('hasDownloadFileAccess') ?? false;
+      if (mounted) setState(() => _fileAccessGranted = granted);
+    } catch (error) {
+      if (mounted) setState(() => _error = '無法檢查存取授權：$error');
+    }
+  }
+
+  Future<void> _manageFileAccess() async {
+    if (!Platform.isAndroid || _requestingFileAccess) return;
+    setState(() => _requestingFileAccess = true);
+    try {
+      const channel = MethodChannel('duanju/device');
+      final granted =
+          await channel.invokeMethod<bool>('hasDownloadFileAccess') ?? false;
+      if (mounted) setState(() => _fileAccessGranted = granted);
+      if (!mounted) return;
+      if (granted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已取得檔案存取授權')),
+        );
+        return;
+      }
+      // Android 11+: take the user to the app's All Files Access settings.
+      // On returning, didChangeAppLifecycleState refreshes authorization.
+      await channel.invokeMethod<bool>('requestDownloadFileAccess');
+    } catch (error) {
+      if (mounted) setState(() => _error = '無法開啟存取授權：$error');
+    } finally {
+      if (mounted) setState(() => _requestingFileAccess = false);
+    }
   }
 
   Future<void> _loadMergeLocation() async {
@@ -316,7 +371,18 @@ class _StorageViewState extends State<StorageView> {
               onTap: _restore,
             ),
             const Divider(indent: 16, endIndent: 16),
-            SettingsTile(title: '刷新用量', onTap: _refresh),
+            SettingsTile(
+              title: '存取授權',
+              subtitle: !Platform.isAndroid
+                  ? '此平台無須 Android 檔案存取授權'
+                  : _fileAccessGranted == true
+                      ? '已授權存取共享儲存空間'
+                      : _fileAccessGranted == false
+                          ? '尚未授權，點擊前往系統設定'
+                          : '正在檢查授權狀態',
+              enabled: Platform.isAndroid && !_requestingFileAccess,
+              onTap: _manageFileAccess,
+            ),
           ],
         ),
         if (Platform.isAndroid) ...[
