@@ -17,10 +17,11 @@
 | `missav` | 110 ARM64 APK 編譯資訊／字串與符號 | `native/sources_missav/provider.go` | 110 路由與基本 HTML 解析骨架；並非還原原本 JS 解包或完成播放支援 |
 | `huangju` | 109 API 程式及其訪客驗證流程 | `native/sources_legacy109/provider_huangju.go` | 分類／目錄／詳情／分集與 CloudFront Cookie 播放解析相容版；模擬 API 測試通過，未做線上驗證 |
 | `hongguo` | 109 網頁 `_ROUTER_DATA` 備援解析 | `native/sources_legacy109/provider_hongguo.go` | 分類／目錄／詳情／分集／公開播放 URL；不包含 109 App/CENC 授權路徑，拒絕錯集及加密影片，尚未實機驗證 |
+| `sorani` | 109 青空次元官方 API 資料結構及既有帳號會話 | `native/sources_legacy109/provider_sorani.go` | 分類／搜尋／詳情／分集／播放授權檢查；支援載入合法舊登入紀錄，不繞過登入權限；模擬 API 測試通過，未做線上驗證 |
 
-- `native/sources_custom` 原有 13 個新增站源維持，搭配恢復的 6 個原生 ID，已在 Go 測試工作區中一起編譯；這是 **13 + 6 = 19 個不重複的註冊 ID**，不是 110 的全部原生站源。
-- 已通過的 GitHub Actions：`43518953421`、`43519734728`、`43520677572`；純離線測試；不代表影片線上播放已成功。
-- 110 APK 另外辨識出的原生 ID，尚未逐一恢復：`sorani`, `huangdou`, `yeguo`, `dsd`, `jinguoduanju`, `jinguo`, `beabox`, `cloudfront`, `huangguoai`, `huangguovideo`。其中部分與 custom 頻道用途相近但 ID 不同，整合前必須辨別衝突與重複來源。
+- `native/sources_custom` 原有 13 個新增站源維持，搭配恢復的 7 個原生 ID，已在 Go 測試工作區中一起編譯；這是 **13 + 7 = 20 個不重複的註冊 ID**，不是 110 的全部原生站源。
+- 已通過的 GitHub Actions：`43518953421`、`43519734728`、`43520677572`、`43522259053`；純離線測試；不代表影片線上播放已成功。
+- 110 APK 另外辨識出的原生 ID，尚未逐一恢復：`huangdou`, `yeguo`, `dsd`, `jinguoduanju`, `jinguo`, `beabox`, `cloudfront`, `huangguoai`, `huangguovideo`。其中部分與 custom 頻道用途相近但 ID 不同，整合前必須辨別衝突與重複來源。
 - 日後增加站源：在這個分支建立與 110 相容的獨立 Go 模組／Provider（必要時擴增 `native/sources_legacy109`），先更新 `flavor_zhenguojian.go`，CI 使用 `link_sources([sources_custom, sources_missav, sources_legacy109])` 編譯；新增單元測試再核對真實網頁／內容／播放。
 - **不能用重新註冊的虛構站源名稱或只有假資料的 Provider 來宣稱已恢復。** 只有真正的解析器與必要的真實網站驗證才能標記為可用。
 
@@ -30,3 +31,11 @@
 - 對分集編號與播放頁的 `vid`/`series_id` 做雙重比對，錯誤集數不得改播預覽片；含 DRM/CENC 標誌或未提供公開 URL 時回報不支援。
 - `native/sources_legacy109/provider_hongguo_test.go` 使用本地頁面夾具測試分類、頁碼、劇名、封面、分集配對、錯集拒絕及加密授權拒絕。
 - 最新成功 CI：`43520677572`。**尚未確認當前網站資料格式、線上影片能否播放、實機下載是否正常**。
+
+## 本次追加：青空次元 Sorani 109 公開 API 與登入權限
+
+- 源自 109 的 `/video`、`/video/search`、`/video/<id>`、`/video/episode/<id>/play`，以 110 `Host.Fetch` 執行，使用正規的 Provider Registry 註冊。
+- 目錄、分頁、分類、分集、劇集／集數 ID 均做限制；播放前會檢查指定劇集與集數是否吻合。
+- 播放僅使用原有 `sorani-session.json` 的合法 `accessToken`（透過 `Host.LoadState`）；不製造臨時登入、破解驗證或繞過 `canPlay=false` 的權限拒絕。缺少權限即回報登入或無權播放。
+- 本次未移植原版完整的登入 UI、驗證碼及更新 Token 介面；已有會話可能過期，必須另外驗證實際登入、播放和更新機制。
+- `native/sources_legacy109/provider_sorani_test.go` 使用模擬站源測試公開目錄、搜尋、詳細資料、分集與 `canPlay` 授權／跨劇集 ID 驗證。GitHub Actions `43522259053` 成功，但**沒有實際在線播放測試**。
