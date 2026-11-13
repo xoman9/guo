@@ -20,7 +20,10 @@
    - 相關檔案：`lib/ui/settings/storage_view.dart`、`android/app/src/main/kotlin/com/guoapp/MainActivity.kt`、`android/app/src/main/AndroidManifest.xml`、`native/core/app_storage.go`。
    - Android SAF 選擇樹 URI 時，必須與 Go 的實體檔案路徑需求相容；不能把 SAF URI 直接交給需絕對路徑的下載管理器。遵守平台允許的目錄與授權範圍。
    - 下載目錄名稱：以當次經確認的 guo2 行為為準，不增加非預期的 `guo/` 子資料夾；若上游目錄結構改變則必須先驗證。
-5. **合併功能：暫停修改**。不得移植 `lib/merge_queue.dart`、`lib/download_merge.dart`、`native/core/app_download_convert.go` 等合併或轉檔邏輯。只有使用者之後明確要求才修改。
+5. **合併功能（已重新列入）**：移植 guo2 已有的 Android 合併輸出位置與 SAF 授權：可選擇固定的合併輸出資料夾，必要時清除並恢復輸出到 Movies。選擇位置的紀錄由 `lib/merge_location.dart` 維護；`lib/merge_queue.dart` 在成功合併後使用設定的輸出路徑，沒有設定則維持原先 Android Movies 輸出。系統端對應 `MainActivity.kt` 的 `chooseMergeDirectory`、`createMergeDocument`、`copyFileToDocument`，設定頁 `storage_view.dart` 顯示與清除合併位置。
+   - 保留既有合併佇列、背景作業及媒體格式相容檢查，不將完整舊版檔案盲目覆蓋 110 的其他功能。
+   - 目前僅移植 **guo2 已有、可由程式核對的**合併設定與輸出位置；「合併後刪除已下載分集」和「單集可合併」如要升級為新行為，必須分開驗證安全性，不能由記錄宣稱已實作。
+   - 合併失敗、使用者取消、文件寫入失敗都不得刪除原始下載檔案；成功後的暫存檔須由現有流程清除。
 
 ## 驗證／交付
 
@@ -34,4 +37,4 @@
 
 - `guo/main` 已從 109 更新至當時最新 Release 110，並加入 13 個自訂 Provider；基準 commit 為 `ec6faf7f2e8adaba9cfc989cb34f8a6d701cf070`。
 - 13 個新增來源的 Go 註冊測試及 Flutter 檢查已於獨立分支通過。
-- UI／下載／授權／隱藏頻道等後續修改仍需以最新分支的測試結果為準，不得僅憑本文宣稱完成。
+- UI／下載／授權／隱藏頻道／合併輸出位置等後續修改仍需以最新分支的測試結果為準，不得僅憑本文宣稱完成。
