@@ -1,0 +1,56 @@
+name: Port only guo2 additional Providers to upstream 110
+on:
+  push:
+    branches: [feat/110-guo2-extra-providers-20261114]
+    paths:
+      - .github/workflows/port-110-extra-once.yml
+permissions:
+  contents: write
+jobs:
+  import-added-providers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - name: Import only previously added guo2 source implementations
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "71f706d0e27147ee076f56620ec2b461821f40b7"
+          git config user.name "guo extra-source migration"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --no-tags https://github.com/xoman9/guo2.git 4aa58c20020f13efcd3d2877a78d39bab2adb52c
+          git checkout FETCH_HEAD -- \
+            native/core/custom_compat_aliases.go \
+            native/core/custom_http_compat.go \
+            native/core/custom_lujj31_title.go \
+            native/core/custom_registry_sources.go \
+            native/core/provider_apk391_categories.go \
+            native/core/provider_apk391_chengguo.go \
+            native/core/provider_apk391_maccms.go \
+            native/core/provider_apk391_registry.go \
+            native/core/provider_liuguo.go \
+            native/core/provider_lujj31.go \
+            native/core/provider_lujj31_player.go \
+            native/core/provider_xiaoguo.go \
+            native/sources_custom/go.mod \
+            native/sources_custom/flavor_zhenguojian.go
+          git add native/core native/sources_custom
+          git commit -m "feat(sources): port only guo2 extra source providers onto upstream 110"
+          git push origin HEAD:refs/heads/feat/110-guo2-extra-providers-20261114
+      - name: Verify upstream 110 and added Go adapters
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test ./...
+          cd ..
+          python -c "import sys;sys.path.insert(0,'scripts');from app_build import link_sources;link_sources([__import__('pathlib').Path('native/sources_custom')])"
+          cd native
+          go test -tags=zhenguojian ./...
