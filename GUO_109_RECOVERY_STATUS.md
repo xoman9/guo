@@ -39,3 +39,13 @@
 - 播放僅使用原有 `sorani-session.json` 的合法 `accessToken`（透過 `Host.LoadState`）；不製造臨時登入、破解驗證或繞過 `canPlay=false` 的權限拒絕。缺少權限即回報登入或無權播放。
 - 本次未移植原版完整的登入 UI、驗證碼及更新 Token 介面；已有會話可能過期，必須另外驗證實際登入、播放和更新機制。
 - `native/sources_legacy109/provider_sorani_test.go` 使用模擬站源測試公開目錄、搜尋、詳細資料、分集與 `canPlay` 授權／跨劇集 ID 驗證。GitHub Actions `43522259053` 成功，但**沒有實際在線播放測試**。
+
+## 2026-11-14 續修紀錄：29 ID 重建狀態及驗收分級
+
+- 目前分支已新增剩餘 9 個 ID 的實驗性 Provider：`huangdou`、`yeguo`、`dsd`、`jinguoduanju`、`jinguo`、`beabox`、`cloudfront`、`huangguoai`、`huangguo-video`。加上原有 7 個與 custom 13 個，共有 **29 個靜態註冊 ID**。
+- 上方「13 + 7 = 20」表格是當時的歷史階段，**不是當前分支註冊數量**。實際清單以 `scripts/check_reconstructed_sources.py` 和 `native/sources_legacy109/flavor_zhenguojian.go` 為準。
+- 驗收必須分開標記：① registry 無重複及靜態檢查，② Go 編譯及夾具測試，③ 目前站點的真實目錄／詳情／播放解析，④ Android ARM64/v7a 實機測試，⑤ 固定憑證簽章驗證。未經 ③④ 的站源不得標記為可用。
+- `native/sources_missav/provider.go` 目前只辨識公開 HTML 中直接呈現的媒體 URL。動態腳本／封裝播放器未完整重建，播放能力未驗證；不應宣稱已等價恢復 110 原生 MissAV。
+- `.github/workflows/build-recovered-109-test-apks.yml` 現在會在 Provider、Bridge、Core、Flutter、Android 或建置腳本異動時觸發；其輸出仍明確為 **EXPERIMENTAL**，不得當成原廠 110 完整可用版 Release。
+- CI 組裝與簽章必須使用既有 Android keystore secrets，並核對原憑證 SHA-256；絕不以臨時 keystore 代替永久簽章。
+- 待驗項目：逐站登入與權限、分類與搜尋、封面及片名配對、詳情及分集、播放和返回、下載及合併、異常網路；尤其紅果 CENC/App、青空登入刷新與 MissAV 動態媒體仍有明確缺口。
