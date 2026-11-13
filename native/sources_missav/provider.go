@@ -3,7 +3,6 @@ package missavrecovery
 import (
     "context"
     "errors"
-    "fmt"
     "html"
     "net/url"
     "regexp"
@@ -25,7 +24,7 @@ var cardLinks = regexp.MustCompile(`(?is)<a\b[^>]*href=["'](?:https?://(?:www\.)
 var titleAttr = regexp.MustCompile(`(?is)\b(?:alt|title)=["']([^"']+)["']`)
 var imageURL = regexp.MustCompile(`(?is)<(?:img|source)\b[^>]*\b(?:data-src|data-original|src|srcset)=["']([^"']+)["']`)
 var ogImage = regexp.MustCompile(`(?is)<meta\b[^>]*\bproperty=["']og:image["'][^>]*\bcontent=["']([^"']+)["']`)
-var mediaURL = regexp.MustCompile(`(?i)https?:?\\?/\\?/[^"'< >\s\\]+?\.(?:m3u8|mp4)(?:\?[^"'<>\s\\]*)?`)
+var mediaURL = regexp.MustCompile(`(?i)https?://[^"\'<>\\\s]+?\.(?:m3u8|mp4)(?:\?[^"\'<>\\\s]*)?`)
 var nextPage = regexp.MustCompile(`(?is)(?:rel=["']next["']|aria-label=["']next["']|\bpage=\d+)`)
 
 var descriptor = core.SourceDescriptor{
@@ -133,20 +132,44 @@ func (p *provider) Detail(ctx context.Context,slug string)(core.Drama,[]core.Cha
         PageURL:baseURL+path,Referer:baseURL+path}
     return drama,[]core.Chapter{chapter},nil
 }
-func (p *provider) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
-    page:=task.Chapter.PageURL
-    if !strings.HasPrefix(page,baseURL+"/cn/") {
-        return core.ProviderMedia{},errors.New("invalid or missing page URL")
+// mediaPageForTask ensures a playlist entry cannot request another drama's page.
+func mediaPageForTask(task core.Task) (string, error) {
+    source, slug, ok := core.SplitProviderDramaID(task.DramaID)
+    if !ok || source != sourceID || !categorySlug.MatchString(slug) {
+        return "", errors.New("invalid MissAV drama ID")
     }
-    body,err:=p.fetch(ctx,strings.TrimPrefix(page,baseURL))
-    if err!=nil{return core.ProviderMedia{},err}
-    match:=mediaURL.FindString(body)
-    if match=="" {
-        return core.ProviderMedia{},fmt.Errorf("MissAV media URL not exposed directly; original 110 packed player routine has not been reconstructed")
+    if task.Chapter.ID != core.ProviderChapterID(sourceID, slug, "1") {
+        return "", errors.New("MissAV chapter does not match drama")
     }
-    match=strings.ReplaceAll(match,`\/`,`/`)
-    match=strings.ReplaceAll(match,`\\`,``)
-    parsed:=core.NormalizeProviderMediaURL(page,match)
-    if parsed=="" {return core.ProviderMedia{},errors.New("invalid media URL")}
-    return core.ProviderMedia{URL:parsed,Referer:page},nil
+    expected := baseURL + "/cn/" + url.PathEscape(slug)
+    if task.Chapter.PageURL != expected {
+        return "", errors.New("MissAV chapter page does not match drama")
+    }
+    return "/cn/" + url.PathEscape(slug), nil
+}
+
+// directMediaURL supports only publicly visible HTTP(S) media URLs.
+// The original 110 dynamic player has not been reconstructed.
+func directMediaURL(page, body string) (string, error) {
+    normalized := strings.ReplaceAll(body, `\/`, "/")
+    match := mediaURL.FindString(normalized)
+    if match == "" {
+        return "", errors.New("MissAV media URL not directly present; packed player unavailable")
+    }
+    parsed := core.NormalizeProviderMediaURL(page, match)
+    if !core.IsProviderHTTPMediaURL(parsed) {
+        return "", errors.New("invalid direct media URL")
+    }
+    return parsed, nil
+}
+
+func (p *provider) ResolveMedia(ctx context.Context, task core.Task) (core.ProviderMedia, error) {
+    path, err := mediaPageForTask(task)
+    if err != nil { return core.ProviderMedia{}, err }
+    page := baseURL + path
+    body, err := p.fetch(ctx, path)
+    if err != nil { return core.ProviderMedia{}, err }
+    media, err := directMediaURL(page, body)
+    if err != nil { return core.ProviderMedia{}, err }
+    return core.ProviderMedia{URL: media, Referer: page}, nil
 }
