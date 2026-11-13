@@ -12,8 +12,6 @@ import (
  "encoding/hex"
  "encoding/json"
  "errors"
- "fmt"
- "io"
  "net/http"
  "net/url"
  "regexp"
