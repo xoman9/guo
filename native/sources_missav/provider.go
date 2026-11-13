@@ -18,7 +18,48 @@ import (
 // independently of the 13 existing custom sources until verified.
 const sourceID = "missav"
 const baseURL = "https://missav.live"
-var categorySlug = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+var categorySlug = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}package missavrecovery
+
+import (
+    "context"
+    "errors"
+    "html"
+    "net/url"
+    "regexp"
+    "strconv"
+    "strings"
+
+    "duanjuapp/native/core"
+)
+
+// Experimental reconstruction from original 1.0.10+110 ARM64 binary.
+// The original private Go source is NOT included in the APK and cannot be
+// recovered by interpreting the function names alone. This module is built
+// independently of the 13 existing custom sources until verified.
+const sourceID = "missav"
+const baseURL = "https://missav.live"
+)
+var mediaSlug = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}package missavrecovery
+
+import (
+    "context"
+    "errors"
+    "html"
+    "net/url"
+    "regexp"
+    "strconv"
+    "strings"
+
+    "duanjuapp/native/core"
+)
+
+// Experimental reconstruction from original 1.0.10+110 ARM64 binary.
+// The original private Go source is NOT included in the APK and cannot be
+// recovered by interpreting the function names alone. This module is built
+// independently of the 13 existing custom sources until verified.
+const sourceID = "missav"
+const baseURL = "https://missav.live"
+)
 var categoryLinks = regexp.MustCompile(`(?is)<a\b[^>]*href=["'](?:https?://(?:www\.)?missav\.live)?/cn/genres/([a-z0-9_-]{1,64})/?["'][^>]*>(.*?)</a>`)
 var cardLinks = regexp.MustCompile(`(?is)<a\b[^>]*href=["'](?:https?://(?:www\.)?missav\.live)?/cn/([a-z0-9][a-z0-9_-]{2,127})/?["'][^>]*>(.*?)</a>`)
 var titleAttr = regexp.MustCompile(`(?is)\b(?:alt|title)=["']([^"']+)["']`)
@@ -114,7 +155,7 @@ func parseCards(raw string) []core.Drama {
     return rows
 }
 func (p *provider) Detail(ctx context.Context,slug string)(core.Drama,[]core.Chapter,error){
-    if !categorySlug.MatchString(slug) && !regexp.MustCompile(`^[a-zA-Z0-9_-]{1,128}$`).MatchString(slug){
+    if !mediaSlug.MatchString(slug){
         return core.Drama{},nil,errors.New("invalid media ID")
     }
     path:="/cn/"+url.PathEscape(slug)
@@ -135,7 +176,7 @@ func (p *provider) Detail(ctx context.Context,slug string)(core.Drama,[]core.Cha
 // mediaPageForTask ensures a playlist entry cannot request another drama's page.
 func mediaPageForTask(task core.Task) (string, error) {
     source, slug, ok := core.SplitProviderDramaID(task.DramaID)
-    if !ok || source != sourceID || !categorySlug.MatchString(slug) {
+    if !ok || source != sourceID || !mediaSlug.MatchString(slug) {
         return "", errors.New("invalid MissAV drama ID")
     }
     if task.Chapter.ID != core.ProviderChapterID(sourceID, slug, "1") {
