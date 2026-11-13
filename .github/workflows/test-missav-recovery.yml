@@ -22,16 +22,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gofmt -w native/sources_missav/*.go
+          gofmt -w native/sources_missav/*.go native/sources_legacy109/*.go
           python - <<'PY'
           from pathlib import Path
           import sys
           sys.path.insert(0,"scripts")
           from app_build import link_sources
-          link_sources([Path("native/sources_custom"),Path("native/sources_missav")])
+          link_sources([Path("native/sources_custom"),Path("native/sources_missav"),Path("native/sources_legacy109")])
           PY
           (cd native && go test -tags=zhenguojian ./bridge ./core)
-          (cd native && go test -tags=zhenguojian guoapp/missav-recovery)
+          (cd native && go test -tags=zhenguojian guoapp/missav-recovery guoapp/legacy109-recovery)
           grep -q '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
           grep -q '"guoapp/missav-recovery"' native/bridge/sources_gen.go
-          echo "Go adapter compiled and pure HTML fixture tests passed. No live MissAV source playback/online verification." >> "$GITHUB_STEP_SUMMARY"
+          grep -q '"guoapp/legacy109-recovery"' native/bridge/sources_gen.go
+          echo "Go adapter compiled and pure HTML fixture tests passed. 109 Hanxiaoquan/Guipian adapters compile with MissAV. No live source playback/online verification." >> "$GITHUB_STEP_SUMMARY"
