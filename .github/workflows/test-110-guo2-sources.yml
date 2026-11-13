@@ -1,0 +1,68 @@
+name: Verify guo 110 with only guo2 extra Provider adapters
+on:
+  push:
+    branches: [feat/110-guo2-extra-providers-20261114]
+    paths:
+      - .github/workflows/test-110-guo2-sources.yml
+      - native/core/**
+      - native/sources_custom/**
+      - scripts/app_build.py
+permissions:
+  contents: read
+jobs:
+  test-sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - name: Ensure only 13 extra sites and no original 110 parser files changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import pathlib, subprocess, re
+          base = '71f706d0e27147ee076f56620ec2b461821f40b7'
+          names = subprocess.check_output(['git', 'diff', '--name-only', base, 'HEAD'], text=True).splitlines()
+          allowed = [
+              name for name in names
+              if name.startswith('native/core/custom_')
+              or name.startswith('native/core/provider_apk391_')
+              or name in ('native/core/provider_liuguo.go','native/core/provider_lujj31.go',
+                          'native/core/provider_lujj31_player.go','native/core/provider_xiaoguo.go',
+                          'scripts/app_build.py')
+              or name.startswith('native/sources_custom/')
+              or name.startswith('.github/workflows/')
+          ]
+          if set(names) != set(allowed):
+              raise SystemExit('Unexpected original 110 file modified: ' + str(set(names)-set(allowed)))
+          r = pathlib.Path('native/core/provider_apk391_registry.go').read_text()
+          extra = re.findall(r'\{"([a-z0-9-]+)",', r)
+          if len(extra)!=10: raise SystemExit(f'Expected prior guo2 registered 10 APK391 extra channels, got {len(extra)}')
+          print('Original upstream 110 source preserved; prior 10 + 3 adapters selected.')
+          PY
+      - name: Test standard Go and real guo2 Provider instances
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd native && go test ./...)
+          python -c "import sys;sys.path.insert(0,'scripts');from app_build import link_sources;link_sources(None)"
+          grep -q 'duanjuapp/native/sources_custom' native/bridge/sources_gen.go
+          ! grep -q 'sources_example' native/bridge/sources_gen.go
+          (cd native && go test -tags=zhenguojian ./...)
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - name: Check original Flutter app still analyzes and tests
+        run: |
+          flutter pub get --enforce-lockfile
+          dart analyze --fatal-infos lib test
+          flutter test --dart-define=DISABLE_REMOTE_IMAGES=true --dart-define=ALL_SOURCES=true
