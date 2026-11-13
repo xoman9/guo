@@ -4,6 +4,7 @@ from pathlib import Path
 
 NATIVE_ROOT = Path(__file__).resolve().parents[1] / 'native'
 EXAMPLE_SOURCES = NATIVE_ROOT / 'sources_example'
+GUO2_ADDED_SOURCES = NATIVE_ROOT / 'sources_custom'
 ENVIRONMENT_DEFINES = ['PROJECT_URL', 'TELEGRAM_GROUP_URL', 'TELEGRAM_CHANNEL_URL',
                        'ZHENGUOJIAN_DISPLAY_NAME', 'ZHENGUOJIAN_LATIN_NAME']
 
@@ -82,8 +83,13 @@ def link_sources(paths):
     if not paths and workspace.is_file() and anchor.is_file():
         return
     if not paths:
-        print('尚未接入站源仓库，改用只有假数据的示例站源；接入真实站源请加 --sources <站源仓库路径>。', flush=True)
-        paths = [EXAMPLE_SOURCES]
+        # In guo, use the additional real guo2 providers instead of the
+        # upstream demonstration-only source module. Explicit --sources wins.
+        if GUO2_ADDED_SOURCES.is_dir():
+            paths = [GUO2_ADDED_SOURCES]
+        else:
+            print('尚未接入站源仓库，改用只有假数据的示例站源；接入真实站源请加 --sources <站源仓库路径>。', flush=True)
+            paths = [EXAMPLE_SOURCES]
     directories = [path.expanduser().resolve() for path in paths]
     modules = [source_module(directory) for directory in directories]
     uses = ''.join(f'\t{directory.as_posix()}\n' for directory in directories)
