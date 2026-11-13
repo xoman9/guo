@@ -33,6 +33,14 @@
 - Android：依需求建置 ARM64／v7a 並核對包名／簽章。未經驗證不可宣稱 APK 可覆蓋安裝；未要求時不發布 GitHub Release。
 - 如果功能移植或測試失敗，列出未完成項目與錯誤，勿自行減少來源或更動合併功能。
 
+## APK 測試建置（ARM64 + ARMv7）
+
+- `.github/workflows/build-guo-test-apks.yml` 為可重複執行的 GitHub Actions 建置流程，使用 `scripts/build_android.py --all-sources --abi arm64-v8a --abi armeabi-v7a`，包含真實 `native/sources_custom` 站源及 Go 核心，並檢查兩個 APK 的套件名稱、簽章和 native libraries。
+- 本次共存版套件名稱採 `com.duanju.coexist`，顯示名稱 `小果影視-共存版`；升級至最新 Release 後，先確認包名和對應的版號設定是否仍正確。
+- **工作流程預設沒有永久簽章私鑰**。產物為測試簽章，不能保證覆蓋安裝已存在的固定簽章版本。正式發佈前須用同一組原始永久簽章，在安全的金鑰管理環境中重新建置與驗證。
+- 只上傳 GitHub Actions 的測試 artifact（保留 7 天），不自動建立 GitHub Release；必須完整驗證通過才提供測試 APK 的產物連結。
+- `latest` 指的是每次**起始來源**，不是自動修改現有裝置，也不是保證每一次 upstream Release 都保有相同程式結構；不相容時逐項修正並記錄失敗。
+
 ## 本次進度
 
 - `guo/main` 已從 109 更新至當時最新 Release 110，並加入 13 個自訂 Provider；基準 commit 為 `ec6faf7f2e8adaba9cfc989cb34f8a6d701cf070`。
