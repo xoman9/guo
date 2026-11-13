@@ -41,13 +41,11 @@ jobs:
         with:
           packages: 'platforms;android-36'
           accept-android-sdk-licenses: true
-      - name: Compile Android Kotlin code (no APK publishing)
+      - name: Build Android ARM64 debug APK to verify Kotlin and Flutter (no publishing)
         shell: bash
         run: |
           set -euo pipefail
-          cd android
-          chmod +x ./gradlew
-          ./gradlew :app:compileDebugKotlin --stacktrace --no-daemon
+          flutter build apk --debug --target-platform android-arm64 --no-pub
       - name: Confirm repeatable latest Release policy and merge support
         shell: bash
         run: |
