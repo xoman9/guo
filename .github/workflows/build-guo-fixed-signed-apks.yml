@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/build-guo-fixed-signed-apks.yml
+      - lib/ui/terms_page.dart
   workflow_dispatch:
 permissions:
   contents: read
@@ -81,6 +82,17 @@ jobs:
           fi
           rm -f "$RUNNER_TEMP/guo-cert-summary.txt"
           echo "Original permanent JKS certificate fingerprint preflight matched."
+      - name: Verify terms checkbox, Dart analysis and Flutter tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(grep -c 'CheckboxListTile(' lib/ui/terms_page.dart)" -eq 1
+          grep -q "onPressed: _agreed && !_busy ? _accept : null" lib/ui/terms_page.dart
+          ! grep -q "_typed" lib/ui/terms_page.dart
+          flutter pub get --enforce-lockfile
+          dart format --output=none --set-exit-if-changed lib/ui/terms_page.dart
+          dart analyze --fatal-infos lib test
+          flutter test --dart-define=DISABLE_REMOTE_IMAGES=true --dart-define=ALL_SOURCES=true
       - name: Build signed ARM64 and ARMv7 APK using original permanent key
         shell: bash
         env:
