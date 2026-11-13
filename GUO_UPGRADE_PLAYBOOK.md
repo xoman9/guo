@@ -64,6 +64,16 @@
 - 過去 guo 歷史固定簽章版曾使用 `com.duanju.duanju_app.coexist`，和目前 `com.duanju.coexist` **套件 ID 不相同**；即使憑證相同也不能互相覆蓋安裝。之後如需覆蓋，必須比對實機既有 APK 的套件 ID 與憑證，不能只核對 SHA-256 簽章。
 - JKS 內容與密碼不得列印到 Actions 日誌或提交到 GitHub 原始碼；只顯示公開憑證指紋。
 
+## 110 原生頻道遺失：根因與阻擋規則（2026-11-14）
+
+**已確認根因**：上游 1.0.10+110 公開儲存庫只有共用 Core 和示例站源；正式原生站源放在獨立的私有 Go 模組 `guoapp/sources`。2026-11-14 先前生成的 ARM64／v7a 固定簽章 APK（包括 Actions `43507510812`、`43511171430`）雖然程式及簽章驗證通過，**只內建了 `native/sources_custom` 的新增站源，未包含 110 全部原生頻道**，因此不得標示為完整／推薦更新版本。
+
+- 官方原生站源的存取檢查：`43515278760`，`SOURCES_DEPLOY_KEY` 未設定，無法在 `xoman9/guo` 取回私有模組。
+- 從 `guo2/custom` 回填較舊原生 Provider 的診斷：`43514969656`，與 110 的 Core 出現重複宣告，未通過 Go 編譯；只放在獨立診斷分支，**未整合進 main**，不得假裝已恢復 110 原版站源。
+- `scripts/app_build.py`：若可合法取得 `guoapp-sources` 模組，依序載入 `guoapp/sources` 與 `native/sources_custom`；`GUO_REQUIRE_OFFICIAL_SOURCES=1` 時缺少任一模組就失敗。沒有官方模組的普通開發建置會明確警告僅含新增 13 站源。
+- 正式固定簽章建置 `.github/workflows/build-guo-fixed-signed-apks.yml` 只接受受權的 `SOURCES_DEPLOY_KEY` 從 `Xanerix/guoapp-sources` 取得模組，並以 `--sources guoapp-sources --sources native/sources_custom` 一次載入；無權限不發布缺頻道的 APK。
+- **待完成**：取得上游原生站源的合法原始碼／存取權限、通過雙模組 Go＋Flutter＋雙架構 APK 驗證、核對來源清單與實機下載播放後，才可重新發布完整修正版。簽章不變，保留現有客製設定。
+
 ## 本次進度
 
 - `guo/main` 已從 109 更新至當時最新 Release 110，並加入 13 個自訂 Provider；基準 commit 為 `ec6faf7f2e8adaba9cfc989cb34f8a6d701cf070`。
