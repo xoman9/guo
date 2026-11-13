@@ -67,74 +67,74 @@ class _TermsPageState extends State<TermsPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 16,
-                  children: [
-                    Semantics(
-                      header: true,
-                      child: Text(
-                        '$appName 使用条款',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                        ),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 16,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      '$appName 使用条款',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    for (final (index, clause) in _clauses.indexed)
-                      FocusRing(
-                        radius: 8,
-                        scale: 1,
-                        child: Focus(
-                          canRequestFocus: television,
-                          autofocus: television && index == 0,
-                          child: Text.rich(
-                            TextSpan(
-                              text: '${index + 1}. ',
-                              children: [
-                                for (final (part, text)
-                                    in clause.split('**').indexed)
-                                  TextSpan(
-                                    text: text,
-                                    style: part.isOdd ? emphasis : null,
-                                  ),
-                              ],
-                            ),
-                            style: body,
-                          ),
-                        ),
-                      ),
-                    Text(
-                      '請在下方勾選「我已同意」，再點擊「同意並繼續」。',
-                      style: body?.copyWith(fontWeight: FontWeight.w600),
-                    ),
+                  ),
+                  for (final (index, clause) in _clauses.indexed)
                     FocusRing(
-                      radius: 12,
-                      child: CheckboxListTile(
-                        key: const ValueKey('terms-agree-checkbox'),
-                        value: _agreed,
-                        onChanged: _busy
-                            ? null
-                            : (value) => setState(() => _agreed = value ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                        title: const Text('我已同意'),
-                      ),
-                    ),
-                    FocusRing(
-                      radius: 24,
-                      child: FilledButton(
-                        style: const ButtonStyle(
-                          minimumSize: WidgetStatePropertyAll(
-                            Size.fromHeight(48),
+                      radius: 8,
+                      scale: 1,
+                      child: Focus(
+                        canRequestFocus: television,
+                        autofocus: television && index == 0,
+                        child: Text.rich(
+                          TextSpan(
+                            text: '${index + 1}. ',
+                            children: [
+                              for (final (part, text)
+                                  in clause.split('**').indexed)
+                                TextSpan(
+                                  text: text,
+                                  style: part.isOdd ? emphasis : null,
+                                ),
+                            ],
                           ),
+                          style: body,
                         ),
-                        onPressed: _agreed && !_busy ? _accept : null,
-                        child: const Text('同意並繼續'),
                       ),
                     ),
-                  ],
-                ),
+                  Text(
+                    '請在下方勾選「我已同意」，再點擊「同意並繼續」。',
+                    style: body?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  FocusRing(
+                    radius: 12,
+                    child: CheckboxListTile(
+                      key: const ValueKey('terms-agree-checkbox'),
+                      value: _agreed,
+                      onChanged: _busy
+                          ? null
+                          : (value) => setState(() => _agreed = value ?? false),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      title: const Text('我已同意'),
+                    ),
+                  ),
+                  FocusRing(
+                    radius: 24,
+                    child: FilledButton(
+                      style: const ButtonStyle(
+                        minimumSize: WidgetStatePropertyAll(
+                          Size.fromHeight(48),
+                        ),
+                      ),
+                      onPressed: _agreed && !_busy ? _accept : null,
+                      child: const Text('同意並繼續'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
