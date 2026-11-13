@@ -1,0 +1,41 @@
+name: Check authorized upstream original 110 source-module availability
+on:
+  push:
+    branches: [diagnostic/restore-110-official-providers-20261114]
+    paths: [.github/workflows/check-original-source-module-access.yml]
+permissions:
+  contents: read
+jobs:
+  check-original:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Check for source deploy-key configuration without exposing key
+        id: access
+        env:
+          SOURCE_DEPLOY_KEY: ${{ secrets.SOURCES_DEPLOY_KEY }}
+        shell: bash
+        run: |
+          if [ -n "$SOURCE_DEPLOY_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Source deploy key is configured." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No authorized SOURCES_DEPLOY_KEY configured for this guo repository." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Check out the official upstream sources if authorized
+        if: steps.access.outputs.available == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: Xanerix/guoapp-sources
+          ssh-key: ${{ secrets.SOURCES_DEPLOY_KEY }}
+          path: guoapp-sources
+          persist-credentials: false
+      - name: Verify real original source module
+        if: steps.access.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f guoapp-sources/go.mod
+          grep -q '^module ' guoapp-sources/go.mod
+          echo "Official original source module retrieved with authorization." >> "$GITHUB_STEP_SUMMARY"
