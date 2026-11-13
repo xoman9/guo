@@ -26,7 +26,6 @@ var htTitle = regexp.MustCompile(`(?is)\btitle=["']([^"']+)["']`)
 var htImage = regexp.MustCompile(`(?is)<img\b[^>]*\b(?:data-original|data-src|src)=["']([^"']+)["']`)
 var htDetail = regexp.MustCompile(`(?i)/index\.php/vod/detail/id/(\d+)\.html`)
 var htEpisodes = regexp.MustCompile(`(?is)<a\b[^>]*href=["']([^"']*/index\.php/vod/play/id/(\d+)/sid/(\d+)/nid/(\d+)\.html)["'][^>]*>(.*?)</a>`)
-var htPlayers = regexp.MustCompile(`(?is)player_aaaa\s*=\s*(\{.*?\})\s*;`)
 var htNextPage = regexp.MustCompile(`(?i)/index\.php/vod/(?:show|search)/[^"'<>]*?/page/(\d+)\.html`)
 var htHeading = regexp.MustCompile(`(?is)<h1\b[^>]*>(.*?)</h1>`)
 
@@ -174,6 +173,41 @@ func heitaoParseEpisodes(body,id string)[]core.Chapter{
  core.SortProviderChapters(chapters)
  return chapters
 }
+// heitaoReadPlayerConfig109 preserves the 109 implementation's balanced
+// brace scanning instead of a regex that truncates nested player JSON.
+func heitaoReadPlayerConfig109(body string)(struct{URL string \`json:"url"\`; Encrypt any \`json:"encrypt"\`},error){
+ var entry struct{URL string \`json:"url"\`;Encrypt any \`json:"encrypt"\`}
+ marker:=strings.Index(body,"player_aaaa")
+ if marker<0{return entry,errors.New("heitao player settings unavailable")}
+ text:=body[marker:]
+ start:=strings.Index(text,"{")
+ if start<0{return entry,errors.New("heitao player settings invalid")}
+ depth:=0
+ quote:=byte(0)
+ escaped:=false
+ end:=-1
+ for i:=start;i<len(text);i++{
+  b:=text[i]
+  if quote!=0{
+   if escaped{escaped=false;continue}
+   if b=='\\'{escaped=true;continue}
+   if b==quote{quote=0}
+   continue
+  }
+  switch b{
+   case '"','\'':quote=b
+   case '{':depth++
+   case '}':
+    depth--
+    if depth==0{end=i;i=len(text)}
+  }
+ }
+ if end<start{return entry,errors.New("heitao player JSON incomplete")}
+ if err:=json.Unmarshal([]byte(text[start:end+1]),&entry);err!=nil{return entry,err}
+ if strings.TrimSpace(entry.URL)==""{return entry,errors.New("heitao returned empty player")}
+ return entry,nil
+}
+
 func (p *heitaoProvider) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
  page:=task.Chapter.PageURL
  if !strings.HasPrefix(page,htBase+"/index.php/vod/player/id/") {
@@ -181,13 +215,8 @@ func (p *heitaoProvider) ResolveMedia(ctx context.Context,task core.Task)(core.P
  }
  body,err:=p.get(ctx,strings.TrimPrefix(page,htBase))
  if err!=nil{return core.ProviderMedia{},err}
- m:=htPlayers.FindStringSubmatch(body)
- if len(m)<2{return core.ProviderMedia{},errors.New("heitao player config not found")}
- var entry struct{
-  URL string `json:"url"`
-  Encrypt any `json:"encrypt"`
- }
- if err:=json.Unmarshal([]byte(m[1]),&entry);err!=nil{return core.ProviderMedia{},err}
+ entry,err:=heitaoReadPlayerConfig109(body)
+ if err!=nil{return core.ProviderMedia{},err}
  mode:=fmt.Sprint(entry.Encrypt)
  address:=strings.TrimSpace(entry.URL)
  switch mode {
