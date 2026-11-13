@@ -107,7 +107,7 @@ func (p *jinguo109) tokenFor(ctx context.Context)(string,error){
  },"")
  if err!=nil{return "",err}
  token:=hjString(hjMap(data)["token"])
- if token==""||len(token)>8192||strings.ContainsAny(token,"\\r\\n\\t "){return "",errors.New("no authorized guest token")}
+ if token==""||len(token)>8192||strings.ContainsAny(token,"\r\n\t "){return "",errors.New("no authorized guest token")}
  p.mu.Lock();p.token=token;p.mu.Unlock()
  saved,_:=json.Marshal(map[string]any{"version":1,"deviceId":device,"token":token})
  _=p.host.SaveState("jinguo-session.json",saved)
