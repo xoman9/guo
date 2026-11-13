@@ -30,10 +30,68 @@ class StorageView extends StatefulWidget {
   State<StorageView> createState() => _StorageViewState();
 }
 
-class _StorageViewState extends State<StorageView> {
+class _StorageViewState extends State<StorageView> with WidgetsBindingObserver {
   Map<String, dynamic>? _info;
   String? _error;
   bool _loaded = false;
+  bool? _fileAccessGranted;
+  bool _requestingFileAccess = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkFileAccess();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkFileAccess();
+      _refresh();
+    }
+  }
+
+  Future<void> _checkFileAccess() async {
+    if (!Platform.isAndroid) return;
+    try {
+      const channel = MethodChannel('duanju/device');
+      final granted = await channel.invokeMethod<bool>('sharedStorageAccess') ?? false;
+      if (mounted) setState(() => _fileAccessGranted = granted);
+    } catch (error) {
+      if (mounted) setState(() => _error = '無法檢查存取授權：$error');
+    }
+  }
+
+  Future<void> _manageFileAccess() async {
+    if (!Platform.isAndroid || _requestingFileAccess) return;
+    setState(() => _requestingFileAccess = true);
+    try {
+      const channel = MethodChannel('duanju/device');
+      final granted = await channel.invokeMethod<bool>('sharedStorageAccess') ?? false;
+      if (mounted) setState(() => _fileAccessGranted = granted);
+      if (granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('已取得檔案存取授權')),
+          );
+        }
+      } else {
+        await channel.invokeMethod<bool>('requestSharedStorageAccess');
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = '無法開啟存取授權：$error');
+    } finally {
+      if (mounted) setState(() => _requestingFileAccess = false);
+    }
+  }
+
 
   @override
   void didChangeDependencies() {
@@ -84,9 +142,27 @@ class _StorageViewState extends State<StorageView> {
   }
 
   Future<void> _move() async {
-    final parent = await _pickParent();
-    if (parent == null || !mounted) return;
-    await _migrate(parent, parent);
+    try {
+      String? parent;
+      if (Platform.isAndroid) {
+        const channel = MethodChannel('duanju/device');
+        final granted = await channel.invokeMethod<bool>('sharedStorageAccess') ?? false;
+        if (!granted) {
+          await _manageFileAccess();
+          if (mounted) {
+            setState(() => _error = '請先授權檔案存取，返回後重新選擇下載目錄。');
+          }
+          return;
+        }
+        parent = await channel.invokeMethod<String>('chooseDownloadDirectory');
+      } else {
+        parent = await _pickParent();
+      }
+      if (parent == null || !mounted) return;
+      await _migrate(parent, parent);
+    } catch (error) {
+      if (mounted) setState(() => _error = '選擇下載目錄失敗：$error');
+    }
   }
 
   Future<void> _restore() => _migrate('', '应用默认目录');
@@ -232,6 +308,19 @@ class _StorageViewState extends State<StorageView> {
                   icon: const Icon(Icons.copy_rounded),
                 ),
               ),
+            ),
+            const Divider(indent: 16, endIndent: 16),
+            SettingsTile(
+              title: '存取授權',
+              subtitle: !Platform.isAndroid
+                  ? '此平台不需要 Android 檔案存取授權'
+                  : _fileAccessGranted == true
+                  ? '已授權存取共享儲存空間'
+                  : _fileAccessGranted == false
+                  ? '尚未授權，點擊前往系統設定'
+                  : '正在檢查授權狀態',
+              enabled: Platform.isAndroid && !_requestingFileAccess,
+              onTap: _manageFileAccess,
             ),
             const Divider(indent: 16, endIndent: 16),
             SettingsTile(
