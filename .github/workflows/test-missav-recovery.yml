@@ -2,7 +2,7 @@ name: Verify experimental MissAV reconstruction against upstream 110
 on:
   push:
     branches: [feat/recover-109-missav-20261114]
-    paths: [.github/workflows/test-missav-recovery.yml, native/sources_missav/**, native/sources_legacy109/**]
+    paths: [.github/workflows/test-missav-recovery.yml, native/sources_missav/**, native/sources_legacy109/**, scripts/check_reconstructed_sources.py]
 permissions:
   contents: read
 jobs:
@@ -22,6 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python scripts/check_reconstructed_sources.py
           gofmt -w native/sources_missav/*.go native/sources_legacy109/*.go
           python - <<'PY'
           from pathlib import Path
