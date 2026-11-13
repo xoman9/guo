@@ -1,0 +1,46 @@
+name: Diagnose restoring original channels from earlier guo2 source code
+on:
+  push:
+    branches: [diagnostic/restore-110-official-providers-20261114]
+    paths: [.github/workflows/check-legacy-source-compat.yml]
+permissions:
+  contents: write
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - name: Import ONLY previously removed original-provider source files for compatibility diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "guo original-provider recovery test"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --no-tags https://github.com/xoman9/guo2.git refs/heads/custom
+          git ls-tree -r --name-only FETCH_HEAD native/core | grep -E '^native/core/.*\.go$' | grep -v '_test\.go$' > "$RUNNER_TEMP/old-core-files.txt"
+          count=0
+          while IFS= read -r file; do
+            if [ ! -e "$file" ]; then
+              git checkout FETCH_HEAD -- "$file"
+              count=$((count+1))
+            fi
+          done < "$RUNNER_TEMP/old-core-files.txt"
+          echo "Recovered old source files: $count" >> "$GITHUB_STEP_SUMMARY"
+          git add native/core/
+          if ! git diff --cached --quiet; then
+            git commit -m "diagnostic: restore old original provider files to evaluate upstream 110 compatibility"
+            git push origin HEAD:refs/heads/diagnostic/restore-110-official-providers-20261114
+          fi
+      - name: Compile restored original-source adapters with upstream 110 (diagnostic)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd native
+          go test ./core ./bridge
