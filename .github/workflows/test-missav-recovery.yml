@@ -2,7 +2,7 @@ name: Verify experimental MissAV reconstruction against upstream 110
 on:
   push:
     branches: [feat/recover-109-missav-20261114]
-    paths: [.github/workflows/test-missav-recovery.yml, native/sources_missav/**]
+    paths: [.github/workflows/test-missav-recovery.yml, native/sources_missav/**, native/sources_legacy109/**]
 permissions:
   contents: read
 jobs:
@@ -35,4 +35,4 @@ jobs:
           grep -q '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
           grep -q '"guoapp/missav-recovery"' native/bridge/sources_gen.go
           grep -q '"guoapp/legacy109-recovery"' native/bridge/sources_gen.go
-          echo "Go adapter compiled and pure HTML fixture tests passed. 109 Hanxiaoquan/Guipian adapters compile with MissAV. No live source playback/online verification." >> "$GITHUB_STEP_SUMMARY"
+          echo "Go adapter compiled and pure HTML fixture tests passed. 109 Hanxiaoquan/Guipian/Heitao adapters compile with MissAV. No live source playback/online verification." >> "$GITHUB_STEP_SUMMARY"
