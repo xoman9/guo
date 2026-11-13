@@ -53,6 +53,7 @@ import kotlin.math.roundToInt
 private const val SURFACE_RESIZE_REDRAW_WAIT_MS = 100L
 private const val ORIENTATION_SETTLE_MS = 800L
 private const val CREATE_DOCUMENT_REQUEST = 7301
+private const val DOWNLOAD_DIRECTORY_REQUEST = 7304
 private const val STORAGE_PERMISSION_REQUEST = 7302
 private const val PICTURE_IN_PICTURE_ACTION = "com.guoapp.PICTURE_IN_PICTURE_ACTION"
 
@@ -72,6 +73,7 @@ class MainActivity : FlutterActivity() {
     private var pictureInPicture: PlayerPictureInPicture? = null
     private var pictureInPictureReceiver: BroadcastReceiver? = null
     private var documentResult: MethodChannel.Result? = null
+    private var downloadDirectoryResult: MethodChannel.Result? = null
     private var permissionResult: MethodChannel.Result? = null
     private var textInput: TextInputBridge? = null
     private var headroomReadAt = 0L
@@ -498,6 +500,68 @@ class MainActivity : FlutterActivity() {
                                 DocumentsContract.deleteDocument(contentResolver, Uri.parse(uri))
                             }.getOrDefault(false))
                         }
+                        "sharedStorageAccess", "hasDownloadFileAccess" -> {
+                            result.success(
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                    Environment.isExternalStorageManager()
+                                } else {
+                                    checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+                                        PackageManager.PERMISSION_GRANTED
+                                }
+                            )
+                        }
+                        "requestSharedStorageAccess", "requestDownloadFileAccess" -> {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                if (Environment.isExternalStorageManager()) {
+                                    result.success(true)
+                                } else {
+                                    try {
+                                        startActivity(Intent(
+                                            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                            Uri.parse("package:$packageName")
+                                        ))
+                                        result.success(false)
+                                    } catch (_: Exception) {
+                                        try {
+                                            startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                                            result.success(false)
+                                        } catch (_: Exception) {
+                                            result.error("storage_settings", "無法開啟檔案授權設定", null)
+                                        }
+                                    }
+                                }
+                            } else {
+                                val allowed = checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+                                    PackageManager.PERMISSION_GRANTED
+                                if (!allowed) {
+                                    requestPermissions(
+                                        arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                                        STORAGE_PERMISSION_REQUEST
+                                    )
+                                }
+                                result.success(allowed)
+                            }
+                        }
+                        "chooseDownloadDirectory" -> {
+                            if (downloadDirectoryResult != null) {
+                                result.error("picker_busy", "已有下載資料夾選擇器開啟", null)
+                            } else {
+                                try {
+                                    downloadDirectoryResult = result
+                                    startActivityForResult(
+                                        Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                                                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                                        },
+                                        DOWNLOAD_DIRECTORY_REQUEST
+                                    )
+                                } catch (_: Exception) {
+                                    downloadDirectoryResult = null
+                                    result.error("folder_picker", "無法開啟系統資料夾選擇器", null)
+                                }
+                            }
+                        }
                         "requestVideoExport" -> {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ||
                                 checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
@@ -685,6 +749,42 @@ class MainActivity : FlutterActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == DOWNLOAD_DIRECTORY_REQUEST) {
+            val pending = downloadDirectoryResult
+            downloadDirectoryResult = null
+            if (pending == null) return
+            val uri = if (resultCode == RESULT_OK) data?.data else null
+            if (uri == null) {
+                pending.success(null)
+                return
+            }
+            try {
+                if (uri.authority != "com.android.externalstorage.documents") {
+                    pending.error("unsupported_volume", "目前僅支援內部共享儲存空間", null)
+                    return
+                }
+                val id = DocumentsContract.getTreeDocumentId(uri)
+                if (!id.startsWith("primary:")) {
+                    pending.error("unsupported_volume", "目前不支援外接 SD 卡", null)
+                    return
+                }
+                val root = Environment.getExternalStorageDirectory().canonicalFile
+                val relative = id.removePrefix("primary:")
+                val folder = File(root, relative).canonicalFile
+                if (folder == root || !folder.path.startsWith(root.path + File.separator) ||
+                    !folder.isDirectory) {
+                    pending.error("invalid_directory", "請選擇內部儲存空間中的有效子資料夾", null)
+                    return
+                }
+                contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                pending.success(folder.absolutePath)
+            } catch (_: Exception) {
+                pending.error("folder_picker", "無法讀取所選資料夾", null)
+            }
+            return
+        }
         if (requestCode != CREATE_DOCUMENT_REQUEST) {
             return super.onActivityResult(requestCode, resultCode, data)
         }
