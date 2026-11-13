@@ -175,8 +175,8 @@ func heitaoParseEpisodes(body,id string)[]core.Chapter{
 }
 // heitaoReadPlayerConfig109 preserves the 109 implementation's balanced
 // brace scanning instead of a regex that truncates nested player JSON.
-func heitaoReadPlayerConfig109(body string)(struct{URL string \`json:"url"\`; Encrypt any \`json:"encrypt"\`},error){
- var entry struct{URL string \`json:"url"\`;Encrypt any \`json:"encrypt"\`}
+func heitaoReadPlayerConfig109(body string)(struct{URL string `json:"url"`; Encrypt any `json:"encrypt"`},error){
+ var entry struct{URL string `json:"url"`;Encrypt any `json:"encrypt"`}
  marker:=strings.Index(body,"player_aaaa")
  if marker<0{return entry,errors.New("heitao player settings unavailable")}
  text:=body[marker:]
