@@ -1,0 +1,37 @@
+name: Verify experimental MissAV reconstruction against upstream 110
+on:
+  push:
+    branches: [feat/recover-109-missav-20261114]
+    paths: [.github/workflows/test-missav-recovery.yml, native/sources_missav/**]
+permissions:
+  contents: read
+jobs:
+  go-providers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: 
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - name: Compile the new MissAV adapter and all existing added providers without original private sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          gofmt -w native/sources_missav/*.go
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0,"scripts")
+          from app_build import link_sources
+          link_sources([Path("native/sources_custom"),Path("native/sources_missav")])
+          PY
+          (cd native && go test -tags=zhenguojian ./bridge ./core)
+          (cd native && go test -tags=zhenguojian guoapp/missav-recovery)
+          grep -q '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
+          grep -q '"guoapp/missav-recovery"' native/bridge/sources_gen.go
+          echo "Go adapter compiled and pure HTML fixture tests passed. No live MissAV source playback/online verification." >> "$GITHUB_STEP_SUMMARY"
