@@ -1,6 +1,6 @@
 package missavrecovery
 
-import ("testing"; "duanjuapp/native/core")
+import ("strings"; "testing"; "duanjuapp/native/core")
 
 func TestCategoryValidation(t *testing.T) {
  for _,x:=range []string{"","new","romance","ai-genre"} {
@@ -35,6 +35,21 @@ func TestMissAVMediaPageMatchesDramaAndChapter(t *testing.T) {
     other = task
     other.Chapter.ID = core.ProviderChapterID(sourceID, "another", "1")
     if _, err := mediaPageForTask(other); err == nil { t.Fatal("mismatched chapter accepted") }
+    longest := "a" + strings.Repeat("b", 127)
+    longTask := core.Task{
+        DramaID: core.ProviderDramaID(sourceID, longest),
+        Chapter: core.Chapter{
+            ID: core.ProviderChapterID(sourceID, longest, "1"),
+            PageURL: baseURL + "/cn/" + longest,
+        },
+    }
+    if _, err := mediaPageForTask(longTask); err != nil {
+        t.Fatalf("valid 128-character media ID rejected: %v", err)
+    }
+    longTask.Chapter.PageURL = baseURL + "/cn/" + longest + "x"
+    if _, err := mediaPageForTask(longTask); err == nil {
+        t.Fatal("mismatched overlong page accepted")
+    }
     other = task
     other.DramaID = core.ProviderDramaID("other", drama)
     if _, err := mediaPageForTask(other); err == nil { t.Fatal("wrong source accepted") }
