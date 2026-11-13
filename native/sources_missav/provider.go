@@ -12,60 +12,18 @@ import (
     "duanjuapp/native/core"
 )
 
-// Experimental reconstruction from original 1.0.10+110 ARM64 binary.
-// The original private Go source is NOT included in the APK and cannot be
-// recovered by interpreting the function names alone. This module is built
-// independently of the 13 existing custom sources until verified.
+// Experimental reconstruction from the original 1.0.10+110 ARM64 binary.
+// This does not reproduce the original dynamic playback implementation.
 const sourceID = "missav"
 const baseURL = "https://missav.live"
-var categorySlug = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}package missavrecovery
-
-import (
-    "context"
-    "errors"
-    "html"
-    "net/url"
-    "regexp"
-    "strconv"
-    "strings"
-
-    "duanjuapp/native/core"
-)
-
-// Experimental reconstruction from original 1.0.10+110 ARM64 binary.
-// The original private Go source is NOT included in the APK and cannot be
-// recovered by interpreting the function names alone. This module is built
-// independently of the 13 existing custom sources until verified.
-const sourceID = "missav"
-const baseURL = "https://missav.live"
-)
-var mediaSlug = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}package missavrecovery
-
-import (
-    "context"
-    "errors"
-    "html"
-    "net/url"
-    "regexp"
-    "strconv"
-    "strings"
-
-    "duanjuapp/native/core"
-)
-
-// Experimental reconstruction from original 1.0.10+110 ARM64 binary.
-// The original private Go source is NOT included in the APK and cannot be
-// recovered by interpreting the function names alone. This module is built
-// independently of the 13 existing custom sources until verified.
-const sourceID = "missav"
-const baseURL = "https://missav.live"
-)
+var categorySlug = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+var mediaSlug = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$`)
 var categoryLinks = regexp.MustCompile(`(?is)<a\b[^>]*href=["'](?:https?://(?:www\.)?missav\.live)?/cn/genres/([a-z0-9_-]{1,64})/?["'][^>]*>(.*?)</a>`)
 var cardLinks = regexp.MustCompile(`(?is)<a\b[^>]*href=["'](?:https?://(?:www\.)?missav\.live)?/cn/([a-z0-9][a-z0-9_-]{2,127})/?["'][^>]*>(.*?)</a>`)
 var titleAttr = regexp.MustCompile(`(?is)\b(?:alt|title)=["']([^"']+)["']`)
 var imageURL = regexp.MustCompile(`(?is)<(?:img|source)\b[^>]*\b(?:data-src|data-original|src|srcset)=["']([^"']+)["']`)
 var ogImage = regexp.MustCompile(`(?is)<meta\b[^>]*\bproperty=["']og:image["'][^>]*\bcontent=["']([^"']+)["']`)
-var mediaURL = regexp.MustCompile(`(?i)https?://[^"\'<>\\\s]+?\.(?:m3u8|mp4)(?:\?[^"\'<>\\\s]*)?`)
+var mediaURL = regexp.MustCompile(`(?i)https?://[^\s"'<>\\]+?\.(?:m3u8|mp4)(?:\?[^\s"'<>\\]*)?`)
 var nextPage = regexp.MustCompile(`(?is)(?:rel=["']next["']|aria-label=["']next["']|\bpage=\d+)`)
 
 var descriptor = core.SourceDescriptor{
