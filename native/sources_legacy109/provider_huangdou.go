@@ -139,6 +139,11 @@ func hd109Rows(v any)[]any{
  m:=hjMap(v)
  for _,key:=range []string{"list","items","data"}{
   if rows:=hjRows(m[key]);rows!=nil{return rows}
+  if nested:=hjMap(m[key]);nested!=nil{
+   for _,sub:=range []string{"list","items","data"}{
+    if rows:=hjRows(nested[sub]);rows!=nil{return rows}
+   }
+  }
  }
  return nil
 }
