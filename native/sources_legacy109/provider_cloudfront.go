@@ -60,7 +60,7 @@ func (p *cf109Provider) authenticate(ctx context.Context)(cfProtocol109,string,e
    map[string]any{"devID":state.DeviceID,"sysType":"ios","isAppStore":false},state.Protocol,"")
   if err!=nil{return cfProtocol109{},"",err}
   state.Token=hjString(hjMap(value)["token"])
-  if state.Token==""||len(state.Token)>4096||strings.ContainsAny(state.Token,"\\r\\n\\t "){return cfProtocol109{},"",errors.New("CloudFront guest login unavailable")}
+  if state.Token==""||len(state.Token)>4096||strings.ContainsAny(state.Token,"\r\n\t "){return cfProtocol109{},"",errors.New("CloudFront guest login unavailable")}
   saved,_:=json.Marshal(state)
   _=p.host.SaveState("huangguo-session.json",saved)
  }
