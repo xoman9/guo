@@ -1,0 +1,41 @@
+name: Diagnose original permanent Android certificate without building APK
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/check-original-signing-certificate.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  certificate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Inspect public certificate digest from existing secret JKS only
+        env:
+          KEY_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "$KEY_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ] || { echo "::error::Original signing secrets absent"; exit 1; }
+          umask 077
+          printf '%s' "$KEY_BASE64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/original.jks"
+          keytool -list -v -keystore "$RUNNER_TEMP/original.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > "$RUNNER_TEMP/public-cert.txt"
+          sha=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/public-cert.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+          [ -n "$sha" ] || { echo "::error::Failed to read JKS certificate SHA256"; exit 1; }
+          echo "Current original-secret certificate SHA256: $sha" >> "$GITHUB_STEP_SUMMARY"
+          expected=78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a
+          if [ "$sha" = "$expected" ]; then
+            echo "Matched historical fixed certificate." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::Existing secret key differs from the 2026 original historic certificate; do not claim it supports old signed APK updates."
+            echo "Historical certificate digest: $expected" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          rm -f "$RUNNER_TEMP/original.jks" "$RUNNER_TEMP/public-cert.txt"
