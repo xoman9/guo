@@ -5,6 +5,7 @@ from pathlib import Path
 NATIVE_ROOT = Path(__file__).resolve().parents[1] / 'native'
 EXAMPLE_SOURCES = NATIVE_ROOT / 'sources_example'
 GUO2_ADDED_SOURCES = NATIVE_ROOT / 'sources_custom'
+OFFICIAL_SOURCES = NATIVE_ROOT.parent / 'guoapp-sources'
 ENVIRONMENT_DEFINES = ['PROJECT_URL', 'TELEGRAM_GROUP_URL', 'TELEGRAM_CHANNEL_URL',
                        'ZHENGUOJIAN_DISPLAY_NAME', 'ZHENGUOJIAN_LATIN_NAME']
 
@@ -80,16 +81,46 @@ def source_module(directory):
 def link_sources(paths):
     workspace = NATIVE_ROOT / 'go.work'
     anchor = NATIVE_ROOT / 'bridge' / 'sources_gen.go'
-    if not paths and workspace.is_file() and anchor.is_file():
-        return
+    require_official = os.environ.get('GUO_REQUIRE_OFFICIAL_SOURCES', '').strip() == '1'
+    official = Path(
+        os.environ.get('GUO_OFFICIAL_SOURCES', '').strip() or OFFICIAL_SOURCES
+    ).expanduser().resolve()
+
     if not paths:
-        # In guo, use the additional real guo2 providers instead of the
-        # upstream demonstration-only source module. Explicit --sources wins.
-        if GUO2_ADDED_SOURCES.is_dir():
+        if official.joinpath('go.mod').is_file():
+            paths = [official, GUO2_ADDED_SOURCES]
+        elif require_official:
+            raise SystemExit(
+                'Missing original 110 source module (guoapp/sources); '
+                'refusing to create a full-sources APK with only 13 added '
+                'channels. Configure authorized access to the upstream '
+                'sources and place it at guoapp-sources.'
+            )
+        elif workspace.is_file() and anchor.is_file():
+            return
+        elif GUO2_ADDED_SOURCES.is_dir():
+            print(
+                'WARNING: only the 13 additional guo2 sources are present. '
+                'Official 110 channels are NOT included; this is a '
+                'partial-source development build.',
+                flush=True,
+            )
             paths = [GUO2_ADDED_SOURCES]
         else:
-            print('尚未接入站源仓库，改用只有假数据的示例站源；接入真实站源请加 --sources <站源仓库路径>。', flush=True)
             paths = [EXAMPLE_SOURCES]
+
+    if require_official:
+        names = [source_module(path.expanduser().resolve()) for path in paths]
+        if 'guoapp/sources' not in names:
+            raise SystemExit(
+                'Full APK blocked: official upstream source module '
+                '(go.mod: module guoapp/sources) must be included.'
+            )
+        if 'duanjuapp/native/sources_custom' not in names:
+            raise SystemExit(
+                'Full APK blocked: guo2 extra source module '
+                '(duanjuapp/native/sources_custom) must also be included.'
+            )
     directories = [path.expanduser().resolve() for path in paths]
     modules = [source_module(directory) for directory in directories]
     uses = ''.join(f'\t{directory.as_posix()}\n' for directory in directories)
