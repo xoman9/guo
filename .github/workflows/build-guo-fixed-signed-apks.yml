@@ -104,7 +104,7 @@ jobs:
           mkdir -p verified
           for apk in "${apks[@]}"; do
             "$signer" verify --verbose --print-certs "$apk" | tee cert-output.txt
-            actual=$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest:[[:space:]]*([0-9a-fA-F:]+).*/\\1/p' cert-output.txt | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+            actual=$(grep -m1 'certificate SHA-256 digest:' cert-output.txt | awk '{print $NF}' | tr -d ': ' | tr '[:upper:]' '[:lower:]' || true)
             if [ -z "$actual" ] || [ "$actual" != "$expected" ]; then
               echo "::error::APK certificate is not the historical permanent signer. Expected: $expected; Actual: ${actual:-not-parsed}. No APK will be uploaded."
               exit 1
