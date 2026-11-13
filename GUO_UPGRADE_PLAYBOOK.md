@@ -41,6 +41,15 @@
 - 只上傳 GitHub Actions 的測試 artifact（保留 7 天），不自動建立 GitHub Release；必須完整驗證通過才提供測試 APK 的產物連結。
 - `latest` 指的是每次**起始來源**，不是自動修改現有裝置，也不是保證每一次 upstream Release 都保有相同程式結構；不相容時逐項修正並記錄失敗。
 
+## 原有永久固定簽章（已實測成功，2026-11-14）
+
+- 使用 GitHub Secrets `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 提供**原本固定 JKS**。不要建立新金鑰來替代舊金鑰。
+- 原本憑證 SHA-256：`78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a`。產出時須檢查 `apksigner verify --verbose --print-certs` 的實際 APK 簽章指紋；不一致立即停止交付。
+- 工作流程 `.github/workflows/build-guo-fixed-signed-apks.yml`：完整建置 ARM64／v7a 並使用原金鑰；`.github/workflows/resign-guo-test-apks-fixed-key.yml`：對已驗證、且程式來源未變更的兩個 APK 用原金鑰重新簽章，並驗證輸出。
+- **2026-11-14 成功產物**：GitHub Actions run `43507510812`、artifact `guo-original-permanent-JKS-ARM64-v7a`，兩個 ABI 的 `com.duanju.coexist` APK 均通過原始憑證驗證與原生函式庫檢查。
+- 過去 guo 歷史固定簽章版曾使用 `com.duanju.duanju_app.coexist`，和目前 `com.duanju.coexist` **套件 ID 不相同**；即使憑證相同也不能互相覆蓋安裝。之後如需覆蓋，必須比對實機既有 APK 的套件 ID 與憑證，不能只核對 SHA-256 簽章。
+- JKS 內容與密碼不得列印到 Actions 日誌或提交到 GitHub 原始碼；只顯示公開憑證指紋。
+
 ## 本次進度
 
 - `guo/main` 已從 109 更新至當時最新 Release 110，並加入 13 個自訂 Provider；基準 commit 為 `ec6faf7f2e8adaba9cfc989cb34f8a6d701cf070`。
