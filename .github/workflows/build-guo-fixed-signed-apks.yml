@@ -73,7 +73,14 @@ jobs:
           printf '%s' "$ORIGINAL_KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/guo-original-permanent.jks"
           test -s "$RUNNER_TEMP/guo-original-permanent.jks"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/guo-original-permanent.jks" >> "$GITHUB_ENV"
-          echo "Original JKS loaded from existing GitHub Secrets (contents not printed)."
+          keytool -list -v -keystore "$RUNNER_TEMP/guo-original-permanent.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/guo-cert-summary.txt"
+          actual_key=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/guo-cert-summary.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+          if [ "$actual_key" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::JKS certificate does not match historical permanent signer"
+            exit 1
+          fi
+          rm -f "$RUNNER_TEMP/guo-cert-summary.txt"
+          echo "Original permanent JKS certificate fingerprint preflight matched."
       - name: Build signed ARM64 and ARMv7 APK using original permanent key
         shell: bash
         env:
@@ -96,10 +103,10 @@ jobs:
           expected=$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ': ' | tr '[:upper:]' '[:lower:]')
           mkdir -p verified
           for apk in "${apks[@]}"; do
-            "$signer" verify --verbose --print-certs "$apk" > cert-output.txt
-            actual=$(sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' cert-output.txt | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+            "$signer" verify --verbose --print-certs "$apk" | tee cert-output.txt
+            actual=$(sed -nE 's/^[[:space:]]*Signer #[0-9]+ certificate SHA-256 digest:[[:space:]]*([0-9a-fA-F:]+).*/\\1/p' cert-output.txt | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
             if [ -z "$actual" ] || [ "$actual" != "$expected" ]; then
-              echo "::error::APK does not use historical permanent certificate; refusing output."
+              echo "::error::APK certificate is not the historical permanent signer. Expected: $expected; Actual: ${actual:-not-parsed}. No APK will be uploaded."
               exit 1
             fi
             "$aapt" dump badging "$apk" | grep -F "package: name='com.duanju.coexist'"
