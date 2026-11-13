@@ -22,3 +22,10 @@ func Test109HeitaoCardsAndEpisodes(t *testing.T) {
  chapters:=heitaoParseEpisodes(ep,"91")
  if len(chapters)!=2||chapters[0].EpisodeString(0)!="1"||chapters[1].EpisodeString(0)!="2"{t.Fatalf("bad episodes: %+v",chapters)}
 }
+
+func Test109HeitaoNestedPlayerJSON(t *testing.T) {
+ raw:=`<script>var player_aaaa={"url":"https://cdn.example/movie.m3u8","encrypt":0,"meta":{"nested":{},"quoted":"}"}};</script>`
+ entry,err:=heitaoReadPlayerConfig109(raw)
+ if err!=nil||entry.URL!="https://cdn.example/movie.m3u8"{t.Fatalf("nested JSON failed: %+v %v",entry,err)}
+ if _,err:=heitaoReadPlayerConfig109(`player_aaaa={"url":"oops"`);err==nil{t.Fatal("incomplete JSON accepted")}
+}
