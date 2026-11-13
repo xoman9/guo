@@ -1,0 +1,89 @@
+name: Build guo latest-Release custom TEST APKs (ARM64 and ARMv7)
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-guo-test-apks.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test-apks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ZHENGUOJIAN_PACKAGE_NAME: com.duanju.coexist
+      ZHENGUOJIAN_DISPLAY_NAME: 小果影視-共存版
+      ZHENGUOJIAN_LATIN_NAME: XiaoGuo
+      PROJECT_URL: https://github.com/xoman9/guo
+      GOPROXY: https://proxy.golang.org,direct
+      GOSUMDB: sum.golang.org
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36'
+          accept-android-sdk-licenses: true
+      - name: Install required Android NDK (28.2.13676358)
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=28.2.13676358
+          if [ ! -f "$ANDROID_HOME/ndk/$version/source.properties" ]; then
+            sdkmanager --sdk_root="$ANDROID_HOME" "ndk;$version"
+          fi
+          grep -q "Pkg.Revision = $version" "$ANDROID_HOME/ndk/$version/source.properties"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$version" >> "$GITHUB_ENV"
+      - name: Build native Go adapters and both test-only release-format APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/build_android.py --all-sources --abi arm64-v8a --abi armeabi-v7a
+      - name: Verify APK package, signature and ABI libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(dist/android/*arm64-v8a.apk dist/android/*armeabi-v7a.apk)
+          if [ "${#apks[@]}" -ne 2 ]; then
+            echo "::error::Both ARM64 and ARMv7 test APKs are required"
+            exit 1
+          fi
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          test -n "$aapt" && test -n "$apksigner"
+          for apk in "${apks[@]}"; do
+            "$apksigner" verify --verbose "$apk"
+            "$aapt" dump badging "$apk" | grep -F "package: name='com.duanju.coexist'"
+            if [[ "$apk" == *arm64-v8a.apk ]]; then abi=arm64-v8a; else abi=armeabi-v7a; fi
+            unzip -Z1 "$apk" | grep -Fx "lib/$abi/libduanju_core.so"
+            unzip -Z1 "$apk" | grep -Fx "lib/$abi/libflutter.so"
+            unzip -Z1 "$apk" | grep -Fx "lib/$abi/libapp.so"
+            echo "Verified: $(basename "$apk") (package + signature + native libraries)" >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo "CI builds use debug/test signing unless permanent signing values are explicitly configured. They are NOT drop-in updates for differently signed installed builds." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload both APKs as private-in-workflow test artifacts, never Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: guo-110-plus-custom-ARM64-v7a-TEST-ONLY
+          path: |
+            dist/android/*arm64-v8a.apk
+            dist/android/*armeabi-v7a.apk
+          if-no-files-found: error
+          retention-days: 7
