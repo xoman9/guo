@@ -33,10 +33,10 @@ func (f *jg109Fixture) FetchPlaylist(_ context.Context,address,referer string,_ 
  if !strings.Contains(address,"/api/app/vid/h5/m3u8/playlist/A1/ep1?")||!strings.Contains(address,"token=guest-token"){
   return "","",errors.New("invalid authenticated playlist request")
  }
- return "#EXTM3U
+ return `#EXTM3U
 #EXTINF:4.0,
 seg1.ts
-",address,nil
+`,address,nil
 }
 func TestJinguo109EncryptedGuestCatalogAndPlayback(t *testing.T){
  h:=&jg109Fixture{}
