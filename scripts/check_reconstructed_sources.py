@@ -14,7 +14,7 @@ EXPECTED_ORIGINAL = {
     "sorani": "provider_sorani.go",
     "huangdou": "provider_huangdou.go",
     "huangju": "provider_huangju.go",
-    "yeguo": "provider_yeguo.go",
+    "yeguo": "provider_yeguo_client.go",
     "dsd": "provider_dsd.go",
     "jinguoduanju": "provider_jinguoduanju.go",
     "jinguo": "provider_jinguo.go",
@@ -53,6 +53,7 @@ for source, filename in EXPECTED_ORIGINAL.items():
     file = ROOT / "native/sources_legacy109" / filename
     if not file.is_file() or "core.Register(" not in file.read_text(encoding="utf-8"):
         raise AssertionError(f"{source} has no real registered Go source implementation: {file}")
+assert (ROOT / "native/sources_legacy109/provider_yeguo.go").is_file(), "Yeguo route implementation missing"
 for module in ("sources_custom", "sources_legacy109", "sources_missav"):
     assert (ROOT / "native" / module / "go.mod").is_file(), f"Missing module {module}"
 print("PASS: all 16 original IDs + 13 extra IDs are present and registered (29 total).")
