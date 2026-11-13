@@ -2,7 +2,18 @@ name: Build recovered 109+110 29-provider permanently signed test APKs
 on:
   push:
     branches: [feat/recover-109-missav-20261114]
-    paths: [.github/workflows/build-recovered-109-test-apks.yml]
+    paths:
+      - '.github/workflows/build-recovered-109-test-apks.yml'
+      - 'native/sources_custom/**'
+      - 'native/sources_legacy109/**'
+      - 'native/sources_missav/**'
+      - 'native/core/**'
+      - 'native/bridge/**'
+      - 'scripts/check_reconstructed_sources.py'
+      - 'scripts/app_build.py'
+      - 'scripts/build_android.py'
+      - 'android/**'
+      - 'lib/**'
   workflow_dispatch:
 permissions:
   contents: read
