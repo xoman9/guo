@@ -1,0 +1,37 @@
+name: Verify default-hidden channel + labels and original channel identity
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/check-default-hidden-channel-labels.yml
+      - lib/models.dart
+      - test/source_default_off_suffix_test.dart
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  labels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - name: Test suffix policy (no duplicated plus signs)
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          dart format --output=none --set-exit-if-changed lib/models.dart test/source_default_off_suffix_test.dart
+          dart analyze --fatal-infos lib/models.dart test/source_default_off_suffix_test.dart
+          flutter test test/source_default_off_suffix_test.dart
+      - name: Ensure separate upstream provider module is not silently substituted
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'GUO2_ADDED_SOURCES' scripts/app_build.py
+          grep -q 'guoapp/sources' DEVELOPMENT.md
+          echo "Only the + label change was verified. The released 110 official source module is private and was not included in this check." >> "$GITHUB_STEP_SUMMARY"
