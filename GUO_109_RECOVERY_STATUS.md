@@ -49,3 +49,11 @@
 - `.github/workflows/build-recovered-109-test-apks.yml` 現在會在 Provider、Bridge、Core、Flutter、Android 或建置腳本異動時觸發；其輸出仍明確為 **EXPERIMENTAL**，不得當成原廠 110 完整可用版 Release。
 - CI 組裝與簽章必須使用既有 Android keystore secrets，並核對原憑證 SHA-256；絕不以臨時 keystore 代替永久簽章。
 - 待驗項目：逐站登入與權限、分類與搜尋、封面及片名配對、詳情及分集、播放和返回、下載及合併、異常網路；尤其紅果 CENC/App、青空登入刷新與 MissAV 動態媒體仍有明確缺口。
+
+## 2026-11-14 續修：MissAV 公開網址解析與劇集一致性
+
+- 修正 `native/sources_missav/provider.go` 的公開 MP4／M3U8 URL 規則，先將 HTML/JSON 中的 `\\/` 還原成 `/` 再辨識 HTTPS/HTTP 直連。
+- 新增 `mediaPageForTask`，在任何頁面請求之前先核對來源 ID、劇集 ID、分集 ID，以及實際頁面路徑，避免跨影片頁面混用。
+- 新增 `directMediaURL` 並只接納符合核心媒體 URL 判斷的直接網址；未公開直連的動態播放器維持明確錯誤，不宣稱可播放。
+- `provider_test.go` 補測一般 MP4、跳脫斜線 MP4、M3U8、錯誤來源／劇集／播放頁以及沒有直連網址的情況。
+- 相關提交：`8e8bb382`、`d1e2af4b`。已用獨立 Go 正規表示式小程式核對直連匹配，但目前尚未取得 GitHub Actions 此兩筆提交的完整編譯及 APK 結果，因此此項仍屬 **待 CI／實機驗證**。
