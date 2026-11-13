@@ -253,10 +253,12 @@ func hjCredentials(headers map[string][]string,mediaURL string)(*core.MediaCrede
 func (p *huangju109) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
  source,id,valid:=core.SplitProviderDramaID(task.DramaID)
  if !valid||source!="huangju"||!huangju109ID(id){return core.ProviderMedia{},errors.New("invalid drama")}
- chapterSource,dramaID,episode,ok:=core.SplitProviderChapterID(task.Chapter.ID)
- if !ok||chapterSource!="huangju"||dramaID!=id||!huangju109ID(episode){
+ prefix:=core.ProviderChapterID("huangju",id,"")
+ if !strings.HasPrefix(task.Chapter.ID,prefix){
   return core.ProviderMedia{},errors.New("invalid episode")
  }
+ episode:=strings.TrimPrefix(task.Chapter.ID,prefix)
+ if !huangju109ID(episode){return core.ProviderMedia{},errors.New("invalid episode ID")}
  raw,response,err:=p.get(ctx,"/play/"+url.PathEscape(episode),nil)
  if err!=nil{return core.ProviderMedia{},err}
  row:=hjMap(raw)
