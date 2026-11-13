@@ -17,6 +17,7 @@ func (h *hg109Host) FetchText(_ context.Context,r core.TextRequest)(core.TextRes
  if text,ok:=h.pages[r.URL];ok{return core.TextResponse{Body:text},nil}
  return core.TextResponse{},errors.New("unmocked page: "+r.URL)
 }
+func (h *hg109Host) PrepareWebMedia(_ context.Context,media core.ProviderMedia,_ string)(core.ProviderMedia,error){return media,nil}
 func (h *hg109Host) Fetch(_ context.Context,r core.HTTPRequest)(core.HTTPResponse,error){
  if r.URL!=hgAIBase+"/api/edge/request"{return core.HTTPResponse{},errors.New("unmocked AI endpoint")}
  var m map[string]string
