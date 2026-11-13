@@ -25,6 +25,13 @@
    - 目前僅移植 **guo2 已有、可由程式核對的**合併設定與輸出位置；「合併後刪除已下載分集」和「單集可合併」如要升級為新行為，必須分開驗證安全性，不能由記錄宣稱已實作。
    - 合併失敗、使用者取消、文件寫入失敗都不得刪除原始下載檔案；成功後的暫存檔須由現有流程清除。
 
+## 預設隱藏頻道標示（2026-11-14）
+
+- **所有 `defaultOff: true` 的頻道顯示名稱後加 ` +`**，包含 110 既有頻道與 guo2 新增頻道；原本已帶 `+` 者不可重複新增。
+- 由 `lib/models.dart` 的 `SourceSite.fromJson` 統一處理 `name`、`groupName`、`entryName`，保留原始頻道 ID、`defaultOff` 及啟用狀態不變；原本 `defaultOff: false` 的頻道名稱保持原樣。
+- 測試 `test/source_default_off_suffix_test.dart` 覆蓋已帶加號、未帶加號、一般站源及群組。
+- **原生頻道遺失的獨立問題**：110 官方站源實作位於另外的私有 Go 模組 `guoapp/sources`，只編譯 `native/sources_custom` 的 13 個 Provider 不等於「全部原生站源」。任何正式包都必須先接入 110 原版站源模組，且額外接入 `native/sources_custom`，在產物中驗證兩者並存；無法取得原版模組時不得宣稱已修復、也不得發布標為完整站源的 APK。
+
 ## 使用條款確認畫面（2026-11-14）
 
 - `lib/ui/terms_page.dart`：保留原有條款內容與 `termsVersion` 接受紀錄；刪除手動輸入「我已确认并同意以上使用条款」的文字欄，改為可勾選的「我已同意」`CheckboxListTile`。
