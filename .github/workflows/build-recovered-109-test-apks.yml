@@ -1,0 +1,139 @@
+name: Build recovered 109+110 29-provider permanently signed test APKs
+on:
+  push:
+    branches: [feat/recover-109-missav-20261114]
+    paths: [.github/workflows/build-recovered-109-test-apks.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: guo-recovered-29-provider-test
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      ZHENGUOJIAN_PACKAGE_NAME: com.duanju.coexist
+      ZHENGUOJIAN_DISPLAY_NAME: 小果影視-共存版-實驗
+      ZHENGUOJIAN_LATIN_NAME: XiaoGuo
+      GOPROXY: https://proxy.golang.org,direct
+      GOSUMDB: sum.golang.org
+      EXPECTED_CERT_SHA256: 78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a
+      GUO_REQUIRE_OFFICIAL_SOURCES: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36'
+          accept-android-sdk-licenses: true
+      - name: Install tested NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=28.2.13676358
+          if [ ! -f "$ANDROID_HOME/ndk/$version/source.properties" ]; then
+            sdkmanager --sdk_root="$ANDROID_HOME" "ndk;$version"
+          fi
+          grep -q "Pkg.Revision = $version" "$ANDROID_HOME/ndk/$version/source.properties"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$version" >> "$GITHUB_ENV"
+      - name: Enforce all original and extra IDs, not example/empty providers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_reconstructed_sources.py
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0,"scripts")
+          from app_build import link_sources
+          link_sources([Path("native/sources_custom"),Path("native/sources_legacy109"),Path("native/sources_missav")])
+          PY
+          grep -F '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
+          grep -F '"guoapp/legacy109-recovery"' native/bridge/sources_gen.go
+          grep -F '"guoapp/missav-recovery"' native/bridge/sources_gen.go
+          (cd native && go test -tags=zhenguojian ./bridge ./core)
+          (cd native && go test -tags=zhenguojian guoapp/legacy109-recovery guoapp/missav-recovery)
+      - name: Require original fixed Android signing secret
+        shell: bash
+        env:
+          ORIGINAL_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in "$ORIGINAL_KEY" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD"; do
+            [ -n "$value" ] || { echo "::error::Existing permanent signing secret absent"; exit 1; }
+          done
+          umask 077
+          printf '%s' "$ORIGINAL_KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/guo-original.jks"
+          test -s "$RUNNER_TEMP/guo-original.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/guo-original.jks" >> "$GITHUB_ENV"
+          keytool -list -v -keystore "$RUNNER_TEMP/guo-original.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/guo-certificate.txt"
+          actual=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/guo-certificate.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+          [ "$actual" = "$EXPECTED_CERT_SHA256" ] || { echo "::error::Original permanent signer fingerprint mismatch"; exit 1; }
+      - name: Build both release-format APKs containing 29 source IDs
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          python scripts/build_android.py --all-sources --abi arm64-v8a --abi armeabi-v7a \
+            --sources native/sources_custom \
+            --sources native/sources_legacy109 \
+            --sources native/sources_missav
+      - name: Verify APK signatures, package and architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(dist/android/*arm64-v8a.apk dist/android/*armeabi-v7a.apk)
+          [ "${#apks[@]}" -eq 2 ] || { echo "::error::Expected two ABI packages"; exit 1; }
+          aapt=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -n1)
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n1)
+          mkdir -p verified
+          for apk in "${apks[@]}"; do
+            "$signer" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/apk-cert.txt"
+            digest=$(grep -m1 'certificate SHA-256 digest:' "$RUNNER_TEMP/apk-cert.txt" | awk '{print $NF}' | tr -d ': ' | tr '[:upper:]' '[:lower:]' || true)
+            [ "$digest" = "$EXPECTED_CERT_SHA256" ] || { echo "::error::Wrong signer on $apk"; exit 1; }
+            "$aapt" dump badging "$apk" | grep -F "package: name='com.duanju.coexist'"
+            if [[ "$apk" == *arm64-v8a.apk ]]; then abi=arm64-v8a; else abi=armeabi-v7a; fi
+            for lib in libduanju_core.so libflutter.so libapp.so libmpv.so libffmpegkit.so; do
+              unzip -Z1 "$apk" | grep -Fx "lib/$abi/$lib"
+            done
+            cp "$apk" verified/
+            echo "Original signer + $abi verified: $(basename "$apk")" >> "$GITHUB_STEP_SUMMARY"
+          done
+          cp native/sources_legacy109/flavor_zhenguojian.go verified/ORIGINAL_SOURCE_MANIFEST.go
+          (cd verified && sha256sum *.apk > SHA256SUMS.txt)
+          echo "EXPERIMENTAL ONLY: 16 reconstructed original provider implementations + 13 extra provider IDs; live playback is not verified." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload both permanently signed experimental APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: guo-29-reconstructed-providers-ARM64-v7a-fixed-signer-EXPERIMENTAL
+          path: verified/*
+          retention-days: 14
+          if-no-files-found: error
+      - name: Remove secret signing material
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/guo-original.jks" "$RUNNER_TEMP/guo-certificate.txt"
