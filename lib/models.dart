@@ -20,13 +20,29 @@ class SourceSite {
     this.account = false,
     this.vipPrompt = true,
   });
+  static String _withHiddenSuffix(String value, bool hidden) {
+    if (!hidden || value.trim().isEmpty || value.trimRight().endsWith('+')) {
+      return value;
+    }
+    return '${value.trimRight()} +';
+  }
+
   factory SourceSite.fromJson(Map<String, dynamic> json) => SourceSite(
     json['id'] as String? ?? '',
-    json['name'] as String? ?? '',
+    _withHiddenSuffix(
+      json['name'] as String? ?? '',
+      json['defaultOff'] == true,
+    ),
     json['description'] as String? ?? '',
     group: json['group'] as String? ?? '',
-    groupLabel: json['groupName'] as String? ?? '',
-    entryLabel: json['entryName'] as String? ?? '',
+    groupLabel: _withHiddenSuffix(
+      json['groupName'] as String? ?? '',
+      json['defaultOff'] == true,
+    ),
+    entryLabel: _withHiddenSuffix(
+      json['entryName'] as String? ?? '',
+      json['defaultOff'] == true,
+    ),
     defaultOff: json['defaultOff'] == true,
     available: json['available'] == true,
     pagedSearch: json['search'] == true,
