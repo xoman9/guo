@@ -73,6 +73,9 @@ abstract class AppRepository {
   Future<ResourceSettings> saveResourceSettings(
     ResourceSettings settings,
   ) async => throw AppFailure('当前环境不支持资源设置');
+  Future<void> saveSiteVerification(
+    String source, String cookie, String userAgent,
+  ) async => throw AppFailure('当前环境不支持網站驗證');
   final catalogUpdates = CatalogUpdates();
   Future<void> cancelPreload() async {}
   Future<PlaybackPlan?> preload(
@@ -233,6 +236,22 @@ class NativeRepository extends AppRepository {
         'settings': settings.toJson(),
       }),
     );
+  }
+
+  @override
+  Future<void> saveSiteVerification(
+    String source, String cookie, String userAgent,
+  ) async {
+    _adminPermission();
+    if (source != 'missav' && source != 'tvbox-jable') {
+      throw AppFailure('不支援此站源的網站驗證');
+    }
+    await _call({
+      'action': 'saveSiteVerification',
+      'source': source,
+      'cookie': cookie,
+      'userAgent': userAgent,
+    });
   }
 
   Future<Map<String, dynamic>> _read(
