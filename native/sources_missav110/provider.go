@@ -51,7 +51,7 @@ func (p *provider) BaseURL() string { return baseURL }
 
 func (p *provider) fetch(ctx context.Context, path string) (string,error) {
     if !strings.HasPrefix(path, "/cn/") { return "", errors.New("invalid source route") }
-    response,err:=p.host.FetchText(ctx,core.TextRequest{URL:baseURL+path,Referer:baseURL+"/cn/"})
+    response,err:=core.VerifiedSiteText(ctx,p.host,sourceID,baseURL+path,baseURL+"/cn/")
     if err!=nil{return "",err}
     return response.Body,nil
 }
