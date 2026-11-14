@@ -25,7 +25,7 @@ var imageURL = regexp.MustCompile(`(?is)<(?:img|source)\b[^>]*\b(?:data-src|data
 var ogImage = regexp.MustCompile(`(?is)<meta\b[^>]*\bproperty=["']og:image["'][^>]*\bcontent=["']([^"']+)["']`)
 var directVideoAttribute = regexp.MustCompile(`(?is)<(?:video|source)\b[^>]*\b(?:src|data-src|data-hls)\s*=\s*["']([^"']+)["']`)
 var directPlayerJSON = regexp.MustCompile(`(?is)"(?:video_url|play_url|src)"\s*:\s*"([^"]+)"`)
-var nextPage = regexp.MustCompile(`(?is)(?:rel=["']next["']|aria-label=["']next["']|\bpage=\d+)`)
+var nextPage = regexp.MustCompile(`(?is)(?:rel\s*=\s*["']next["']|aria-label\s*=\s*["']next["'])`)
 
 var descriptor = core.SourceDescriptor{
     ID: sourceID, Name: "MissAV +",
@@ -68,6 +68,10 @@ func (p *provider) Categories(ctx context.Context, force bool) ([]core.Category,
     }
     return categories,nil
 }
+// hasNextPage requires explicit next-page navigation, not an arbitrary page= link.
+func hasNextPage(raw string, current int) bool {
+    return current > 0 && nextPage.MatchString(raw)
+}
 func (p *provider) CatalogPage(ctx context.Context,page int,category string)([]core.Drama,bool,error){
     if page<1 {return nil,false,errors.New("invalid page")}
     if !validCategory(category) {return nil,false,errors.New("invalid category")}
@@ -76,7 +80,7 @@ func (p *provider) CatalogPage(ctx context.Context,page int,category string)([]c
     if page>1 {path+="?page="+strconv.Itoa(page)}
     body,err:=p.fetch(ctx,path)
     if err!=nil{return nil,false,err}
-    return parseCards(body),nextPage.MatchString(body),nil
+    return parseCards(body),hasNextPage(body,page),nil
 }
 func (p *provider) Search(ctx context.Context,page int,query string)([]core.Drama,bool,error){
     query=strings.TrimSpace(query)
@@ -86,7 +90,7 @@ func (p *provider) Search(ctx context.Context,page int,query string)([]core.Dram
     if page>1 {path+="?page="+strconv.Itoa(page)}
     body,err:=p.fetch(ctx,path)
     if err!=nil{return nil,false,err}
-    return parseCards(body),nextPage.MatchString(body),nil
+    return parseCards(body),hasNextPage(body,page),nil
 }
 func parseCards(raw string) []core.Drama {
     var rows []core.Drama
