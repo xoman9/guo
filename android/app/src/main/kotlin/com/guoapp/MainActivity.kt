@@ -5,6 +5,11 @@ import io.flutter.embedding.android.FlutterSurfaceView
 import android.Manifest
 import android.app.UiModeManager
 import android.app.ActivityManager
+import android.app.AlertDialog
+import android.webkit.CookieManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebResourceRequest
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
@@ -475,6 +480,19 @@ class MainActivity : FlutterActivity() {
                                 result.error("invalid_url", "播放地址为空", null)
                             }
                         }
+                        "verifySiteInBrowser" -> {
+                            val site = call.argument<String>("source")
+                            val url = when (site) {
+                                "tvbox-jable" -> "https://jable.tv/"
+                                "missav" -> "https://missav.live/cn/"
+                                else -> null
+                            }
+                            if (url == null) {
+                                result.error("unknown_site", "只支援 Jable 或 MissAV 的手動網站驗證", null)
+                            } else {
+                                openSiteVerificationWebView(site!!, url, result)
+                            }
+                        }
                         "chooseDownloadDirectory" -> {
                             if (downloadDirectoryResult != null) {
                                 result.error("directory_picker_pending", "正在選擇下載資料夾", null)
@@ -754,6 +772,63 @@ class MainActivity : FlutterActivity() {
         val probe = File.createTempFile(".guo-write-check-", ".tmp", target)
         if (!probe.delete()) throw IOException("無法清除資料夾存取測試檔")
         return target.path
+    }
+
+    // User-controlled browser verification. No automated solving or
+    // JavaScript bridge: only first-party cookies are collected after the
+    // user chooses to finish. The Go core still enforces site responses.
+    private fun openSiteVerificationWebView(
+        site: String,
+        target: String,
+        result: MethodChannel.Result
+    ) {
+        val web = WebView(this)
+        web.settings.javaScriptEnabled = true
+        web.settings.domStorageEnabled = true
+        web.settings.javaScriptCanOpenWindowsAutomatically = false
+        val rootHost = Uri.parse(target).host ?: ""
+        web.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url ?: return true
+                val host = url.host ?: return true
+                return url.scheme != "https" || (host != rootHost && !host.endsWith("." + rootHost))
+            }
+        }
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, false)
+        var finished = false
+        fun cleanUp() {
+            if (!finished) {
+                finished = true
+                web.stopLoading()
+                web.destroy()
+            }
+        }
+        try {
+            val dialog = AlertDialog.Builder(this)
+                .setTitle(if (site == "missav") "MissAV 網站驗證" else "Jable 網站驗證")
+                .setMessage("請在下方網站自行完成驗證。完成後按「使用驗證資訊」。若網站仍禁止原生請求，需改用相容的網站解析方式。")
+                .setView(web)
+                .setNegativeButton("取消") { _, _ ->
+                    result.success(null)
+                }
+                .setPositiveButton("使用驗證資訊") { _, _ ->
+                    val cookie = CookieManager.getInstance().getCookie(target) ?: ""
+                    val userAgent = web.settings.userAgentString ?: ""
+                    if (cookie.isEmpty()) {
+                        result.error("site_verification_missing", "此網站尚未提供 Cookie，無法確認已完成驗證", null)
+                    } else {
+                        result.success(mapOf("cookie" to cookie, "userAgent" to userAgent))
+                    }
+                }
+                .create()
+            dialog.setOnDismissListener { cleanUp() }
+            dialog.show()
+            web.loadUrl(target)
+        } catch (error: Exception) {
+            cleanUp()
+            result.error("site_verification_unavailable", "Android WebView 無法開啟：${error.message}", null)
+        }
     }
 
     @Deprecated("Deprecated in Java")
