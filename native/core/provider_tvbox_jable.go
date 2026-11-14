@@ -12,7 +12,6 @@ import (
  "regexp"
  "strconv"
  "strings"
- "fmt"
  nethtml "golang.org/x/net/html"
 )
 const tvboxJableBase = "https://jable.tv"
@@ -179,7 +178,7 @@ func (p *tvboxJableProvider) ResolveMedia(ctx context.Context,task Task)(Provide
  resp,err:=VerifiedSiteText(ctx,p.host,"tvbox-jable",page,tvboxJableBase+"/")
  if err!=nil{return ProviderMedia{},err}
  found:=tvboxJableMedia.FindStringSubmatch(resp.Body)
- if len(found)!=2{return ProviderMedia{},fmt.Errorf("Jable 當前頁面未提供可用 HLS；csp_Jable 專有 spider 尚未移植")}
+ if len(found)!=2{return ProviderMedia{},fmt.Errorf("Jable 詳情未找到 TVBox 的 hlsUrl 播放地址；請確認網站是否完成驗證")}
  address:=strings.ReplaceAll(found[1],"\\/","/")
  u,e:=url.Parse(address)
  if e!=nil||u.Scheme!="https"&&u.Scheme!="http"||u.Hostname()==""||u.User!=nil{return ProviderMedia{},errors.New("Jable HLS 連結無效")}
@@ -188,6 +187,6 @@ func (p *tvboxJableProvider) ResolveMedia(ctx context.Context,task Task)(Provide
 func init(){
  descriptor:=SourceDescriptor{ID:"tvbox-jable",Name:"Jable",DefaultOff:true,
   Description:"依 TVBox csp_Jable 分類與列表結構移植的 Go 解析器",NoHostRotation:true,
-  BaseURL:tvboxJableBase,ValidCategory:func(s string)bool{return s==""||s=="new-release"||s=="hot"}}
+  BaseURL:tvboxJableBase,ValidCategory:func(s string)bool{return s==""||tvboxJableSlug.MatchString(s)}}
  Register(descriptor,func(host Host)Provider{return &tvboxJableProvider{host:host}})
 }
