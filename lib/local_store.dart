@@ -431,10 +431,31 @@ class LocalStore extends ChangeNotifier {
   bool get deleteAfterAutoExport => _flag('deleteAfterAutoExport', false);
   bool get deleteAfterManualExport => _flag('deleteAfterManualExport', false);
   bool get shareUsage => _flag('shareUsage', true);
-  /// Hide optional original default-off channels from the channel picker.
-  bool get hideAdditionalSources => _flag('hideAdditionalSources', true);
-  Future<void> setHideAdditionalSources(bool value) =>
-      _setting('hideAdditionalSources', value);
+  /// One-time bulk-enable control for originally disabled (+) channels.
+  /// Defaults to OFF. Turning it OFF does not disable any channel.
+  bool get hideAdditionalSources => _flag('hideAdditionalSources', false);
+
+  Future<void> setHideAdditionalSources(bool value) {
+    final epoch = _epoch;
+    return _queue(() async {
+      _requireAdmin();
+      if (epoch != _epoch) throw StateError('当前用户已变更，请重试');
+      final settings = <String, Object?>{..._settings};
+      settings['hideAdditionalSources'] = value;
+      if (value && !hideAdditionalSources) {
+        final switches = <String, Object?>{
+          ..._map(_settings['sourceSwitches']),
+        };
+        for (final site in SourceSite.values) {
+          if (site.defaultOff && !sourceEnabled(site.id)) {
+            switches[site.id] = true;
+          }
+        }
+        settings['sourceSwitches'] = switches;
+      }
+      await _saveSettings(settings);
+    });
+  }
   int get acceptedTerms => switch (_settings['acceptedTerms']) {
     final int version => version,
     _ => 0,
