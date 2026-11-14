@@ -83,6 +83,21 @@ class _StorageViewState extends State<StorageView> {
     );
   }
 
+  Future<void> _requestStorageAccess() async {
+    await saveSetting(context, () async {
+      if (!Platform.isAndroid) {
+        throw AppFailure('儲存授權僅適用 Android');
+      }
+      if (!await AppDevice.requestVideoExport()) {
+        throw AppFailure('未取得檔案匯出授權');
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已確認目前 Android 系統允許影片匯出；下載目錄仍需個別具備寫入權限。')),
+      );
+    });
+  }
+
   Future<void> _move() async {
     final parent = await _pickParent();
     if (parent == null || !mounted) return;
@@ -221,7 +236,7 @@ class _StorageViewState extends State<StorageView> {
             ),
             const Divider(indent: 16, endIndent: 16),
             SettingsTile(
-              title: '当前下载目录',
+              title: '當前下載目錄',
               subtitle: directory,
               trailing: FocusRing(
                 radius: 999,
@@ -235,7 +250,7 @@ class _StorageViewState extends State<StorageView> {
             ),
             const Divider(indent: 16, endIndent: 16),
             SettingsTile(
-              title: '更改并迁移目录',
+              title: '更改下載位置並遷移',
               subtitle: admin ? '下载会先暂停，复制成功后清理旧目录' : '需要管理员',
               enabled: admin,
               onTap: _move,
@@ -252,7 +267,14 @@ class _StorageViewState extends State<StorageView> {
               onTap: _restore,
             ),
             const Divider(indent: 16, endIndent: 16),
-            SettingsTile(title: '刷新用量', onTap: _refresh),
+            SettingsTile(
+              title: '存取授權',
+              subtitle: Platform.isAndroid
+                  ? '檢查影片匯出權限（不會授權任意檔案路徑）'
+                  : '僅 Android 支援',
+              enabled: Platform.isAndroid,
+              onTap: _requestStorageAccess,
+            ),
           ],
         ),
         if (Platform.isAndroid) ...[
