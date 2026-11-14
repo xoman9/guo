@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../app_device.dart';
 import '../../local_store.dart';
 import '../../models.dart';
 import '../app_scope.dart';
@@ -44,28 +43,6 @@ class SourcesView extends StatelessWidget {
               ),
               const Divider(height: 1),
               for (final site in SourceSite.values) ...[
-                if (site.id == 'missav' || site.id == 'tvbox-jable')
-                  ListTile(
-                    title: Text('${site.displayName} · 驗證網站'),
-                    subtitle: const Text('HTTP 403 時，使用 Android WebView 手動完成站方驗證'),
-                    leading: const Icon(Icons.verified_user_outlined),
-                    enabled: admin,
-                    onTap: admin ? () async {
-                      await saveSetting(context, () async {
-                        final session = await AppDevice.verifySiteInBrowser(site.id);
-                        if (session == null) return;
-                        await repository.saveSiteVerification(
-                          site.id, session.cookie, session.userAgent,
-                        );
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text(
-                            '網站驗證資訊已儲存。請重新整理頻道；若仍顯示 403，站點可能不允許原生 HTTP 連線。',
-                          )),
-                        );
-                      });
-                    } : null,
-                  ),
                 _SourceTile(
                   site: site,
                   enabled: store.sourceEnabled(site.id),
@@ -135,7 +112,9 @@ class _SourceTile extends StatelessWidget {
         minTileHeight: 68,
         contentPadding: const EdgeInsets.fromLTRB(20, 4, 16, 4),
         title: Text(site.displayName),
-        subtitle: Text(site.description),
+        subtitle: (site.id == 'tvbox-jable' || site.id == 'missav')
+            ? null
+            : Text(site.description),
         onTap: onChanged == null ? null : () => onChanged!(!enabled),
         trailing: ExcludeFocus(
           child: Switch(value: enabled, onChanged: onChanged),

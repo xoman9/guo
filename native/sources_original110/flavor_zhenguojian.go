@@ -14,5 +14,6 @@ func init() {
         "luguo", "liguo", "juguo", "ningguo", "mangguo", "chengguodj", "jiaoguo",
         // TVBox direct JSON APIs and independent Jable compatibility adapter.
         "tvbox-laoguo", "tvbox-jable", "tvbox-155", "tvbox-jkun", "tvbox-senlin", "tvbox-jingpinx",
+        "tvbox-fanguo", "tvbox-leguo",
 	})
 }

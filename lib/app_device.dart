@@ -181,8 +181,9 @@ class AppDevice {
   // User explicitly completes any site verification in a real Android
   // WebView. Only its first-party cookie/UA is returned to the app.
   static Future<({String cookie, String userAgent})?> verifySiteInBrowser(
-    String source,
-  ) async {
+    String source, {
+    String videoId = '',
+  }) async {
     if (defaultTargetPlatform != TargetPlatform.android) {
       throw AppFailure('網站驗證目前僅支援 Android');
     }
@@ -192,7 +193,7 @@ class AppDevice {
     try {
       final result = await channel.invokeMapMethod<String, dynamic>(
         'verifySiteInBrowser',
-        {'source': source},
+        {'source': source, if (videoId.isNotEmpty) 'videoId': videoId},
       );
       if (result == null) return null; // User cancelled.
       final cookie = result['cookie'];

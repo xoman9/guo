@@ -133,6 +133,22 @@ func huangguoBrowserHeaders(request *http.Request) fhttp.Header {
 		"accept-language":           {"zh-CN,zh;q=0.9"},
 		fhttp.HeaderOrderKey:        {"sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform", "upgrade-insecure-requests", "user-agent", "accept", "sec-fetch-site", "sec-fetch-mode", "sec-fetch-user", "sec-fetch-dest", "referer", "accept-encoding", "accept-language", "cookie"},
 	}
+	// A user-approved MissAV WebView session carries its own browser UA.
+	// Do not silently replace it with a desktop macOS UA and incompatible
+	// Client Hints: those contradictory headers invalidate the session context.
+	// This does not bypass challenges; the origin still makes that decision.
+	if strings.EqualFold(request.URL.Hostname(), "missav.ws") &&
+		request.Header.Get("Cookie") != "" && request.Header.Get("User-Agent") != "" {
+		headers["user-agent"] = []string{request.Header.Get("User-Agent")}
+		delete(headers, "sec-ch-ua")
+		delete(headers, "sec-ch-ua-platform")
+		delete(headers, "sec-ch-ua-mobile")
+		headers[fhttp.HeaderOrderKey] = []string{
+			"upgrade-insecure-requests", "user-agent", "accept",
+			"sec-fetch-site", "sec-fetch-mode", "sec-fetch-user", "sec-fetch-dest",
+			"referer", "accept-encoding", "accept-language", "cookie",
+		}
+	}
 	if mode := request.Header.Get("Sec-Fetch-Mode"); mode != "" && mode != "navigate" {
 		headers["accept"] = []string{FirstNonEmpty(request.Header.Get("Accept"), "*/*")}
 		headers["sec-fetch-mode"] = []string{mode}

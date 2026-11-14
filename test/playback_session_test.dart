@@ -225,6 +225,21 @@ void main() {
     expect(session.endBoost(), isFalse);
   });
 
+  test('player software volume boosts to 150 percent with mute and restore', () async {
+    final store = await openStore();
+    final (session, player) = await _open(_PlaybackRepository(), store);
+
+    expect(store.playerVolume, 150);
+    expect(player.state.volume, 150);
+    expect(session.changeVolume(5), 150);
+    expect(session.changeVolume(-25), 125);
+    expect(session.toggleMute(), 0);
+    expect(session.toggleMute(), 125);
+    session.setVolume(200);
+    await pumpEventQueue();
+    expect(player.state.volume, 150);
+  });
+
   test('a volume change while paused flushes audio before resuming', () async {
     final repository = _PlaybackRepository();
     final store = await openStore();

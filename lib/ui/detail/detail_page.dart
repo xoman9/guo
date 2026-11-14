@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../app_device.dart';
 import '../../drama_details.dart';
 import '../../local_store.dart';
 import '../../models.dart';
@@ -261,6 +262,27 @@ class _DetailPageState extends State<DetailPage> {
     ).showSnackBar(SnackBar(content: Text(details.error!)));
   }
 
+  Future<void> _openMissAVInApp() async {
+    try {
+      final session = await AppDevice.verifySiteInBrowser(
+        'missav',
+        videoId: widget.drama.sourceId,
+      );
+      if (session == null || !mounted) return;
+      await AppScope.of(context).repository.saveSiteVerification(
+        'missav',
+        session.cookie,
+        session.userAgent,
+      );
+      if (mounted) await _details?.load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('MissAV 原站網頁／驗證失敗：$error')),
+      );
+    }
+  }
+
   double _startAt(int index, {required bool resume}) {
     final watch = _details!.watch;
     return resume &&
@@ -472,6 +494,12 @@ class _DetailPageState extends State<DetailPage> {
             : Colors.transparent,
       ),
       actions: [
+        if (widget.drama.source == 'missav')
+          IconButton(
+            tooltip: '在 App 內開啟原站網頁播放',
+            onPressed: _openMissAVInApp,
+            icon: const Icon(Icons.language_rounded),
+          ),
         IconButton(
           tooltip: '更新剧集信息',
           onPressed: details.loading ? null : _refresh,
@@ -1476,13 +1504,26 @@ class _DetailPageState extends State<DetailPage> {
       );
 
   Widget _episodeError(DramaDetails details, bool autofocus) {
+    final challenge = widget.drama.source == 'missav' &&
+        (details.error?.contains('HTTP 403') == true ||
+         details.error?.contains('瀏覽器驗證') == true ||
+         details.error?.contains('浏览器验证') == true);
     return StatusView(
       key: const ValueKey('error'),
-      title: details.error != null ? '剧集信息暂时不可用' : '暂时没有可播放的集数',
-      message: details.error ?? '可以更新剧集信息后重试。',
+      title: challenge
+          ? 'MissAV 網站要求瀏覽器驗證'
+          : details.error != null
+              ? '剧集信息暂时不可用'
+              : '暂时没有可播放的集数',
+      message: challenge
+          ? '${details.error}\n請使用 App 內的驗證視窗完成驗證，'
+              '再按「使用驗證資訊」；外部 Chrome 的 Cookie 不會自動傳入 App。'
+          : details.error ?? '可以更新剧集信息后重试。',
       icon: Icons.error_outline_rounded,
       action: '重试',
       onAction: details.load,
+      secondaryAction: challenge ? '在 App 內開啟原站影片並驗證' : null,
+      onSecondaryAction: challenge ? _openMissAVInApp : null,
       autofocus: autofocus,
     );
   }
