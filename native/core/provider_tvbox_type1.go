@@ -43,7 +43,13 @@ func (p *tvboxType1Provider) fetch(ctx context.Context,action string, params url
  }else if !strings.HasSuffix(suffix,"/api.php/provide/vod/") {
   return nil,errors.New("無效的 TVBox JSON 接口")
  }
- q:=endpoint.Query();q.Set("ac",action)
+ q:=endpoint.Query()
+ q.Set("ac",action)
+ // Standard MacCMS XML: ac=list is the class index; ac=videolist
+ // is the paginated catalogue and per-ID detail response.
+ if p.spec.xml && (action=="detail" || action=="list" && params!=nil) {
+  q.Set("ac","videolist")
+ }
  for k,v:=range params {if len(v)>0{q.Set(k,v[0])}}
  endpoint.RawQuery=q.Encode()
  response,err:=p.host.Fetch(ctx,HTTPRequest{Label:p.spec.name+"接口",Method:"GET",URL:endpoint.String(),Limit:4<<20})
