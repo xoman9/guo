@@ -289,7 +289,7 @@ class _ChoiceCell<T> extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: form == FormFactor.television ? 15 : 14,
+                    fontSize: 16,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     color: selected
                         ? colors.onSecondaryContainer
