@@ -31,7 +31,7 @@ class SourcesView extends StatelessWidget {
                 subtitle: Text(
                   '預設關閉；開啟時一次啟用所有 + 頻道（目前已啟用 '
                   '${SourceSite.values.where((site) => site.defaultOff && store.sourceEnabled(site.id)).length}'
-                  '／${SourceSite.values.where((site) => site.defaultOff).length}）。關閉時不會停用已開啟的頻道。',
+                  '／${SourceSite.values.where((site) => site.defaultOff).length}）。開啟時全部啟用，關閉時全部停用。',
                 ),
                 value: store.hideAdditionalSources,
                 onChanged: admin
