@@ -57,7 +57,7 @@ func dsd109Route(origin,reference string)(string,map[string]string,bool){
  base,err:=url.Parse(origin);if err!=nil{return "",nil,false}
  ref,err:=url.Parse(reference);if err!=nil||ref.User!=nil{return "",nil,false}
  ref=base.ResolveReference(ref)
- if ref.Scheme!="https"||ref.Hostname()!=base.Hostname(){return "",nil,false}
+ if ref.Scheme!="https"||ref.Hostname()!=base.Hostname()||ref.Port()!=""||ref.User!=nil||ref.Fragment!=""{return "",nil,false}
  parts:=strings.Split(strings.Trim(strings.TrimSuffix(strings.TrimPrefix(ref.Path,"/index.php"),".html"),"/"),"/")
  if len(parts)<2||parts[0]!="vod"||len(parts)%2!=0{return "",nil,false}
  action:=parts[1]
@@ -238,6 +238,8 @@ func (p *dsd109) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderM
  if len(parts)!=2{return core.ProviderMedia{},errors.New("invalid DSD episode key")}
  line,_:=strconv.Atoi(parts[0]);nid,_:=strconv.Atoi(parts[1])
  if line<1||nid<1||line>1000000||nid>1000000{return core.ProviderMedia{},errors.New("invalid DSD episode")}
+ expected:=dsd109Base+dsd109Page(id,line,nid)
+ if task.Chapter.PageURL!=expected{return core.ProviderMedia{},errors.New("DSD chapter page does not match episode")}
  doc,origin,err:=p.page(ctx,dsd109Page(id,line,nid))
  if err!=nil{return core.ProviderMedia{},err}
  player,err:=dsd109Player(doc)
