@@ -66,6 +66,18 @@ func TestJavaMissProviderRoutes(t *testing.T){
  task.Chapter.PageURL=baseURL+"/other"
  if _,e:=mediaPageForTask(task);e==nil{t.Fatal("accepted mismatched media page")}
 }
+func TestWebHomePackedPlaybackScript(t *testing.T) {
+ page:=baseURL+"/abc-123"
+ expected:="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"
+ // Minimal Dean Edwards packer fixture equivalent to WebHome unpackEvals.
+ packed:=`<script>eval(function(p,a,c,k,e,d){}('0://1/2/playlist.m3u8',10,3,'https|surrit.com|12345678-1234-1234-1234-123456789abc'.split('|'),0,{}))</script>`
+ got,err:=directMediaURL(page,packed)
+ if err!=nil||got!=expected {t.Fatalf("packed WebHome media: %q, %v",got,err)}
+ if out:=unpackMissPacker(`<script>var x='12345678-1234-1234-1234-123456789abc'</script>`);out!=""{
+  t.Fatalf("unpacked nonpacker script: %q",out)
+ }
+}
+
 func TestWebHomeInlineSurritPlaylist(t *testing.T){
  page:=baseURL+"/abc-123"
  playlist:="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"
