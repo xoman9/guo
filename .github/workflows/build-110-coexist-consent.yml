@@ -5,6 +5,15 @@ on:
     paths:
       - '.github/workflows/build-110-coexist-consent.yml'
       - 'lib/ui/terms_page.dart'
+      - 'lib/ui/widgets/source_bar.dart'
+      - 'lib/models.dart'
+      - 'lib/local_store.dart'
+      - 'lib/ui/explore/source_actions.dart'
+      - 'lib/ui/settings/sources_view.dart'
+      - 'lib/ui/shell/app_shell.dart'
+      - 'lib/ui/settings/storage_view.dart'
+      - 'lib/ui/settings/settings_sections.dart'
+      - 'native/core/app_storage.go'
   workflow_dispatch:
 
 permissions:
@@ -34,6 +43,10 @@ jobs:
           grep -Fq 'CheckboxListTile(' lib/ui/terms_page.dart
           grep -Fq '我已同意' lib/ui/terms_page.dart
           ! grep -Fq 'FormTextField(' lib/ui/terms_page.dart
+          grep -Fq 'hideAdditionalSources' lib/local_store.dart
+          grep -Fq 'displayName' lib/models.dart
+          ! grep -Fq 'Icons.public_rounded' lib/ui/widgets/source_bar.dart
+          grep -Fq 'target = filepath.Clean(resolved)' native/core/app_storage.go
           test ! -e native/sources_custom
           test ! -e native/sources_legacy109
           test ! -e native/sources_missav
