@@ -3,8 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../../app_device.dart';
 import '../../drama_details.dart';
 import '../../local_store.dart';
 import '../../models.dart';
@@ -1481,11 +1481,6 @@ class _DetailPageState extends State<DetailPage> {
         (details.error?.contains('HTTP 403') == true ||
          details.error?.contains('瀏覽器驗證') == true ||
          details.error?.contains('浏览器验证') == true);
-    final id = widget.drama.sourceId;
-    final validPath =
-        RegExp(r'^(?:cn/)?[A-Za-z0-9][A-Za-z0-9_-]{0,127}$').hasMatch(id) &&
-        id.contains(RegExp(r'[0-9]'));
-    final page = validPath ? Uri.https('missav.ws', '/$id') : null;
     return StatusView(
       key: const ValueKey('error'),
       title: challenge
@@ -1494,22 +1489,30 @@ class _DetailPageState extends State<DetailPage> {
               ? '剧集信息暂时不可用'
               : '暂时没有可播放的集数',
       message: challenge
-          ? '${details.error}\n瀏覽器驗證與 App 連線可能不共用 Cookie；開啟網站不保證能解除 App 的 403。'
+          ? '${details.error}\n請使用 App 內的驗證視窗完成驗證，'
+              '再按「使用驗證資訊」；外部 Chrome 的 Cookie 不會自動傳入 App。'
           : details.error ?? '可以更新剧集信息后重试。',
       icon: Icons.error_outline_rounded,
       action: '重试',
       onAction: details.load,
-      secondaryAction:
-          challenge && page != null ? '在瀏覽器開啟原站影片' : null,
-      onSecondaryAction: challenge && page != null
+      secondaryAction: challenge ? '在 App 內驗證並重試' : null,
+      onSecondaryAction: challenge
           ? () async {
-              final opened = await launchUrl(
-                page,
-                mode: LaunchMode.externalApplication,
-              );
-              if (!opened && mounted) {
+              final repository = AppScope.of(context).repository;
+              try {
+                final session = await AppDevice.verifySiteInBrowser('missav');
+                if (session == null || !mounted) return;
+                await repository.saveSiteVerification(
+                  'missav',
+                  session.cookie,
+                  session.userAgent,
+                );
+                if (!mounted) return;
+                await details.load();
+              } catch (error) {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('無法開啟外部瀏覽器')),
+                  SnackBar(content: Text('MissAV 驗證未完成：$error')),
                 );
               }
             }
