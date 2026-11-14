@@ -10,6 +10,7 @@ func TestTVBoxType1RegistryMetadata(t *testing.T) {
  expected:=map[string]string{
   "tvbox-laoguo":"老果", "tvbox-155":"一五五", "tvbox-jkun":"jkun",
   "tvbox-senlin":"森林", "tvbox-jingpinx":"精品下",
+  "tvbox-fanguo":"番果", "tvbox-leguo":"樂果",
  }
  for _,site:=range tvboxType1Specs {
   if expected[site.id]!=site.name{t.Errorf("mismatched name for %s: %s",site.id,site.name)}
@@ -19,6 +20,23 @@ func TestTVBoxType1RegistryMetadata(t *testing.T) {
   delete(expected,site.id)
  }
  if len(expected)!=0{t.Fatalf("unregistered sites: %v",expected)}
+}
+func TestTVBoxXMLLeGuoFormat(t *testing.T) {
+ raw:=`<?xml version="1.0" encoding="UTF-8"?>
+ <rss version="2.0"><class><ty id="11">電影</ty></class>
+ <list page="1" pagecount="3"><video>
+ <id>88</id><name>影片測試</name><type>電影</type><pic>https://example.test/88.jpg</pic>
+ <dl><dd flag="hls">高清$https://media.example.test/a.m3u8#備用$https://media.example.test/b.m3u8</dd><dd flag="mp4">完整$https://media.example.test/c.mp4</dd></dl>
+ </video></list></rss>`
+ data,err:=tvboxXMLToMap([]byte(raw));if err!=nil{t.Fatal(err)}
+ if len(tvboxRows(data["class"]))!=1 || len(tvboxRows(data["list"]))!=1{t.Fatalf("XML categories/videos missing: %+v",data)}
+ row:=tvboxRows(data["list"])[0]
+ if got:=tvboxFirst(row,"vod_play_url");got!="高清$https://media.example.test/a.m3u8#備用$https://media.example.test/b.m3u8$$完整$https://media.example.test/c.mp4" {
+  t.Fatalf("wrong MacCMS XML play-lines: %q",got)
+ }
+ p:=&tvboxType1Provider{spec:tvboxType1Spec{id:"tvbox-leguo",name:"樂果",xml:true}}
+ drama,ok:=p.drama(row)
+ if !ok||drama.SourceID!="88"||drama.Title!="影片測試" {t.Fatalf("XML drama: %+v",drama)}
 }
 func TestTVBoxType1IdentityAndPoster(t *testing.T){
  p:=&tvboxType1Provider{spec:tvboxType1Spec{id:"tvbox-155",name:"一五五"}}
