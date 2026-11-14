@@ -20,8 +20,8 @@ var tvboxJableMedia = regexp.MustCompile(`(?i)(?:hlsUrl|video_url|videoUrl)\s*[:
 type tvboxJableProvider struct{ host Host }
 func (p *tvboxJableProvider) Descriptor() SourceDescriptor {
  return SourceDescriptor{ID:"tvbox-jable",Name:"Jable",DefaultOff:true,
-  Description:"依 TVBox csp_Jable 結構重建；仍需網站驗證",
-  NoHostRotation:true,BaseURL:tvboxJableBase,
+  Description:"依 TVBox csp_Jable 結構解析分類、影片及播放",
+  NoHostRotation:true,BrowserFingerprint:true,BaseURL:tvboxJableBase,
   ValidCategory:func(s string)bool{return s==""||tvboxJableSlug.MatchString(s)}}
 }
 func tvboxJableURL(path string) (string,error){
@@ -177,7 +177,7 @@ func (p *tvboxJableProvider) ResolveMedia(ctx context.Context,task Task)(Provide
  resp,err:=VerifiedSiteText(ctx,p.host,"tvbox-jable",page,tvboxJableBase+"/")
  if err!=nil{return ProviderMedia{},err}
  found:=tvboxJableMedia.FindStringSubmatch(resp.Body)
- if len(found)!=2{return ProviderMedia{},fmt.Errorf("Jable 詳情未找到 TVBox 的 hlsUrl 播放地址；請確認網站是否完成驗證")}
+ if len(found)!=2{return ProviderMedia{},fmt.Errorf("Jable 詳情未找到 TVBox 的 hlsUrl 播放地址；網站可能限制目前連線或播放腳本已更改")}
  address:=strings.ReplaceAll(found[1],"\\/","/")
  u,e:=url.Parse(address)
  if e!=nil||u.Scheme!="https"&&u.Scheme!="http"||u.Hostname()==""||u.User!=nil{return ProviderMedia{},errors.New("Jable HLS 連結無效")}
