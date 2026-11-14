@@ -384,7 +384,7 @@ class _AppShellState extends State<AppShell> {
     }
     final source = SourceSite.byId(store.source);
     return SourceBar(
-      source: source.name,
+      source: source.displayName,
       televisionLeading: tabs,
       onSwitchSource: (anchor) => pickSource(anchor, store),
       onOpenSearch: () => openSearch(context, store, source),
