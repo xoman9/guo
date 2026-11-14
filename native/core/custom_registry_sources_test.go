@@ -22,3 +22,30 @@ func TestReleaseReplayCustomChannelsRegistered(t *testing.T) {
  }
  if len(ids) != 13 { t.Fatalf("expected 13 replayed channels, got %d", len(ids)) }
 }
+
+func TestReleaseReplaySourceListIncludesAllOptionalChannels(t *testing.T) {
+    d := &Downloader{cfg: DefaultConfig()}
+    engine := &nativeEngine{downloader: d}
+    listed := engine.sourceList()
+    byID := map[string]nativeSourceInfo{}
+    for _, source := range listed {
+        byID[source.ID] = source
+    }
+    ids := []string{sourceLujj31, sourceLiuguo, sourceXiaoguo}
+    for _, spec := range apk391Sources {
+        ids = append(ids, spec.ID)
+    }
+    for _, id := range ids {
+        info, exists := byID[id]
+        if !exists {
+            t.Errorf("channel %q registered but missing from the Flutter source picker sourceList", id)
+            continue
+        }
+        if !info.DefaultOff || !info.Available {
+            t.Errorf("channel %q must be an available opt-in + channel: %+v", id, info)
+        }
+        if len(info.Name) == 0 || info.Name[len(info.Name)-1] == '+' {
+            t.Errorf("channel %q must have a base name without +; Flutter appends one: %q", id, info.Name)
+        }
+    }
+}
