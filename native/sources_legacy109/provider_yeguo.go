@@ -143,6 +143,9 @@ func (p *yeguo109) ResolveMedia(ctx context.Context,task core.Task)(core.Provide
  n,ok:=hjInt(m["episode_sort"],100000)
  if !ok||n<1{return core.ProviderMedia{},errors.New("invalid Yeguo playback order")}
  referer:=fmt.Sprintf("%s/drama/video/%s/ep-%d/",yg109Site,id,n)
+ if task.Chapter.PageURL!=""&&task.Chapter.PageURL!=referer{
+  return core.ProviderMedia{},errors.New("Yeguo playback order does not match chapter")
+ }
  var addresses []string
  for _,field:=range []string{"video_url","video_url_h265"}{
   raw:=hjString(m[field])
