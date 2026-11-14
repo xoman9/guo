@@ -28,6 +28,8 @@ on:
       - 'lib/app_device.dart'
       - 'android/app/src/main/AndroidManifest.xml'
       - 'android/app/src/main/kotlin/com/guoapp/MainActivity.kt'
+      - 'android/build.gradle.kts'
+      - 'android/app/build.gradle.kts'
   workflow_dispatch:
 
 permissions:
