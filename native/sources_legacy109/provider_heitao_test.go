@@ -108,3 +108,25 @@ func Test109HeitaoEqualLengthPlaylistsChooseStableSID(t *testing.T){
   }
  }
 }
+
+func Test109HeitaoCatalogLinksRejectForeignHost(t *testing.T){
+ cases:=[]struct{link,want string}{
+  {"/index.php/vod/detail/id/91.html","91"},
+  {"https://heitaodj.com/index.php/vod/detail/id/91.html","91"},
+  {"https://foreign.example/index.php/vod/detail/id/91.html",""},
+  {"https://heitaodj.com.evil.test/index.php/vod/detail/id/91.html",""},
+  {"//evil.test/index.php/vod/detail/id/91.html",""},
+  {"/index.php/vod/detail/id/91.html/more",""},
+  {"/index.php/vod/detail/id/%2e%2e.html",""},
+  {"/index.php/vod/detail/id/91.html?sort=hot","91"},
+ }
+ for _,tc:=range cases{
+  if got:=heitaoCardID(tc.link);got!=tc.want{t.Errorf("link %q: got %q want %q",tc.link,got,tc.want)}
+ }
+ page:=`<a class="thumb" href="https://bad.example/index.php/vod/detail/id/101.html" title="Bad"><img src="/bad.jpg"></a>
+<a class="thumb" href="/index.php/vod/detail/id/102.html" title="Good"><img src="/good.jpg"></a>`
+ cards:=heitaoParseCards(page)
+ if len(cards)!=1||cards[0].SourceID!="102"{
+  t.Fatalf("unexpected external card: %+v",cards)
+ }
+}
