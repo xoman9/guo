@@ -3,6 +3,7 @@ on:
   push:
     branches: [feat/recover-109-missav-20261114]
     paths: [.github/workflows/test-missav-recovery.yml, native/sources_missav/**, native/sources_legacy109/**, native/sources_custom/**, scripts/check_reconstructed_sources.py]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -38,6 +39,10 @@ jobs:
           PY
           (cd native && go test -v -count=1 -tags=zhenguojian ./bridge ./core) 2>&1 | tee "$RUNNER_TEMP/go-core-tests.log"
           (cd native && go test -v -count=1 -tags=zhenguojian guoapp/missav-recovery guoapp/legacy109-recovery duanjuapp/native/sources_custom) 2>&1 | tee "$RUNNER_TEMP/go-provider-tests.log"
+          # The real Android build compiles bridge and all linked providers.
+          # Catch compilation errors before the signing-only workflow runs.
+          (cd native && go build -tags=zhenguojian ./bridge) 2>&1 | tee "$RUNNER_TEMP/go-bridge-build.log"
+
           grep -q '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
           grep -q '"guoapp/missav-recovery"' native/bridge/sources_gen.go
           grep -q '"guoapp/legacy109-recovery"' native/bridge/sources_gen.go
@@ -50,6 +55,7 @@ jobs:
           path: |
             ${{ runner.temp }}/go-core-tests.log
             ${{ runner.temp }}/go-provider-tests.log
+            ${{ runner.temp }}/go-bridge-build.log
             ${{ runner.temp }}/gofmt-report.txt
           if-no-files-found: warn
           retention-days: 14
