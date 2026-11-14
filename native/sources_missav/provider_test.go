@@ -76,3 +76,11 @@ func TestMissAVDirectMediaURL(t *testing.T) {
         }
     }
 }
+
+func TestShortAndMixedCaseCardIDs(t *testing.T) {
+    raw := `<a href="/cn/A"><img alt="A" src="/a.jpg"></a><a href="/cn/Ab-9"><img alt="B" src="/b.jpg"></a>`
+    rows := parseCards(raw)
+    if len(rows) != 2 || rows[0].SourceID != "A" || rows[1].SourceID != "Ab-9" {
+        t.Fatalf("short/mixed case media IDs lost: %+v", rows)
+    }
+}
