@@ -187,8 +187,26 @@ jobs:
               binary=archive.read(f'lib/{abi}/libduanju_core.so')
               actual=hashlib.sha256(binary).hexdigest()
               if actual!=expected:
-                  raise SystemExit(f'Experimental 110 provider core unexpectedly replaced {abi}: {actual} != {expected}')
-              print(f'{abi}: rebuilt experimental source core {actual}')
+                  # Gradle strips native ELF debug symbols when packaging an APK.
+                  # Exact bytes differ, so compare the embedded Go build ID
+                  # to ensure the packaged .so comes from this workflow build.
+                  import subprocess, tempfile
+                  original = pathlib.Path('android/app/src/main/jniLibs')/abi/'libduanju_core.so'
+                  with tempfile.TemporaryDirectory() as temp:
+                      extracted=pathlib.Path(temp)/'libduanju_core.so'
+                      extracted.write_bytes(binary)
+                      def buildid(path):
+                          proc=subprocess.run(['go','tool','buildid',str(path)],capture_output=True,text=True)
+                          if proc.returncode!=0 or not proc.stdout.strip():
+                              raise SystemExit('Unable to verify Go build ID for '+str(path)+': '+proc.stderr)
+                          return proc.stdout.strip()
+                      source_id=buildid(original)
+                      apk_id=buildid(extracted)
+                      if source_id!=apk_id:
+                          raise SystemExit(f'Packaged Go Build ID mismatch for {abi}: {source_id} != {apk_id}')
+                      print(f'{abi}: Go Build ID intact after Android symbol stripping; SHA256 packaged={actual}')
+              else:
+                  print(f'{abi}: exact Go core bytes preserved: {actual}')
           PY
             cp "$apk" verified/
           done
