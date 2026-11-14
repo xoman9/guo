@@ -34,7 +34,7 @@ var missPackerCall = regexp.MustCompile(`(?s)\}\('((?:\\.|[^'\\])*)',(\d+),(\d+)
 // Some site playback scripts hold the stream UUID immediately before a seek
 // option and build the HLS URL dynamically. Only accept that precise player
 // context, never an arbitrary UUID from a page's metadata or thumbnails.
-var missSeekStreamID = regexp.MustCompile(`(?i)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})[^\\r\\n<>]{0,32}seek\\b`)
+var missSeekStreamID = regexp.MustCompile(`(?i)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})[^\r\n<>]{0,32}seek\b`)
 var missExplicitHLS = regexp.MustCompile(`(?i)https?://[^\s"'<>\\]+\.m3u8(?:\?[^\s"'<>\\]*)?`)
 
 func unpackMissPacker(body string) string {
