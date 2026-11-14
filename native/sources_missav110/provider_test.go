@@ -66,6 +66,46 @@ func TestJavaMissProviderRoutes(t *testing.T){
  task.Chapter.PageURL=baseURL+"/other"
  if _,e:=mediaPageForTask(task);e==nil{t.Fatal("accepted mismatched media page")}
 }
+func TestWebHomePreviewUUIDPlaysWithoutDetailHTTP(t *testing.T) {
+ uuid:="12345678-1234-1234-1234-123456789abc"
+ host:=&missFixtureHost{pages:map[string]string{
+  baseURL+"/":`<div class="thumbnail">
+    <a class="text-secondary" href="/abc-123">卡片直接播放</a>
+    <img src="/cover.jpg">
+    <div id="preview-12345678-1234-1234-1234-123456789abc"></div>
+   </div>`,
+ }}
+ p:=&provider{host:host}
+ rows,_,err:=p.CatalogPage(context.Background(),1,"")
+ if err!=nil||len(rows)!=1{t.Fatalf("catalog: %+v %v",rows,err)}
+ info,ok:=p.card("abc-123")
+ if !ok||info.uuid!=uuid{t.Fatalf("UUID not saved: %+v %v",info,ok)}
+ // The fixture intentionally provides no media detail page; this must work
+ // with only the listing card, just like WebHome.
+ drama,ch,err:=p.Detail(context.Background(),"abc-123")
+ if err!=nil||len(ch)!=1||drama.Title!="卡片直接播放"{
+  t.Fatalf("detail from cached card: %+v %+v %v",drama,ch,err)
+ }
+ media,err:=p.ResolveMedia(context.Background(),core.Task{DramaID:drama.ID,Chapter:ch[0]})
+ expected:="https://surrit.com/"+uuid+"/playlist.m3u8"
+ if err!=nil||media.URL!=expected||media.Referer!=baseURL+"/"{
+  t.Fatalf("media from WebHome preview: %+v %v",media,err)
+ }
+}
+func TestWebHomePreviewUUIDNotBorrowedFromOtherCard(t *testing.T){
+ doc:=missTestDoc(t,`<div class="thumbnail"><a class="text-secondary" href="/abc-123">No UUID</a>
+ <img src="/cover.jpg"></div>
+ <div class="thumbnail"><a class="text-secondary" href="/def-456">With UUID</a>
+ <div id="preview-12345678-1234-1234-1234-123456789abc"></div></div>
+ <div id="preview-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"></div>`)
+ p:=&provider{}
+ rows:=p.cacheCards(doc)
+ if len(rows)!=2{t.Fatalf("cards: %+v",rows)}
+ if _,ok:=p.card("abc-123");ok{t.Fatal("borrowed UUID from unrelated card")}
+ if info,ok:=p.card("def-456");!ok||info.uuid!="12345678-1234-1234-1234-123456789abc"{
+  t.Fatalf("wrong scoped UUID: %+v %t",info,ok)
+ }
+}
 func TestWebHomePackedPlaybackScript(t *testing.T) {
  page:=baseURL+"/abc-123"
  expected:="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"
