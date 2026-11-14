@@ -354,10 +354,10 @@ class SettingsSection extends StatelessWidget {
                 : null,
           ),
           SettingsTile(
-            title: '目录与空间',
+            title: '下載位置與存取授權',
             subtitle: canDownload ? '查看存储用量、迁移已下载文件' : _noDownload,
             enabled: canDownload,
-            onTap: () => open('目录与空间', (_) => StorageView(store: store)),
+            onTap: () => open('下載位置與存取授權', (_) => StorageView(store: store)),
           ),
         ],
       ),
