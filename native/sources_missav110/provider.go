@@ -23,6 +23,10 @@ var categorySlug = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
 var nextPage = regexp.MustCompile(`(?is)(?:rel\s*=\s*["']next["']|aria-label\s*=\s*["']next["'])`)
 var directVideoAttribute = regexp.MustCompile(`(?is)<(?:video|source)\b[^>]*\b(?:src|data-src|data-hls)\s*=\s*["']([^"']+)["']`)
 var directPlayerJSON = regexp.MustCompile(`(?is)"(?:video_url|play_url|src)"\s*:\s*"([^"]+)"`)
+// WebHome exposes some HLS playlists in inline scripts rather than video tags.
+// Require the complete surrit.com media URL; an arbitrary UUID is not proof
+// of a playable stream and must not be turned into a fabricated URL.
+var webHomeHLS = regexp.MustCompile(`(?i)(?:https?:)?//surrit\.com/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/playlist\.m3u8(?:\?[^\s"\x27<>\\]*)?`)
 
 var descriptor = core.SourceDescriptor{
  ID:sourceID,Name:"MissAV",DefaultOff:true,BaseURL:baseURL,
@@ -193,6 +197,9 @@ func mediaPageForTask(task core.Task)(string,error){
 // exposed in the HTML can be played; no false claim of parser parity.
 func directMediaURL(page,body string)(string,error){
  normalized:=strings.ReplaceAll(body,`\/`,"/")
+ normalized=strings.ReplaceAll(normalized,`\\u002F`,"/")
+ normalized=strings.ReplaceAll(normalized,`\u002F`,"/")
+ normalized=strings.ReplaceAll(normalized,`&amp;`,"&")
  unique:=map[string]bool{}
  add:=func(raw string){
   u:=core.NormalizeProviderMediaURL(page,raw)
@@ -200,6 +207,7 @@ func directMediaURL(page,body string)(string,error){
  }
  for _,m:=range directVideoAttribute.FindAllStringSubmatch(normalized,-1){if len(m)>1{add(m[1])}}
  for _,m:=range directPlayerJSON.FindAllStringSubmatch(normalized,-1){if len(m)>1{add(m[1])}}
+ for _,m:=range webHomeHLS.FindAllString(normalized,-1){add(m)}
  if len(unique)==0{return "",errors.New("MissAV Java 播放解析依賴 TVBox parse 服務；頁面未提供直接媒體連結")}
  if len(unique)>1{return "",errors.New("MissAV 播放頁提供多個不同媒體連結，無法安全選擇")}
  for u:=range unique{return u,nil}
