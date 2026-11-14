@@ -28,12 +28,14 @@ class SourcesView extends StatelessWidget {
             children: [
               SwitchListTile(
                 title: const Text('隱藏頻道'),
-                subtitle: const Text('預設開啟：隱藏非預設頻道；關閉可在頻道選單顯示已啟用的額外頻道'),
+                subtitle: const Text('預設關閉；開啟時一次啟用下方原本關閉的 + 頻道，關閉時不會停用已開啟的頻道'),
                 value: store.hideAdditionalSources,
-                onChanged: (value) => saveSetting(
-                  context,
-                  () => store.setHideAdditionalSources(value),
-                ),
+                onChanged: admin
+                    ? (value) => saveSetting(
+                        context,
+                        () => store.setHideAdditionalSources(value),
+                      )
+                    : null,
               ),
               const Divider(height: 1),
               for (final site in SourceSite.values)
