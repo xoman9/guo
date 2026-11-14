@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/build-110-coexist-consent.yml'
       - 'lib/ui/terms_page.dart'
+      - 'lib/ui/detail/detail_page.dart'
+      - 'lib/ui/widgets/status_view.dart'
       - 'lib/ui/widgets/source_bar.dart'
       - 'lib/ui/widgets/choice_panel.dart'
       - 'lib/ui/widgets/page_header.dart'
