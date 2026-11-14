@@ -46,6 +46,8 @@ type LibraryDrama struct {
 	MetadataSchema int      `json:"metadataSchema"`
 	ID             string   `json:"id"`
 	Source         string   `json:"source"`
+	Cookie          string                  `json:"cookie"`
+	UserAgent       string                  `json:"userAgent"`
 	SourceID       string   `json:"sourceId"`
 	Title          string   `json:"title"`
 	Description    string   `json:"description"`
@@ -342,6 +344,8 @@ func nativeDispatch(input nativeInput) (any, error) {
 		ctx = work
 	}
 	switch input.Action {
+	case "saveSiteVerification":
+		return true, SaveVerifiedSiteSession(engine.downloader, input.Source, VerifiedSiteSession{Cookie:input.Cookie, UserAgent:input.UserAgent})
 	case "updateSystemProxy":
 		return true, engine.updateSystemProxy(input.SystemProxy)
 	case "resourceSettings":
