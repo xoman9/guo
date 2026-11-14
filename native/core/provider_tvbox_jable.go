@@ -1,8 +1,6 @@
 package core
 
-// Native experimental Jable adapter. TVBox's "csp_Jable" references a
-// Java spider class, NOT a network API. This does not execute that spider.
-// It uses public Jable page metadata and supports direct HLS only.
+// TVBox Jable parser preserved in 110: categories, catalog, detail and inline HLS.
 import (
  "context"
  "errors"
@@ -10,30 +8,14 @@ import (
  "net/url"
  "regexp"
  "strconv"
- "time"
  "strings"
+ "time"
  nethtml "golang.org/x/net/html"
 )
-const tvboxJableBase = "https://jable.tv"
-var tvboxJableSlug = regexp.MustCompile(`^[A-Za-z0-9_-]{1,120}package core
 
-// Native experimental Jable adapter. TVBox's "csp_Jable" references a
-// Java spider class, NOT a network API. This does not execute that spider.
-// It uses public Jable page metadata and supports direct HLS only.
-import (
- "context"
- "errors"
- "fmt"
- "net/url"
- "regexp"
- "strconv"
- "time"
- "strings"
- nethtml "golang.org/x/net/html"
-)
 const tvboxJableBase = "https://jable.tv"
-)
-var tvboxJableMedia = regexp.MustCompile(`(?i)\bhlsUrl\s*[:=]\s*["']([^"']+)["']`)
+var tvboxJableSlug = regexp.MustCompile(`^[A-Za-z0-9_-]{1,120}$`)
+var tvboxJableMedia = regexp.MustCompile(`(?i)\bhlsUrl\s*[:=]\s*["\x27]([^"\x27]+)["\x27]`)
 
 type tvboxJableProvider struct{ host Host }
 func (p *tvboxJableProvider) Descriptor() SourceDescriptor {
