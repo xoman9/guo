@@ -127,3 +127,13 @@
 - `4a78aaf`：播放端回傳 `episode_sort` 與當前 Chapter 的影片頁集數不一致時直接拒絕，不播放錯置內容。
 - `6087967`：新增 API 回傳錯誤播放排序的模擬測試。
 - 本輪修正尚未取得完整專案的實際 Go CI 成功與 Android APK 驗證證據。因當前執行環境無法連上 GitHub 主機下載完整儲存庫，無法將上述提交標記為已實測通過。
+
+## 2026-11-14 新增 TVBox「老果+」與雙架構 CI 修正
+
+- 新增 `native/sources_custom/provider_laoguo_tvbox.go`：Provider ID `laosebizy.com`、顯示名稱 `老果+`、預設關閉，原始 API `https://apilsbzy1.com/api.php/provide/vod/?ac=list`。實作 MacCMS JSON `class`、`list`、`ac=detail&ids`、`pg`、`t`、`wd` 與 `vod_play_from`／`vod_play_url` 分集線路。只接收已經提供直接 HTTP(S) MP4／M3U8／MPD／M4V 媒體的連結，不宣稱已恢復動態網頁播放器。
+- `native/sources_custom/flavor_zhenguojian.go` 增加老果新 ID；原 16 個重建原生來源及 13 個額外來源不刪除，註冊總數調整為 30（16 + 14）。
+- 新增 `native/sources_custom/provider_laoguo_tvbox_test.go`：分類、搜尋、分頁、雙線路詳情、合法播放、異常頁 URL 與非直接播放器網址的離線模擬案例。
+- `scripts/check_reconstructed_sources.py` 與 `.github/workflows/test-missav-recovery.yml` 更新為 30 IDs，新增自訂站源變更觸發的 Go fixture CI。
+- `.github/workflows/build-recovered-109-test-apks.yml` 更新為 30 Provider 的 ARM64 + armeabi-v7a 實驗測試 APK，仍使用既有永久簽章憑證指紋核對、套件 `com.duanju.coexist`、Secrets 缺失即停止。
+- `.github/workflows/build-guo-fixed-signed-apks.yml` 原含大量重複錯置 YAML，已在恢復分支整理為有效的官方授權站源 + 自訂站源雙 ABI 固定簽章建置；此正式流程仍只在 main push／手動觸發，且須原始 110 `SOURCES_DEPLOY_KEY`，不得用重建站源偽裝成原始完整來源。
+- **尚未驗收**：網路環境無法讀取 TVBox API／GitHub Actions 實際執行日誌；本輪只有 GitHub 提交與模擬測試檔，沒有 Go CI 通過、真實播放或可下載 APK 的證據。
