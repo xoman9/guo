@@ -28,29 +28,29 @@ var directPlayerJSON = regexp.MustCompile(`(?is)"(?:video_url|play_url|src)"\s*:
 // of a playable stream and must not be turned into a fabricated URL.
 var webHomeHLS = regexp.MustCompile(`(?i)(?:https?:)?//surrit\.com/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/playlist\.m3u8(?:\?[^\s"\x27<>\\]*)?`)
 
-// WebHome's unpackEvals parses the text of Dean Edwards' packer without
-// executing it. Only decoded text containing a complete media URL is accepted.
-var missPackerCall = regexp.MustCompile(`(?s)\\}\\('((?:\\\\.|[^'\\\\])*)',(\\d+),(\\d+),'((?:\\\\.|[^'\\\\])*)'\\.split\\('\\|'\\)`)
-var missExplicitHLS = regexp.MustCompile(`(?i)https?://[^\\s"'<>\\\\]+\\.m3u8(?:\\?[^\\s"'<>\\\\]*)?`)
+// WebHome's unpackEvals decodes Dean Edwards' packer as text only.
+// Only an explicit playable URL in the decoded result is accepted.
+var missPackerCall = regexp.MustCompile(`(?s)\}\('((?:\\.|[^'\\])*)',(\d+),(\d+),'((?:\\.|[^'\\])*)'\.split\('\|'\)`)
+var missExplicitHLS = regexp.MustCompile(`(?i)https?://[^\s"'<>\\]+\.m3u8(?:\?[^\s"'<>\\]*)?`)
 
 func unpackMissPacker(body string) string {
  matches := missPackerCall.FindAllStringSubmatch(body, 8)
  var out strings.Builder
- for _,m:=range matches {
-  base,err1:=strconv.Atoi(m[2])
-  count,err2:=strconv.Atoi(m[3])
+ for _,m := range matches {
+  base,err1 := strconv.Atoi(m[2])
+  count,err2 := strconv.Atoi(m[3])
   if err1!=nil||err2!=nil||base<2||base>36||count<1||count>256||len(m[1])>100000 {continue}
-  payload:=strings.ReplaceAll(strings.ReplaceAll(m[1],`\\'`,"'"),`\\\\`,`\\`)
+  payload:=strings.ReplaceAll(strings.ReplaceAll(m[1],`\'`,"'"),`\\`,`\`)
   keys:=strings.Split(m[4],"|")
   for i:=count-1;i>=0;i-- {
-   if i>=len(keys)||keys[i]==""{continue}
+   if i>=len(keys)||keys[i]=="" {continue}
    token:=strconv.FormatInt(int64(i),base)
-   pattern,err:=regexp.Compile(`\\b`+regexp.QuoteMeta(token)+`\\b`)
-   if err!=nil{continue}
+   pattern,err:=regexp.Compile(`\b`+regexp.QuoteMeta(token)+`\b`)
+   if err!=nil {continue}
    payload=pattern.ReplaceAllLiteralString(payload,keys[i])
   }
   out.WriteString(payload)
-  out.WriteByte('\\n')
+  out.WriteByte('\n')
  }
  return out.String()
 }
