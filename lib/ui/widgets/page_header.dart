@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 class PageHeader extends StatelessWidget {
-  const PageHeader({super.key, required this.title, this.actions = const []});
+  const PageHeader({super.key, required this.title, this.actions = const [], this.titleWidget});
   final String title;
+  final Widget? titleWidget;
   final List<Widget> actions;
 
   @override
@@ -15,7 +16,7 @@ class PageHeader extends StatelessWidget {
           Expanded(
             child: Semantics(
               header: true,
-              child: Text(
+              child: titleWidget ?? Text(
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
