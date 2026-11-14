@@ -69,6 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/check_reconstructed_sources.py
+          gofmt -l native/sources_custom/*.go native/sources_legacy109/*.go native/sources_missav/*.go > "$RUNNER_TEMP/gofmt-report.txt"
           python - <<'PY'
           import sys
           from pathlib import Path
@@ -79,8 +80,8 @@ jobs:
           grep -F '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
           grep -F '"guoapp/legacy109-recovery"' native/bridge/sources_gen.go
           grep -F '"guoapp/missav-recovery"' native/bridge/sources_gen.go
-          (cd native && go test -tags=zhenguojian ./bridge ./core)
-          (cd native && go test -tags=zhenguojian guoapp/legacy109-recovery guoapp/missav-recovery)
+          (cd native && go test -count=1 -tags=zhenguojian ./bridge ./core)
+          (cd native && go test -count=1 -tags=zhenguojian guoapp/legacy109-recovery guoapp/missav-recovery duanjuapp/native/sources_custom)
       - name: Require original fixed Android signing secret
         shell: bash
         env:
