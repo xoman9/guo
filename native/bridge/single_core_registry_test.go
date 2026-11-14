@@ -13,7 +13,7 @@ import (
 // This test executes the real NativeRequest initialize entry point after the
 // source modules are blank-imported through sources_gen.go. A successful Go
 // compile alone does not prove the original providers reach the Flutter picker.
-func TestSingle110CoreIncludesOriginal15AndCustom13(t *testing.T) {
+func TestSingle110CoreIncludesOriginal16AndCustom13(t *testing.T) {
     dir := t.TempDir()
     request, err := json.Marshal(map[string]string{
         "action": "initialize",
@@ -45,7 +45,7 @@ func TestSingle110CoreIncludesOriginal15AndCustom13(t *testing.T) {
     original := []string{
         "hongguo", "hanxiaoquan", "guipian", "sorani", "huangdou",
         "huangju", "yeguo", "dsd", "jinguoduanju", "jinguo",
-        "heitao", "beabox", "huangguo-video", "huangguoai", "cloudfront",
+        "heitao", "beabox", "huangguo-video", "huangguoai", "cloudfront", "missav",
     }
     optional := []string{
         "lujj31", "liuguo", "xiaoguo", "youguo", "meiguo", "yingguo",
@@ -64,6 +64,6 @@ func TestSingle110CoreIncludesOriginal15AndCustom13(t *testing.T) {
         }
     }
     if len(found) < len(original)+len(optional) {
-        t.Errorf("expected 28 original/custom IDs, only %d are registered", len(found))
+        t.Errorf("expected 29 original/custom IDs, only %d are registered", len(found))
     }
 }
