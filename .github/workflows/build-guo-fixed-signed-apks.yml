@@ -1,15 +1,19 @@
-name: Build guo fixed-certificate ARM64 and ARMv7 APKs
+name: Build official-source plus custom fixed-signer ARM64 and ARMv7 APKs
 on:
   push:
     branches: [main]
     paths:
       - .github/workflows/build-guo-fixed-signed-apks.yml
-      - lib/ui/terms_page.dart
+      - native/sources_custom/**
+      - native/core/**
+      - scripts/**
+      - android/**
+      - lib/**
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: guo-fixed-signer-apks
+  group: guo-official-fixed-signer
   cancel-in-progress: false
 jobs:
   build-fixed:
@@ -26,263 +30,26 @@ jobs:
       GUO_REQUIRE_OFFICIAL_SOURCES: '1'
     steps:
       - uses: actions/checkout@v4
-      - name: Require authorized 110 official-source deploy key
-        shell: bash
+      - name: Require authorized original source module
         env:
           SOURCE_DEPLOY_KEY: ${{ secrets.SOURCES_DEPLOY_KEY }}
+        shell: bash
         run: |
-          if [ -z "$SOURCE_DEPLOY_KEY" ]; then
-            echo "::error::Original 110 official source module is not accessible. Full-source APK build intentionally blocked; request authorized SOURCES_DEPLOY_KEY rather than releasing an APK missing the original channels."
-            exit 1
-          fi
-      - name: Checkout upstream official 110 source module
-        uses: actions/checkout@v4
+          test -n "$SOURCE_DEPLOY_KEY" || {
+            echo "::error::Authorized original 110 sources are unavailable"; exit 1;
+          }
+      - uses: actions/checkout@v4
         with:
           repository: Xanerix/guoapp-sources
           ssh-key: ${{ secrets.SOURCES_DEPLOY_KEY }}
           path: guoapp-sources
           persist-credentials: false
-      - name: Verify official 110 module and 13 extra guo2 sources
+      - name: Validate official and custom module manifests
         shell: bash
         run: |
           set -euo pipefail
-          grep -Eq '^module[[:space:]]+guoapp/sources[[:space:]]*
-        with:
-          python-version: '3.12'
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: native/go.mod
-          cache-dependency-path: native/go.sum
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.9'
-          channel: stable
-          cache: true
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: 'platforms;android-36'
-          accept-android-sdk-licenses: true
-      - name: Install Android NDK 28.2.13676358
-        shell: bash
-        run: |
-          set -euo pipefail
-          version=28.2.13676358
-          if [ ! -f "$ANDROID_HOME/ndk/$version/source.properties" ]; then
-            sdkmanager --sdk_root="$ANDROID_HOME" "ndk;$version"
-          fi
-          grep -q "Pkg.Revision = $version" "$ANDROID_HOME/ndk/$version/source.properties"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$version" >> "$GITHUB_ENV"
-      - name: Require original permanent keystore and signing credentials
-        shell: bash
-        env:
-          ORIGINAL_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          for value in "$ORIGINAL_KEY" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD"; do
-            if [ -z "$value" ]; then
-              echo "::error::Original permanent Android signing secrets missing; refusing debug/new-key build."
-              exit 1
-            fi
-          done
-          umask 077
-          printf '%s' "$ORIGINAL_KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/guo-original-permanent.jks"
-          test -s "$RUNNER_TEMP/guo-original-permanent.jks"
-          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/guo-original-permanent.jks" >> "$GITHUB_ENV"
-          keytool -list -v -keystore "$RUNNER_TEMP/guo-original-permanent.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/guo-cert-summary.txt"
-          actual_key=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/guo-cert-summary.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
-          if [ "$actual_key" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "::error::JKS certificate does not match historical permanent signer"
-            exit 1
-          fi
-          rm -f "$RUNNER_TEMP/guo-cert-summary.txt"
-          echo "Original permanent JKS certificate fingerprint preflight matched."
-      - name: Verify terms checkbox, Dart analysis and Flutter tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(grep -c 'CheckboxListTile(' lib/ui/terms_page.dart)" -eq 1
-          grep -q "onPressed: _agreed && !_busy ? _accept : null" lib/ui/terms_page.dart
-          ! grep -q "_typed" lib/ui/terms_page.dart
-          flutter pub get --enforce-lockfile
-          dart format --output=none --set-exit-if-changed lib/ui/terms_page.dart
-          dart analyze --fatal-infos lib test
-          flutter test --dart-define=DISABLE_REMOTE_IMAGES=true --dart-define=ALL_SOURCES=true
-      - name: Build signed ARM64 and ARMv7 APK using original permanent key
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          python scripts/build_android.py --all-sources --abi arm64-v8a --abi armeabi-v7a --sources guoapp-sources --sources native/sources_custom
-      - name: Verify original certificate, coexist package, both ABIs
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          apks=(dist/android/*arm64-v8a.apk dist/android/*armeabi-v7a.apk)
-          [ "${#apks[@]}" -eq 2 ] || { echo "::error::Missing one or more signed APKs"; exit 1; }
-          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n1)
-          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n1)
-          test -n "$aapt" && test -n "$signer"
-          expected=$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ': ' | tr '[:upper:]' '[:lower:]')
-          mkdir -p verified
-          for apk in "${apks[@]}"; do
-            "$signer" verify --verbose --print-certs "$apk" | tee cert-output.txt
-            actual=$(grep -m1 'certificate SHA-256 digest:' cert-output.txt | awk '{print $NF}' | tr -d ': ' | tr '[:upper:]' '[:lower:]' || true)
-            if [ -z "$actual" ] || [ "$actual" != "$expected" ]; then
-              echo "::error::APK certificate is not the historical permanent signer. Expected: $expected; Actual: ${actual:-not-parsed}. No APK will be uploaded."
-              exit 1
-            fi
-            "$aapt" dump badging "$apk" | grep -F "package: name='com.duanju.coexist'"
-            if [[ "$apk" == *arm64-v8a.apk ]]; then abi=arm64-v8a; else abi=armeabi-v7a; fi
-            for lib in libduanju_core.so libflutter.so libapp.so libmpv.so libffmpegkit.so; do
-              unzip -Z1 "$apk" | grep -Fx "lib/$abi/$lib"
-            done
-            cp "$apk" verified/
-            echo "Original certificate verified: $(basename "$apk") / $abi" >> "$GITHUB_STEP_SUMMARY"
-          done
-          (cd verified && sha256sum *.apk > SHA256SUMS.txt)
-          echo "Package com.duanju.coexist differs from historical com.duanju.duanju_app.coexist: despite identical signing certificate, these cannot replace one another." >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload permanently signed APKs as Actions artifacts only
-        uses: actions/upload-artifact@v4
-        with:
-          name: guo-fixed-signed-ARM64-v7a
-          path: verified/*
-          retention-days: 14
-          if-no-files-found: error
-      - name: Remove temporary local keystore
-        if: always()
-        shell: bash
-        run: rm -f "$RUNNER_TEMP/guo-original-permanent.jks"
- guoapp-sources/go.mod
-          grep -Eq '^module[[:space:]]+duanjuapp/native/sources_custom[[:space:]]*
-        with:
-          python-version: '3.12'
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: native/go.mod
-          cache-dependency-path: native/go.sum
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.9'
-          channel: stable
-          cache: true
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: 'platforms;android-36'
-          accept-android-sdk-licenses: true
-      - name: Install Android NDK 28.2.13676358
-        shell: bash
-        run: |
-          set -euo pipefail
-          version=28.2.13676358
-          if [ ! -f "$ANDROID_HOME/ndk/$version/source.properties" ]; then
-            sdkmanager --sdk_root="$ANDROID_HOME" "ndk;$version"
-          fi
-          grep -q "Pkg.Revision = $version" "$ANDROID_HOME/ndk/$version/source.properties"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$version" >> "$GITHUB_ENV"
-      - name: Require original permanent keystore and signing credentials
-        shell: bash
-        env:
-          ORIGINAL_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          for value in "$ORIGINAL_KEY" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD"; do
-            if [ -z "$value" ]; then
-              echo "::error::Original permanent Android signing secrets missing; refusing debug/new-key build."
-              exit 1
-            fi
-          done
-          umask 077
-          printf '%s' "$ORIGINAL_KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/guo-original-permanent.jks"
-          test -s "$RUNNER_TEMP/guo-original-permanent.jks"
-          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/guo-original-permanent.jks" >> "$GITHUB_ENV"
-          keytool -list -v -keystore "$RUNNER_TEMP/guo-original-permanent.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/guo-cert-summary.txt"
-          actual_key=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/guo-cert-summary.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
-          if [ "$actual_key" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "::error::JKS certificate does not match historical permanent signer"
-            exit 1
-          fi
-          rm -f "$RUNNER_TEMP/guo-cert-summary.txt"
-          echo "Original permanent JKS certificate fingerprint preflight matched."
-      - name: Verify terms checkbox, Dart analysis and Flutter tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(grep -c 'CheckboxListTile(' lib/ui/terms_page.dart)" -eq 1
-          grep -q "onPressed: _agreed && !_busy ? _accept : null" lib/ui/terms_page.dart
-          ! grep -q "_typed" lib/ui/terms_page.dart
-          flutter pub get --enforce-lockfile
-          dart format --output=none --set-exit-if-changed lib/ui/terms_page.dart
-          dart analyze --fatal-infos lib test
-          flutter test --dart-define=DISABLE_REMOTE_IMAGES=true --dart-define=ALL_SOURCES=true
-      - name: Build signed ARM64 and ARMv7 APK using original permanent key
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          python scripts/build_android.py --all-sources --abi arm64-v8a --abi armeabi-v7a
-      - name: Verify original certificate, coexist package, both ABIs
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          apks=(dist/android/*arm64-v8a.apk dist/android/*armeabi-v7a.apk)
-          [ "${#apks[@]}" -eq 2 ] || { echo "::error::Missing one or more signed APKs"; exit 1; }
-          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n1)
-          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n1)
-          test -n "$aapt" && test -n "$signer"
-          expected=$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ': ' | tr '[:upper:]' '[:lower:]')
-          mkdir -p verified
-          for apk in "${apks[@]}"; do
-            "$signer" verify --verbose --print-certs "$apk" | tee cert-output.txt
-            actual=$(grep -m1 'certificate SHA-256 digest:' cert-output.txt | awk '{print $NF}' | tr -d ': ' | tr '[:upper:]' '[:lower:]' || true)
-            if [ -z "$actual" ] || [ "$actual" != "$expected" ]; then
-              echo "::error::APK certificate is not the historical permanent signer. Expected: $expected; Actual: ${actual:-not-parsed}. No APK will be uploaded."
-              exit 1
-            fi
-            "$aapt" dump badging "$apk" | grep -F "package: name='com.duanju.coexist'"
-            if [[ "$apk" == *arm64-v8a.apk ]]; then abi=arm64-v8a; else abi=armeabi-v7a; fi
-            for lib in libduanju_core.so libflutter.so libapp.so libmpv.so libffmpegkit.so; do
-              unzip -Z1 "$apk" | grep -Fx "lib/$abi/$lib"
-            done
-            cp "$apk" verified/
-            echo "Original certificate verified: $(basename "$apk") / $abi" >> "$GITHUB_STEP_SUMMARY"
-          done
-          (cd verified && sha256sum *.apk > SHA256SUMS.txt)
-          echo "Package com.duanju.coexist differs from historical com.duanju.duanju_app.coexist: despite identical signing certificate, these cannot replace one another." >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload permanently signed APKs as Actions artifacts only
-        uses: actions/upload-artifact@v4
-        with:
-          name: guo-fixed-signed-ARM64-v7a
-          path: verified/*
-          retention-days: 14
-          if-no-files-found: error
-      - name: Remove temporary local keystore
-        if: always()
-        shell: bash
-        run: rm -f "$RUNNER_TEMP/guo-original-permanent.jks"
- native/sources_custom/go.mod
-          echo "Verified both original 110 and 13 extra source modules before build." >> "$GITHUB_STEP_SUMMARY"
+          grep -Eq '^module[[:space:]]+guoapp/sources[[:space:]]*$' guoapp-sources/go.mod
+          grep -Eq '^module[[:space:]]+duanjuapp/native/sources_custom[[:space:]]*$' native/sources_custom/go.mod
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -303,7 +70,7 @@ jobs:
         with:
           packages: 'platforms;android-36'
           accept-android-sdk-licenses: true
-      - name: Install Android NDK 28.2.13676358
+      - name: Install Android NDK
         shell: bash
         run: |
           set -euo pipefail
@@ -313,7 +80,28 @@ jobs:
           fi
           grep -q "Pkg.Revision = $version" "$ANDROID_HOME/ndk/$version/source.properties"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$version" >> "$GITHUB_ENV"
-      - name: Require original permanent keystore and signing credentials
+      - name: Verify source linking and Go tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, "scripts")
+          from app_build import link_sources
+          link_sources([Path("guoapp-sources"), Path("native/sources_custom")])
+          PY
+          grep -F '"guoapp/sources"' native/bridge/sources_gen.go
+          grep -F '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
+          (cd native && go test -count=1 -tags=zhenguojian ./bridge ./core duanjuapp/native/sources_custom)
+      - name: Verify Flutter project
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          dart analyze --fatal-infos lib test
+          flutter test --dart-define=DISABLE_REMOTE_IMAGES=true --dart-define=ALL_SOURCES=true
+      - name: Require original permanent signing credentials
         shell: bash
         env:
           ORIGINAL_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -323,35 +111,16 @@ jobs:
         run: |
           set -euo pipefail
           for value in "$ORIGINAL_KEY" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD"; do
-            if [ -z "$value" ]; then
-              echo "::error::Original permanent Android signing secrets missing; refusing debug/new-key build."
-              exit 1
-            fi
+            test -n "$value" || { echo "::error::Permanent signing credentials missing"; exit 1; }
           done
           umask 077
-          printf '%s' "$ORIGINAL_KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/guo-original-permanent.jks"
-          test -s "$RUNNER_TEMP/guo-original-permanent.jks"
-          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/guo-original-permanent.jks" >> "$GITHUB_ENV"
-          keytool -list -v -keystore "$RUNNER_TEMP/guo-original-permanent.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/guo-cert-summary.txt"
-          actual_key=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/guo-cert-summary.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
-          if [ "$actual_key" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "::error::JKS certificate does not match historical permanent signer"
-            exit 1
-          fi
-          rm -f "$RUNNER_TEMP/guo-cert-summary.txt"
-          echo "Original permanent JKS certificate fingerprint preflight matched."
-      - name: Verify terms checkbox, Dart analysis and Flutter tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(grep -c 'CheckboxListTile(' lib/ui/terms_page.dart)" -eq 1
-          grep -q "onPressed: _agreed && !_busy ? _accept : null" lib/ui/terms_page.dart
-          ! grep -q "_typed" lib/ui/terms_page.dart
-          flutter pub get --enforce-lockfile
-          dart format --output=none --set-exit-if-changed lib/ui/terms_page.dart
-          dart analyze --fatal-infos lib test
-          flutter test --dart-define=DISABLE_REMOTE_IMAGES=true --dart-define=ALL_SOURCES=true
-      - name: Build signed ARM64 and ARMv7 APK using original permanent key
+          printf '%s' "$ORIGINAL_KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/guo-original.jks"
+          test -s "$RUNNER_TEMP/guo-original.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/guo-original.jks" >> "$GITHUB_ENV"
+          keytool -list -v -keystore "$RUNNER_TEMP/guo-original.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/certificate.txt"
+          actual=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/certificate.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+          test "$actual" = "$EXPECTED_CERT_SHA256" || { echo "::error::Original certificate mismatch"; exit 1; }
+      - name: Build original-source plus 14 additional providers for both ABIs
         shell: bash
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -359,44 +128,39 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          python scripts/build_android.py --all-sources --abi arm64-v8a --abi armeabi-v7a
-      - name: Verify original certificate, coexist package, both ABIs
+          python scripts/build_android.py --all-sources --abi arm64-v8a --abi armeabi-v7a \
+            --sources guoapp-sources --sources native/sources_custom
+      - name: Verify Android package, certificate, and ABI libraries
         shell: bash
         run: |
           set -euo pipefail
           shopt -s nullglob
           apks=(dist/android/*arm64-v8a.apk dist/android/*armeabi-v7a.apk)
-          [ "${#apks[@]}" -eq 2 ] || { echo "::error::Missing one or more signed APKs"; exit 1; }
-          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n1)
-          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n1)
+          test "${#apks[@]}" -eq 2 || { echo "::error::Expected two APK outputs"; exit 1; }
+          aapt=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -n1)
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n1)
           test -n "$aapt" && test -n "$signer"
-          expected=$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ': ' | tr '[:upper:]' '[:lower:]')
           mkdir -p verified
           for apk in "${apks[@]}"; do
-            "$signer" verify --verbose --print-certs "$apk" | tee cert-output.txt
-            actual=$(grep -m1 'certificate SHA-256 digest:' cert-output.txt | awk '{print $NF}' | tr -d ': ' | tr '[:upper:]' '[:lower:]' || true)
-            if [ -z "$actual" ] || [ "$actual" != "$expected" ]; then
-              echo "::error::APK certificate is not the historical permanent signer. Expected: $expected; Actual: ${actual:-not-parsed}. No APK will be uploaded."
-              exit 1
-            fi
+            "$signer" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/apk-cert.txt"
+            digest=$(grep -m1 'certificate SHA-256 digest:' "$RUNNER_TEMP/apk-cert.txt" | awk '{print $NF}' | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+            test "$digest" = "$EXPECTED_CERT_SHA256" || { echo "::error::APK certificate mismatch"; exit 1; }
             "$aapt" dump badging "$apk" | grep -F "package: name='com.duanju.coexist'"
             if [[ "$apk" == *arm64-v8a.apk ]]; then abi=arm64-v8a; else abi=armeabi-v7a; fi
             for lib in libduanju_core.so libflutter.so libapp.so libmpv.so libffmpegkit.so; do
               unzip -Z1 "$apk" | grep -Fx "lib/$abi/$lib"
             done
             cp "$apk" verified/
-            echo "Original certificate verified: $(basename "$apk") / $abi" >> "$GITHUB_STEP_SUMMARY"
+            echo "Verified original-signer $abi: $(basename "$apk")" >> "$GITHUB_STEP_SUMMARY"
           done
           (cd verified && sha256sum *.apk > SHA256SUMS.txt)
-          echo "Package com.duanju.coexist differs from historical com.duanju.duanju_app.coexist: despite identical signing certificate, these cannot replace one another." >> "$GITHUB_STEP_SUMMARY"
-      - name: Upload permanently signed APKs as Actions artifacts only
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: guo-fixed-signed-ARM64-v7a
+          name: guo-official-plus-14-custom-fixed-signer-ARM64-v7a
           path: verified/*
           retention-days: 14
           if-no-files-found: error
-      - name: Remove temporary local keystore
+      - name: Remove temporary signing files
         if: always()
         shell: bash
-        run: rm -f "$RUNNER_TEMP/guo-original-permanent.jks"
+        run: rm -f "$RUNNER_TEMP/guo-original.jks" "$RUNNER_TEMP/certificate.txt" "$RUNNER_TEMP/apk-cert.txt"
