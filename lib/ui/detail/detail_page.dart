@@ -2209,7 +2209,7 @@ class _DescriptionDialogState extends State<_DescriptionDialog> {
 )
         .hasMatch(id) && id.contains(RegExp(r'[0-9]'));
     final page = validPath ? Uri.https('missav.ws', '/$id') : null;
-    final status = StatusView(
+    return StatusView(
       key: const ValueKey('error'),
       title: challenge ? 'MissAV 網站要求瀏覽器驗證'
           : details.error != null ? '剧集信息暂时不可用' : '暂时没有可播放的集数',
@@ -2219,29 +2219,16 @@ class _DescriptionDialogState extends State<_DescriptionDialog> {
       icon: Icons.error_outline_rounded,
       action: '重试',
       onAction: details.load,
+      secondaryAction: challenge && page != null ? '在瀏覽器開啟原站影片' : null,
+      onSecondaryAction: challenge && page != null ? () async {
+        final opened = await launchUrl(page, mode: LaunchMode.externalApplication);
+        if (!opened && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('無法開啟外部瀏覽器')),
+          );
+        }
+      } : null,
       autofocus: autofocus,
-    );
-    if (!challenge || page == null) return status;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Flexible(child: status),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: OutlinedButton.icon(
-            onPressed: () async {
-              final opened = await launchUrl(page, mode: LaunchMode.externalApplication);
-              if (!opened && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('無法開啟外部瀏覽器')),
-                );
-              }
-            },
-            icon: const Icon(Icons.open_in_browser),
-            label: const Text('在瀏覽器開啟原站影片'),
-          ),
-        ),
-      ],
     );
   }
 
