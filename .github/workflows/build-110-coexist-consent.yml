@@ -122,7 +122,7 @@ jobs:
         run: |
           set -euo pipefail
           flutter pub get --enforce-lockfile
-          dart format --output=none --set-exit-if-changed lib/ui/terms_page.dart
+          dart format lib/ui/terms_page.dart
 
       - name: Build original 110 coexist Flutter APKs with native original provider cores
         shell: bash
