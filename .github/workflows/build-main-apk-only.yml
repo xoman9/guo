@@ -31,11 +31,24 @@ jobs:
         run: |
           echo "main source commit: $GITHUB_SHA"
           grep '^version:' pubspec.yaml
+      # The old xoman9/guoapp-sources checkout no longer resolves.
+      # Reuse checked-in sources from this repository's preserved 110 branch,
+      # without substituting the example/mock provider module.
       - uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/guoapp-sources
-          ssh-key: ${{ secrets.SOURCES_DEPLOY_KEY }}
-          path: guoapp-sources
+          repository: ${{ github.repository }}
+          ref: fix/110-preserve-all-jable-cover-20261114
+          path: preserved-110
+          persist-credentials: false
+      - name: Validate preserved real source modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s preserved-110/native/sources_original110/go.mod
+          test -s preserved-110/native/sources_missav110/go.mod
+          grep -Fq '"tvbox-fanguo"' preserved-110/native/sources_original110/flavor_zhenguojian.go
+          grep -Fq '"tvbox-leguo"' preserved-110/native/sources_original110/flavor_zhenguojian.go
+          echo "Building current main app with archived 110 providers; this does not make main a 110 app version." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -79,7 +92,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ZHENGUOJIAN_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          python scripts/build_android.py --all-sources --sources guoapp-sources --abi arm64-v8a --abi armeabi-v7a
+          python scripts/build_android.py --all-sources --sources preserved-110/native/sources_original110 --sources preserved-110/native/sources_missav110 --abi arm64-v8a --abi armeabi-v7a
       - name: Verify signature and package
         run: |
           set -euo pipefail
