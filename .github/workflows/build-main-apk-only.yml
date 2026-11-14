@@ -1,0 +1,108 @@
+name: Build main Android APK only
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-main-apk-only.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guo-main-apk-only
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      GOPROXY: https://proxy.golang.org,direct
+      GOSUMDB: sum.golang.org
+      ZHENGUOJIAN_PACKAGE_NAME: com.duanju.coexist
+      ZHENGUOJIAN_DISPLAY_NAME: 小果影視-共存版
+      ZHENGUOJIAN_LATIN_NAME: XiaoGuo
+      EXPECTED_CERT_SHA256: 78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print source revision
+        run: |
+          echo "main source commit: $GITHUB_SHA"
+          grep '^version:' pubspec.yaml
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/guoapp-sources
+          ssh-key: ${{ secrets.SOURCES_DEPLOY_KEY }}
+          path: guoapp-sources
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36'
+          accept-android-sdk-licenses: true
+      - name: Install NDK
+        run: sdkmanager 'ndk;28.2.13676358'
+      - name: Load permanent signing certificate
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ZHENGUOJIAN_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ZHENGUOJIAN_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ZHENGUOJIAN_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ZHENGUOJIAN_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in "$KEYSTORE_BASE64" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD"; do
+            test -n "$value" || { echo "::error::Fixed signing credentials are missing"; exit 1; }
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/main-permanent.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/main-permanent.jks" >> "$GITHUB_ENV"
+      - name: Build main arm64 and v7a coexist APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ZHENGUOJIAN_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ZHENGUOJIAN_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ZHENGUOJIAN_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          python scripts/build_android.py --all-sources --sources guoapp-sources --abi arm64-v8a --abi armeabi-v7a
+      - name: Verify signature and package
+        run: |
+          set -euo pipefail
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n1)
+          test -n "$signer" && test -n "$aapt"
+          count=0
+          for apk in dist/android/*.apk; do
+            test -s "$apk"
+            "$signer" verify --print-certs "$apk" > "$RUNNER_TEMP/main-cert.txt"
+            digest=$(grep -m1 'certificate SHA-256 digest:' "$RUNNER_TEMP/main-cert.txt" | awk '{print $NF}' | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+            test "$digest" = "$EXPECTED_CERT_SHA256" || { echo "::error::Signer mismatch for $apk"; exit 1; }
+            "$aapt" dump badging "$apk" | grep -F "package: name='com.duanju.coexist'"
+            count=$((count+1))
+          done
+          test "$count" -ge 2
+          (cd dist/android && sha256sum *.apk > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guo-main-coexist-android-arm64-v7a
+          path: dist/android/
+          retention-days: 14
+          if-no-files-found: error
+      - name: Clean up signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/main-permanent.jks" "$RUNNER_TEMP/main-cert.txt"
