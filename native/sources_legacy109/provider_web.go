@@ -114,11 +114,15 @@ func (p *provider) parseCards(body string)[]core.Drama{
  if p.cfg.id=="hanxiaoquan"{reg=hCard}else{reg=gCard}
  seen:=map[string]bool{}
  var rows []core.Drama
- for _,m:=range reg.FindAllStringSubmatchIndex(body,-1){
+ matches:=reg.FindAllStringSubmatchIndex(body,-1)
+ for i,m:=range matches{
   if len(m)<6 {continue}
   id,title:=body[m[2]:m[3]],clean(body[m[4]:m[5]])
   if !idPattern.MatchString(id)||title==""||seen[id]{continue}
-  chunk:=body[m[1]:]
+  // Limit cover extraction to the current card; never borrow the next title's image.
+  end:=len(body)
+  if i+1<len(matches)&&matches[i+1][0]<end{end=matches[i+1][0]}
+  chunk:=body[m[1]:end]
   if len(chunk)>650 {chunk=chunk[:650]}
   cover:=""
   img:=gImg
