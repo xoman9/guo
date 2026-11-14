@@ -68,6 +68,8 @@ func TestMissAVDirectMediaURL(t *testing.T) {
     for _, body := range []string{
         `<script>player.loadDynamic()</script>`,
         `<source src="javascript:alert(1)">`,
+        `<a href="https://tracking.example.test/ad.mp4">Advertisement</a>`,
+        `<video src="https://cdn.example.test/one.mp4"></video><source src="https://cdn.example.test/two.mp4">`,
     } {
         if got, err := directMediaURL(page, body); err == nil {
             t.Fatalf("non-public direct URL accepted %q: %q", body, got)
