@@ -1,6 +1,14 @@
 name: Android provider repair APK test
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/jable-missav-jinguo-cover-20261114
+    paths:
+      - 'native/**'
+      - 'lib/**'
+      - 'scripts/**'
+      - '.github/workflows/android-provider-repair-test.yml'
 permissions:
   contents: read
 concurrency:
