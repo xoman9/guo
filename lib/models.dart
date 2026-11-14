@@ -56,6 +56,8 @@ class SourceSite {
   String get groupId => group.isEmpty ? id : group;
   String get groupName => groupLabel.isEmpty ? name : groupLabel;
   String get entryName => entryLabel.isEmpty ? name : entryLabel;
+  /// Prefix opt-in / default-disabled channels, without changing their ID.
+  String get displayName => defaultOff ? '$name+' : name;
 
   static List<SourceSite> _all = const [];
   static List<SourceSite> _available = const [];
