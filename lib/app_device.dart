@@ -162,6 +162,22 @@ class AppDevice {
     }
   }
 
+  static Future<String?> chooseDownloadDirectory() async {
+    try {
+      return await channel.invokeMethod<String>('chooseDownloadDirectory');
+    } on PlatformException catch (error) {
+      throw AppFailure(error.message ?? '無法選擇下載資料夾');
+    }
+  }
+
+  static Future<bool> downloadStorageAccess() async {
+    try {
+      return await channel.invokeMethod<bool>('downloadStorageAccess') ?? false;
+    } on PlatformException catch (error) {
+      throw AppFailure(error.message ?? '無法開啟存取授權');
+    }
+  }
+
   static Future<bool> requestVideoExport() async {
     try {
       return await channel.invokeMethod<bool>('requestVideoExport') ?? false;
