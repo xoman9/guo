@@ -187,5 +187,5 @@ func (p *provider) ResolveMedia(ctx context.Context, task core.Task) (core.Provi
     if err != nil { return core.ProviderMedia{}, err }
     media, err := directMediaURL(page, body)
     if err != nil { return core.ProviderMedia{}, err }
-    return core.ProviderMedia{URL: media, Referer: page}, nil
+    return core.ProviderMedia{URL: media, Referer: page, Credentials:core.VerifiedMediaCredentials(p.host,sourceID,page)}, nil
 }
