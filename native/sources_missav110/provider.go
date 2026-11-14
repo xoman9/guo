@@ -253,8 +253,20 @@ func directMediaURL(page,body string)(string,error){
    if len(m)>1{add("https://surrit.com/"+m[1]+"/playlist.m3u8")}
   }
  }
- if len(unique)==0{return "",errors.New("MissAV Java 播放解析依賴 TVBox parse 服務；頁面未提供直接媒體連結")}
- if len(unique)>1{return "",errors.New("MissAV 播放頁提供多個不同媒體連結，無法安全選擇")}
+ if len(unique)==0{return "",errors.New("MissAV 播放頁尚未取得有效的 HLS 或 MP4 連結")}
+ // A page can contain previews, quality variants and the actual master HLS.
+ // Prefer the canonical player manifest over unrelated media references.
+ masters:=[]string{}
+ for candidate:=range unique {
+  u,err:=url.Parse(candidate)
+  if err==nil && strings.EqualFold(u.Hostname(),"surrit.com") &&
+    strings.HasSuffix(strings.ToLower(u.Path),"/playlist.m3u8") {
+   masters=append(masters,candidate)
+  }
+ }
+ if len(masters)==1{return masters[0],nil}
+ if len(masters)>1{return "",errors.New("MissAV 發現多個不同的 HLS 主播放清單，無法確認應播放哪一個")}
+ if len(unique)>1{return "",errors.New("MissAV 影片頁含多個不同的媒體網址，無法確認主播放來源")}
  for u:=range unique{return u,nil}
  return "",errors.New("MissAV media unavailable")
 }
