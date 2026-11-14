@@ -4,6 +4,7 @@ on:
     branches: [feat/recover-109-missav-20261114]
     paths:
       - '.github/workflows/build-recovered-109-test-apks.yml'
+      - '.github/workflows/test-missav-recovery.yml'
       - 'native/sources_custom/**'
       - 'native/sources_legacy109/**'
       - 'native/sources_missav/**'
@@ -82,6 +83,8 @@ jobs:
           grep -F '"guoapp/missav-recovery"' native/bridge/sources_gen.go
           (cd native && go test -v -count=1 -tags=zhenguojian ./bridge ./core) 2>&1 | tee "$RUNNER_TEMP/guo-core-test.log"
           (cd native && go test -v -count=1 -tags=zhenguojian guoapp/legacy109-recovery guoapp/missav-recovery duanjuapp/native/sources_custom) 2>&1 | tee "$RUNNER_TEMP/guo-provider-test.log"
+          # Verify the linked bridge compiles before touching the permanent keystore.
+          (cd native && go build -tags=zhenguojian ./bridge) 2>&1 | tee "$RUNNER_TEMP/guo-bridge-build.log"
       - name: Require original fixed Android signing secret
         shell: bash
         env:
@@ -153,6 +156,7 @@ jobs:
           path: |
             ${{ runner.temp }}/guo-core-test.log
             ${{ runner.temp }}/guo-provider-test.log
+            ${{ runner.temp }}/guo-bridge-build.log
             ${{ runner.temp }}/gofmt-report.txt
           retention-days: 14
           if-no-files-found: warn
