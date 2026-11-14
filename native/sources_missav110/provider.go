@@ -31,6 +31,10 @@ var webHomeHLS = regexp.MustCompile(`(?i)(?:https?:)?//surrit\.com/[0-9a-f]{8}-[
 // WebHome's unpackEvals decodes Dean Edwards' packer as text only.
 // Only an explicit playable URL in the decoded result is accepted.
 var missPackerCall = regexp.MustCompile(`(?s)\}\('((?:\\.|[^'\\])*)',(\d+),(\d+),'((?:\\.|[^'\\])*)'\.split\('\|'\)`)
+// Some site playback scripts hold the stream UUID immediately before a seek
+// option and build the HLS URL dynamically. Only accept that precise player
+// context, never an arbitrary UUID from a page's metadata or thumbnails.
+var missSeekStreamID = regexp.MustCompile(`(?i)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})[^\\r\\n<>]{0,32}seek\\b`)
 var missExplicitHLS = regexp.MustCompile(`(?i)https?://[^\s"'<>\\]+\.m3u8(?:\?[^\s"'<>\\]*)?`)
 
 func unpackMissPacker(body string) string {
@@ -235,12 +239,19 @@ func directMediaURL(page,body string)(string,error){
  for _,m:=range directVideoAttribute.FindAllStringSubmatch(normalized,-1){if len(m)>1{add(m[1])}}
  for _,m:=range directPlayerJSON.FindAllStringSubmatch(normalized,-1){if len(m)>1{add(m[1])}}
  for _,m:=range webHomeHLS.FindAllString(normalized,-1){add(m)}
+ // This is the dynamic URL assembly used by WebHome playback scripts.
+ for _,m:=range missSeekStreamID.FindAllStringSubmatch(normalized,-1){
+  if len(m)>1{add("https://surrit.com/"+m[1]+"/playlist.m3u8")}
+ }
  // WebHome also scans packed inline JavaScript. Decode text only: never
  // evaluate scripts or synthesize a URL from an unrelated UUID.
  if packed:=unpackMissPacker(normalized);packed!="" {
   packed=strings.ReplaceAll(packed,`\\/`,"/")
   for _,m:=range webHomeHLS.FindAllString(packed,-1){add(m)}
   for _,m:=range missExplicitHLS.FindAllString(packed,-1){add(m)}
+  for _,m:=range missSeekStreamID.FindAllStringSubmatch(packed,-1){
+   if len(m)>1{add("https://surrit.com/"+m[1]+"/playlist.m3u8")}
+  }
  }
  if len(unique)==0{return "",errors.New("MissAV Java 播放解析依賴 TVBox parse 服務；頁面未提供直接媒體連結")}
  if len(unique)>1{return "",errors.New("MissAV 播放頁提供多個不同媒體連結，無法安全選擇")}
