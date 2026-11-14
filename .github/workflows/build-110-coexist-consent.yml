@@ -4,6 +4,7 @@ on:
     branches: [feat/110-coexist-consent-checkbox-20261114]
     paths:
       - '.github/workflows/build-110-coexist-consent.yml'
+      - 'lib/ui/terms_page.dart'
   workflow_dispatch:
 
 permissions:
