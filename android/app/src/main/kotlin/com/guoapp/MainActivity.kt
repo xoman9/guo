@@ -53,6 +53,7 @@ import kotlin.math.roundToInt
 private const val SURFACE_RESIZE_REDRAW_WAIT_MS = 100L
 private const val ORIENTATION_SETTLE_MS = 800L
 private const val CREATE_DOCUMENT_REQUEST = 7301
+private const val SELECT_DOWNLOAD_DIRECTORY_REQUEST = 7303
 private const val STORAGE_PERMISSION_REQUEST = 7302
 private const val PICTURE_IN_PICTURE_ACTION = "com.guoapp.PICTURE_IN_PICTURE_ACTION"
 
@@ -72,6 +73,7 @@ class MainActivity : FlutterActivity() {
     private var pictureInPicture: PlayerPictureInPicture? = null
     private var pictureInPictureReceiver: BroadcastReceiver? = null
     private var documentResult: MethodChannel.Result? = null
+    private var downloadDirectoryResult: MethodChannel.Result? = null
     private var permissionResult: MethodChannel.Result? = null
     private var textInput: TextInputBridge? = null
     private var headroomReadAt = 0L
@@ -473,6 +475,39 @@ class MainActivity : FlutterActivity() {
                                 result.error("invalid_url", "播放地址为空", null)
                             }
                         }
+                        "chooseDownloadDirectory" -> {
+                            if (downloadDirectoryResult != null) {
+                                result.error("directory_picker_pending", "正在選擇下載資料夾", null)
+                            } else {
+                                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                                        Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                                        Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+                                }
+                                try {
+                                    downloadDirectoryResult = result
+                                    startActivityForResult(intent, SELECT_DOWNLOAD_DIRECTORY_REQUEST)
+                                } catch (error: Exception) {
+                                    downloadDirectoryResult = null
+                                    result.error("directory_picker_unavailable", "無法開啟 Android 系統檔案管理員：${error.message}", null)
+                                }
+                            }
+                        }
+                        "downloadStorageAccess" -> {
+                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
+                                Environment.isExternalStorageManager()) {
+                                result.success(true)
+                            } else {
+                                try {
+                                    startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                        Uri.parse("package:$packageName")))
+                                    result.success(false)
+                                } catch (error: Exception) {
+                                    result.error("storage_access_settings", "無法開啟檔案存取授權：${error.message}", null)
+                                }
+                            }
+                        }
                         "createDocument" -> {
                             val name = call.argument<String>("name")
                             if (name.isNullOrEmpty() || documentResult != null) {
@@ -683,8 +718,64 @@ class MainActivity : FlutterActivity() {
         )
     }
 
+    /**
+     * The Go downloader needs a real writable filesystem directory, not a SAF content URI.
+     * Use the system picker for navigation and persisted user consent, but reject paths
+     * the native core cannot write. Never silently pretend a URI is a filesystem path.
+     */
+    private fun selectedDownloadDirectory(uri: Uri): String {
+        val authority = uri.authority ?: ""
+        if (authority != "com.android.externalstorage.documents") {
+            throw IOException("此檔案管理員使用虛擬目錄，下載核心需要實體儲存路徑")
+        }
+        val documentId = DocumentsContract.getTreeDocumentId(uri)
+        val colon = documentId.indexOf(':')
+        if (colon < 0) throw IOException("無法辨識所選資料夾")
+        val volume = documentId.substring(0, colon)
+        val relative = documentId.substring(colon + 1)
+        val root = if (volume.equals("primary", true)) {
+            Environment.getExternalStorageDirectory()
+        } else {
+            File("/storage", volume)
+        }
+        val canonicalRoot = root.canonicalFile
+        val target = File(canonicalRoot, relative).canonicalFile
+        if (target.path != canonicalRoot.path &&
+            !target.path.startsWith(canonicalRoot.path + File.separator)) {
+            throw IOException("無效的資料夾位置")
+        }
+        if (!target.isDirectory) throw IOException("所選目錄不存在")
+        // Android 11+ requires broad filesystem access for the unchanged Go core
+        // even if SAF has granted content-URI access.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+            !Environment.isExternalStorageManager()) {
+            throw IOException("請先在「存取授權」允許管理所有檔案，再重新選擇資料夾")
+        }
+        val probe = File.createTempFile(".guo-write-check-", ".tmp", target)
+        if (!probe.delete()) throw IOException("無法清除資料夾存取測試檔")
+        return target.path
+    }
+
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == SELECT_DOWNLOAD_DIRECTORY_REQUEST) {
+            val pending = downloadDirectoryResult ?: return
+            downloadDirectoryResult = null
+            if (resultCode != RESULT_OK || data?.data == null) {
+                pending.success(null)
+                return
+            }
+            val uri = data.data!!
+            try {
+                val flags = data.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                contentResolver.takePersistableUriPermission(uri, flags)
+                pending.success(selectedDownloadDirectory(uri))
+            } catch (error: Exception) {
+                pending.error("unwritable_download_directory", error.message ?: "資料夾無法寫入", null)
+            }
+            return
+        }
         if (requestCode != CREATE_DOCUMENT_REQUEST) {
             return super.onActivityResult(requestCode, resultCode, data)
         }
