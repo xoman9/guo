@@ -13,8 +13,7 @@ Future<void> pickSource(BuildContext anchor, LocalStore store) async {
     title: '全部站源',
     options: [
       for (final source in store.sources)
-        if (!store.hideAdditionalSources || !source.defaultOff || source.id == store.source)
-          ChoiceOption(source.id, source.displayName),
+        ChoiceOption(source.id, source.displayName),
     ],
     selected: store.source,
     grid: ChoiceGrid.sources,
