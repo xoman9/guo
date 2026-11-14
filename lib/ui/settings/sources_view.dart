@@ -28,7 +28,11 @@ class SourcesView extends StatelessWidget {
             children: [
               SwitchListTile(
                 title: const Text('隱藏頻道'),
-                subtitle: const Text('預設關閉；開啟時一次啟用下方原本關閉的 + 頻道，關閉時不會停用已開啟的頻道'),
+                subtitle: Text(
+                  '預設關閉；開啟時一次啟用所有 + 頻道（目前已啟用 '
+                  '${SourceSite.values.where((site) => site.defaultOff && store.sourceEnabled(site.id)).length}'
+                  '／${SourceSite.values.where((site) => site.defaultOff).length}）。關閉時不會停用已開啟的頻道。',
+                ),
                 value: store.hideAdditionalSources,
                 onChanged: admin
                     ? (value) => saveSetting(
