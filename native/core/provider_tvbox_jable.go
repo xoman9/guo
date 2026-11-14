@@ -5,17 +5,35 @@ package core
 // It uses public Jable page metadata and supports direct HLS only.
 import (
  "context"
- "encoding/json"
  "errors"
  "fmt"
  "net/url"
  "regexp"
+ "strconv"
+ "time"
  "strings"
  nethtml "golang.org/x/net/html"
 )
 const tvboxJableBase = "https://jable.tv"
-var tvboxJableSlug = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{1,100}$`)
-var tvboxJableMedia = regexp.MustCompile(`(?i)(?:hlsUrl|video_url|videoUrl)\s*[:=]\s*["']([^"']+?\.m3u8(?:\?[^"']*)?)["']`)
+var tvboxJableSlug = regexp.MustCompile(`^[A-Za-z0-9_-]{1,120}package core
+
+// Native experimental Jable adapter. TVBox's "csp_Jable" references a
+// Java spider class, NOT a network API. This does not execute that spider.
+// It uses public Jable page metadata and supports direct HLS only.
+import (
+ "context"
+ "errors"
+ "fmt"
+ "net/url"
+ "regexp"
+ "strconv"
+ "time"
+ "strings"
+ nethtml "golang.org/x/net/html"
+)
+const tvboxJableBase = "https://jable.tv"
+)
+var tvboxJableMedia = regexp.MustCompile(`(?i)\bhlsUrl\s*[:=]\s*["']([^"']+)["']`)
 
 type tvboxJableProvider struct{ host Host }
 func (p *tvboxJableProvider) Descriptor() SourceDescriptor {
@@ -33,10 +51,15 @@ func tvboxJableURL(path string) (string,error){
 }
 func (p *tvboxJableProvider) page(ctx context.Context,path string)(*nethtml.Node,string,error){
  address,err:=tvboxJableURL(path);if err!=nil{return nil,"",err}
- response,err:=VerifiedSiteText(ctx,p.host,"tvbox-jable",address,tvboxJableBase+"/")
+ doc,_,err:=FetchHostPage(ctx,p.host,address,tvboxJableBase+"/",UserAgent)
  if err!=nil{return nil,"",err}
- doc,e:=nethtml.Parse(strings.NewReader(response.Body))
- return doc,response.URL,e
+ for _,n:=range tvboxJableChildren(doc,"title",""){
+  t:=strings.ToLower(ProviderHTMLText(n))
+  if strings.Contains(t,"just a moment")||strings.Contains(t,"attention required")||strings.Contains(t,"verify you are human"){
+   return nil,"",errors.New("Jable HTTP 403：網站要求額外驗證，目前連線未被接受")
+  }
+ }
+ return doc,address,nil
 }
 // The original TVBox csp_Jable spider derives its categories from
 // /categories/ div.img-box and lists from div.video-img-box. Its category
@@ -86,7 +109,7 @@ func (p *tvboxJableProvider) Categories(ctx context.Context,force bool)([]Catego
  if err!=nil{return nil,err}
  items:=tvboxJableCategories(doc)
  if len(items)==0{return nil,errors.New("Jable 分類頁沒有解析到 TVBox 分類")}
- return items,nil
+ return append([]Category{{ID:"",Name:"全部"}},items...),nil
 }
 func tvboxJableID(address string) string {
  u,e:=url.Parse(address);if e!=nil{return ""}
@@ -126,7 +149,7 @@ func tvboxJableCards(doc *nethtml.Node)[]Drama{
  return out
 }
 func (p *tvboxJableProvider) CatalogPage(ctx context.Context,page int,category string)([]Drama,bool,error){
- if page<1||page>500{return nil,false,errors.New("無效頁碼")}
+ if page<1||page>10000{return nil,false,errors.New("無效頁碼")}
  path:="/"
  if category!="" {
   if !tvboxJableSlug.MatchString(category){return nil,false,errors.New("無效的 Jable 分類")}
@@ -135,23 +158,22 @@ func (p *tvboxJableProvider) CatalogPage(ctx context.Context,page int,category s
   params.Set("block_id","list_videos_common_videos_list")
   params.Set("sort_by","post_date")
   params.Set("from",fmt.Sprintf("%02d",page))
+  params.Set("_",strconv.FormatInt(time.Now().UnixMilli(),10))
   path="/categories/"+category+"/?"+params.Encode()
  }else if page>1{
-  // The TVBox spider does not paginate its home page. Keep this
-  // predictable rather than inventing a category or returning wrong films.
-  return []Drama{},false,nil
+  path="/latest-updates/?page="+strconv.Itoa(page)
  }
  doc,_,err:=p.page(ctx,path);if err!=nil{return nil,false,err}
  items:=tvboxJableCards(doc)
  return items,len(items)>=20,nil
 }
 func (p *tvboxJableProvider) Search(ctx context.Context,page int,query string)([]Drama,bool,error){
- if page<1||page>100||len(query)>100{return nil,false,errors.New("無效搜尋參數")}
+ if page<1||page>10000||len(query)>200{return nil,false,errors.New("無效搜尋參數")}
  if strings.TrimSpace(query)==""{return []Drama{},false,nil}
- if page>1{return []Drama{},false,nil}
  path:="/search/"+url.PathEscape(strings.TrimSpace(query))+"/"
+ if page>1{path+="?page="+strconv.Itoa(page)}
  doc,_,err:=p.page(ctx,path);if err!=nil{return nil,false,err}
- return tvboxJableCards(doc),false,nil
+ cards:=tvboxJableCards(doc);return cards,len(cards)>=20,nil
 }
 func (p *tvboxJableProvider) Detail(ctx context.Context,id string)(Drama,[]Chapter,error){
  if !tvboxJableSlug.MatchString(id){return Drama{},nil,errors.New("Jable 影片 ID 無效")}
@@ -166,7 +188,7 @@ func (p *tvboxJableProvider) Detail(ctx context.Context,id string)(Drama,[]Chapt
  if title==""{return Drama{},nil,errors.New("Jable 詳情缺少可信影片標題")}
  if cover!="" {if u,e:=url.Parse(cover);e!=nil||u.User!=nil||u.Scheme!="https"&&u.Scheme!="http"{cover=""}}
  drama:=Drama{ID:ProviderDramaID("tvbox-jable",id),Source:"tvbox-jable",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:"Jable"}
- return drama,[]Chapter{{ID:ProviderChapterID("tvbox-jable",id,"1"),Source:"tvbox-jable",Title:"播放",CurrentEpisode:json.RawMessage("1"),PageURL:actual,VideoURL:actual,Referer:tvboxJableBase+"/"}},nil
+ return drama,[]Chapter{{ID:ProviderChapterID("tvbox-jable",id,"1"),Source:"tvbox-jable",Title:"播放",CurrentEpisode:RawEpisode(1),PageURL:actual,Referer:actual}},nil
 }
 func (p *tvboxJableProvider) ResolveMedia(ctx context.Context,task Task)(ProviderMedia,error){
  source,id,ok:=SplitProviderDramaID(task.DramaID)
@@ -174,18 +196,32 @@ func (p *tvboxJableProvider) ResolveMedia(ctx context.Context,task Task)(Provide
   return ProviderMedia{},errors.New("Jable 影片分集不一致")
  }
  page,err:=tvboxJableURL("/videos/"+id+"/");if err!=nil{return ProviderMedia{},err}
- resp,err:=VerifiedSiteText(ctx,p.host,"tvbox-jable",page,tvboxJableBase+"/")
+ doc,_,err:=p.page(ctx,"/videos/"+id+"/")
  if err!=nil{return ProviderMedia{},err}
- found:=tvboxJableMedia.FindStringSubmatch(resp.Body)
- if len(found)!=2{return ProviderMedia{},fmt.Errorf("Jable 詳情未找到 TVBox 的 hlsUrl 播放地址；網站可能限制目前連線或播放腳本已更改")}
- address:=strings.ReplaceAll(found[1],"\\/","/")
- u,e:=url.Parse(address)
- if e!=nil||u.Scheme!="https"&&u.Scheme!="http"||u.Hostname()==""||u.User!=nil{return ProviderMedia{},errors.New("Jable HLS 連結無效")}
+ var scripts strings.Builder
+ for _,node:=range tvboxJableChildren(doc,"script",""){
+  for child:=node.FirstChild;child!=nil;child=child.NextSibling{
+   if child.Type==nethtml.TextNode{scripts.WriteString(child.Data);scripts.WriteByte('\n')}
+  }
+ }
+ found:=tvboxJableMedia.FindStringSubmatch(scripts.String())
+ if len(found)<2{return ProviderMedia{},errors.New("Jable 未找到 hlsUrl，播放腳本可能改變")}
+ raw:=strings.ReplaceAll(found[1],`\/`,"/")
+ address,err:=tvboxJableURL(raw)
+ if err!=nil{
+  // Media hosts may be outside jable.tv, but the URL must still be HTTP(S).
+  parsed,parseErr:=url.Parse(raw)
+  if parseErr!=nil||parsed.User!=nil||!(parsed.Scheme=="http"||parsed.Scheme=="https")||parsed.Hostname()==""{
+   return ProviderMedia{},errors.New("Jable HLS 位址無效")
+  }
+  address=parsed.String()
+ }
+ if !IsProviderHTTPMediaURL(address){return ProviderMedia{},errors.New("Jable HLS 位址無效")}
  return p.host.PrepareWebMedia(ctx,ProviderMedia{URL:address,Referer:page,Credentials:VerifiedMediaCredentials(p.host,"tvbox-jable",page)},"Jable")
 }
 func init(){
  descriptor:=SourceDescriptor{ID:"tvbox-jable",Name:"Jable",DefaultOff:true,
-  Description:"依 TVBox csp_Jable 分類與列表結構移植的 Go 解析器",NoHostRotation:true,
+  Description:"從已修復 TVBox Jable 解析器移植，保留 110 頻道 ID",NoHostRotation:true,BrowserFingerprint:true,
   BaseURL:tvboxJableBase,ValidCategory:func(s string)bool{return s==""||tvboxJableSlug.MatchString(s)}}
  Register(descriptor,func(host Host)Provider{return &tvboxJableProvider{host:host}})
 }
