@@ -56,6 +56,10 @@ func Test109HuangguoVideoChapterPageBinding(t *testing.T){
  cases:=[]struct{id,ep,page string;valid bool}{
   {"video/ep1","1",hgVideoBase+"/video/ep1",true},
   {"series/series1","ep1",hgVideoBase+"/video/ep1",true},
+  {"series/series1","ep1",hgVideoBase+"/video/ep1?token=abc",true},
+  {"series/series1","ep1",hgVideoBase+"/video/ep1?token=abc#redirect",false},
+  {"series/series1","ep1","https://huangguo.video.evil.test/video/ep1",false},
+  {"series/series1","ep1","http://huangguo.video/video/ep1",false},
   {"series/series1","ep1",hgVideoBase+"/video/ep2",false},
   {"video/ep1","2",hgVideoBase+"/video/ep1",false},
   {"series/series1","../other",hgVideoBase+"/video/other",false},
@@ -96,5 +100,12 @@ func Test109HuangguoCatalogRejectsOffDomainAndNestedPaths(t *testing.T){
  rows:=hgVideoItems(html,origin)
  if len(rows)!=1||rows[0].SourceID!="series/real"{
   t.Fatalf("unexpected catalog cards: %+v",rows)
+ }
+}
+
+func Test109HuangguoVideoPagePreservesQuery(t *testing.T){
+ route,err:=hg109VideoPage("series/s1","ep1",hgVideoBase+"/video/ep1?token=abc&quality=hd")
+ if err!=nil||route!="/video/ep1?token=abc&quality=hd"{
+  t.Fatalf("query-bearing episode URL dropped: route=%q err=%v",route,err)
  }
 }
