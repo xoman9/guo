@@ -160,7 +160,9 @@ func heitaoParseEpisodes(body,id string)[]core.Chapter{
   groups[sid]=append(groups[sid],episode{sid,nid,title})
  }
  chosen:=0
- for sid,group:=range groups{if len(group)>len(groups[chosen]){chosen=sid}}
+ for sid,group:=range groups{
+  if len(group)>len(groups[chosen])||(len(group)==len(groups[chosen])&&len(group)>0&&(chosen==0||sid<chosen)){chosen=sid}
+ }
  var chapters []core.Chapter
  for _,e:=range groups[chosen]{
   page:=fmt.Sprintf("%s/index.php/vod/player/id/%s/nid/%d/sid/%d.html",htBase,id,e.nid,e.sid)
