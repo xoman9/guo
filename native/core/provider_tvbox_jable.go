@@ -190,6 +190,20 @@ func (p *tvboxJableProvider) Detail(ctx context.Context,id string)(Drama,[]Chapt
  drama:=Drama{ID:ProviderDramaID("tvbox-jable",id),Source:"tvbox-jable",SourceID:id,Title:title,Name:title,Cover:cover,CoverURL:cover,ChannelName:"Jable"}
  return drama,[]Chapter{{ID:ProviderChapterID("tvbox-jable",id,"1"),Source:"tvbox-jable",Title:"播放",CurrentEpisode:RawEpisode(1),PageURL:actual,Referer:actual}},nil
 }
+// tvboxJableHLSFromDocument reads inline JavaScript as raw text nodes;
+// ProviderHTMLText intentionally skips script content.
+func tvboxJableHLSFromDocument(doc *nethtml.Node) string {
+ var scripts strings.Builder
+ for _,node:=range tvboxJableChildren(doc,"script",""){
+  for child:=node.FirstChild;child!=nil;child=child.NextSibling{
+   if child.Type==nethtml.TextNode{scripts.WriteString(child.Data);scripts.WriteByte('\n')}
+  }
+ }
+ found:=tvboxJableMedia.FindStringSubmatch(scripts.String())
+ if len(found)<2{return ""}
+ return strings.ReplaceAll(found[1],`\/`,"/")
+}
+
 func (p *tvboxJableProvider) ResolveMedia(ctx context.Context,task Task)(ProviderMedia,error){
  source,id,ok:=SplitProviderDramaID(task.DramaID)
  if !ok||source!="tvbox-jable"||!tvboxJableSlug.MatchString(id)||task.Chapter.ID!=ProviderChapterID(source,id,"1"){
@@ -198,15 +212,8 @@ func (p *tvboxJableProvider) ResolveMedia(ctx context.Context,task Task)(Provide
  page,err:=tvboxJableURL("/videos/"+id+"/");if err!=nil{return ProviderMedia{},err}
  doc,_,err:=p.page(ctx,"/videos/"+id+"/")
  if err!=nil{return ProviderMedia{},err}
- var scripts strings.Builder
- for _,node:=range tvboxJableChildren(doc,"script",""){
-  for child:=node.FirstChild;child!=nil;child=child.NextSibling{
-   if child.Type==nethtml.TextNode{scripts.WriteString(child.Data);scripts.WriteByte('\n')}
-  }
- }
- found:=tvboxJableMedia.FindStringSubmatch(scripts.String())
- if len(found)<2{return ProviderMedia{},errors.New("Jable 未找到 hlsUrl，播放腳本可能改變")}
- raw:=strings.ReplaceAll(found[1],`\/`,"/")
+ raw:=tvboxJableHLSFromDocument(doc)
+ if raw==""{return ProviderMedia{},errors.New("Jable 未找到 hlsUrl，播放腳本可能改變")}
  address,err:=tvboxJableURL(raw)
  if err!=nil{
   // Media hosts may be outside jable.tv, but the URL must still be HTTP(S).
