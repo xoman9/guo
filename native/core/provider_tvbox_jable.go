@@ -34,7 +34,10 @@ func tvboxJableURL(path string) (string,error){
 }
 func (p *tvboxJableProvider) page(ctx context.Context,path string)(*nethtml.Node,string,error){
  address,err:=tvboxJableURL(path);if err!=nil{return nil,"",err}
- return FetchHostPage(ctx,p.host,address,tvboxJableBase+"/","Mozilla/5.0 (Android 11; Mobile) AppleWebKit/537.36 Chrome/131.0 Safari/537.36")
+ response,err:=VerifiedSiteText(ctx,p.host,"tvbox-jable",address,tvboxJableBase+"/")
+ if err!=nil{return nil,"",err}
+ doc,e:=nethtml.Parse(strings.NewReader(response.Body))
+ return doc,response.URL,e
 }
 func (p *tvboxJableProvider) Categories(ctx context.Context,force bool)([]Category,error){
  return []Category{{ID:"new-release",Name:"最新"},{ID:"hot",Name:"熱門"}},nil
@@ -106,7 +109,7 @@ func (p *tvboxJableProvider) ResolveMedia(ctx context.Context,task Task)(Provide
   return ProviderMedia{},errors.New("Jable 影片分集不一致")
  }
  page,err:=tvboxJableURL("/videos/"+id+"/");if err!=nil{return ProviderMedia{},err}
- resp,err:=p.host.FetchText(ctx,TextRequest{URL:page,Referer:tvboxJableBase+"/"})
+ resp,err:=VerifiedSiteText(ctx,p.host,"tvbox-jable",page,tvboxJableBase+"/")
  if err!=nil{return ProviderMedia{},err}
  found:=tvboxJableMedia.FindStringSubmatch(resp.Body)
  if len(found)!=2{return ProviderMedia{},fmt.Errorf("Jable 當前頁面未提供可用 HLS；csp_Jable 專有 spider 尚未移植")}
