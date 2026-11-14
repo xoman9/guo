@@ -1,4 +1,4 @@
-name: Build single 110 core with original historical 15 plus 13 custom providers
+name: Build single 110 core with original historical 15 plus recovered MissAV and 13 extras
 on:
   push:
     branches: [feat/110-single-core-original15-plus13-20261114]
@@ -59,11 +59,13 @@ jobs:
           test -f native/sources_original110/provider_hongguo_native_media.go
           test -f native/sources_original110/flavor_zhenguojian.go
           test -f native/sources_original110/go.mod
+          test -f native/sources_missav110/provider.go
+          ! test -f native/sources_missav110/flavor_zhenguojian.go
           grep -Fq '"hongguo"' native/sources_original110/flavor_zhenguojian.go
           grep -Fq 'sourceLujj31' native/core/custom_registry_sources.go
           grep -Fq 'sourceLiuguo' native/core/custom_registry_sources.go
           grep -Fq 'sourceXiaoguo' native/core/custom_registry_sources.go
-          echo 'Single 110 core: upstream original 15-provider public snapshot (2026-11-11) plus 13 distinct custom providers. Upstream 110 MissAV (2026-11-13) parity remains pending.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Single 110 Go core: 15 historical original providers + 13 custom providers + experimentally rebuilt MissAV. Rebuilt MissAV playback parity remains unverified.' >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/setup-java@v4
         with:
@@ -103,9 +105,9 @@ jobs:
           sys.path.insert(0, 'scripts')
           from app_build import link_sources
           from pathlib import Path
-          link_sources([Path('native/sources_original110')])
+          link_sources([Path('native/sources_original110'), Path('native/sources_missav110')])
           PY
-          (cd native && go test -tags=zhenguojian -count=1 ./core ./bridge duanjuapp/native/sources_original110) 2>&1 | tee "$RUNNER_TEMP/guo-110-provider-tests.log"
+          (cd native && go test -tags=zhenguojian -count=1 ./core ./bridge duanjuapp/native/sources_original110 guoapp/missav-recovery) 2>&1 | tee "$RUNNER_TEMP/guo-110-provider-tests.log"
           python3 scripts/build_native.py --platform android --all-sources \
             --sources native/sources_original110 \
             --abi arm64-v8a --abi armeabi-v7a 2>&1 | tee "$RUNNER_TEMP/guo-110-native-build.log"
@@ -117,7 +119,7 @@ jobs:
                   raise SystemExit('New native Go library missing: '+str(path))
               sha=hashlib.sha256(path.read_bytes()).hexdigest()
               pathlib.Path('/tmp/guo-110-experimental-'+abi+'.sha256').write_text(sha+'\n')
-              print('Single Go core compiled with upstream historical 15 + 13 additional providers:',abi,sha)
+              print('Single Go core compiled with historical original 15 + rebuilt MissAV + 13 additional providers:',abi,sha)
           PY
 
       - name: Load previously configured permanent signing certificate
@@ -215,12 +217,12 @@ jobs:
             cp "$apk" verified/
           done
           (cd verified && sha256sum *.apk > SHA256SUMS.txt)
-          echo "One Go core includes 15 original upstream 2026-11-11 providers and 13 custom providers. Original 2026-11-13 MissAV provider not yet recovered. Permanent certificate verified." >> "$GITHUB_STEP_SUMMARY"
+          echo "One Go core includes original 15 from public history, 13 custom providers, and a separately reconstructed experimental MissAV. Exact original 110 MissAV playback parity not verified. Permanent certificate verified." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload both APKs to Actions artifacts only
         uses: actions/upload-artifact@v4
         with:
-          name: guo-110-single-core-original15-plus13-EXPERIMENTAL-arm64-v7a
+          name: guo-110-single-core-original16-plus13-EXPERIMENTAL-arm64-v7a
           path: verified/*
           retention-days: 14
           if-no-files-found: error
