@@ -190,6 +190,25 @@ func (p *huangguo109) Detail(ctx context.Context,id string)(core.Drama,[]core.Ch
  }
  return core.Drama{ID:core.ProviderDramaID(p.source(),id),Source:p.source(),SourceID:id,Title:title,Name:title,TotalEpisode:len(chapters)},chapters,nil
 }
+// hg109VideoPage ensures chapter metadata points at its own video,
+// rather than another episode or a different series.
+func hg109VideoPage(id,episode,page string)(string,error){
+ parts:=strings.Split(id,"/")
+ if len(parts)!=2||!hgIDRX.MatchString(parts[1]){return "",errors.New("invalid Huangguo video ID")}
+ var expected string
+ switch parts[0]{
+ case "video":
+  if episode!="1"{return "",errors.New("invalid single-video chapter")}
+  expected=hgVideoBase+"/video/"+parts[1]
+ case "series":
+  if !hgIDRX.MatchString(episode){return "",errors.New("invalid series episode ID")}
+  expected=hgVideoBase+"/video/"+episode
+ default:
+  return "",errors.New("invalid video type")
+ }
+ if page!=expected{return "",errors.New("Huangguo video page does not match chapter")}
+ return strings.TrimPrefix(expected,hgVideoBase),nil
+}
 func (p *huangguo109) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
  source,id,ok:=core.SplitProviderDramaID(task.DramaID)
  if !ok||source!=p.source(){return core.ProviderMedia{},errors.New("wrong Huangguo source")}
@@ -205,8 +224,9 @@ func (p *huangguo109) ResolveMedia(ctx context.Context,task core.Task)(core.Prov
   return p.host.PrepareWebMedia(ctx,core.ProviderMedia{URL:address,Referer:p.base()+"/"},"黃果AI")
  }
  page:=task.Chapter.PageURL
- if !strings.HasPrefix(page,p.base()+"/video/"){return core.ProviderMedia{},errors.New("invalid video page")}
- body,err:=p.get(ctx,strings.TrimPrefix(page,p.base()))
+ route,checkErr:=hg109VideoPage(id,episode,page)
+ if checkErr!=nil{return core.ProviderMedia{},checkErr}
+ body,err:=p.get(ctx,route)
  if err!=nil{return core.ProviderMedia{},err}
  hls:=hgDataHLSRX.FindStringSubmatch(body)
  if len(hls)<2{return core.ProviderMedia{},errors.New("video page does not expose direct HLS")}
