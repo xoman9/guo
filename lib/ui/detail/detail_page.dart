@@ -1495,12 +1495,15 @@ class _DetailPageState extends State<DetailPage> {
       icon: Icons.error_outline_rounded,
       action: '重试',
       onAction: details.load,
-      secondaryAction: challenge ? '在 App 內驗證並重試' : null,
+      secondaryAction: challenge ? '在 App 內開啟原站影片並驗證' : null,
       onSecondaryAction: challenge
           ? () async {
               final repository = AppScope.of(context).repository;
               try {
-                final session = await AppDevice.verifySiteInBrowser('missav');
+                final session = await AppDevice.verifySiteInBrowser(
+                  'missav',
+                  videoId: widget.drama.sourceId,
+                );
                 if (session == null || !mounted) return;
                 await repository.saveSiteVerification(
                   'missav',
