@@ -55,25 +55,25 @@ func registerCustomSource(id, name string, host Host,
 }
 
 func init() {
- Register(SourceDescriptor{ID: sourceLujj31, Name: "桃果 +", DefaultOff: true,
+ Register(SourceDescriptor{ID: sourceLujj31, Name: "桃果", DefaultOff: true,
   ValidCategory: func(category string) bool { return category == "" || WebProviderNumericID.MatchString(category) }},
   func(host Host) Provider {
    d, ok := host.(*Downloader); if !ok { return nil }
-   return registerCustomSource(sourceLujj31, "桃果 +", host, d.fetchLujj31Categories,
+   return registerCustomSource(sourceLujj31, "桃果", host, d.fetchLujj31Categories,
     d.fetchLujj31CatalogPage, d.fetchLujj31Detail, d.resolveLujj31Media)
   })
- Register(SourceDescriptor{ID: sourceLiuguo, Name: "榴果 +", DefaultOff: true,
+ Register(SourceDescriptor{ID: sourceLiuguo, Name: "榴果", DefaultOff: true,
   ValidCategory: func(category string) bool { return category == "" || WebProviderNumericID.MatchString(category) }},
   func(host Host) Provider {
    d, ok := host.(*Downloader); if !ok { return nil }
-   return registerCustomSource(sourceLiuguo, "榴果 +", host, d.fetchLiuguoCategories,
+   return registerCustomSource(sourceLiuguo, "榴果", host, d.fetchLiuguoCategories,
     d.fetchLiuguoCatalogPage, d.fetchLiuguoDetail, d.resolveLiuguoMedia)
   })
- Register(SourceDescriptor{ID: sourceXiaoguo, Name: "宵果 +", DefaultOff: true,
+ Register(SourceDescriptor{ID: sourceXiaoguo, Name: "宵果", DefaultOff: true,
   ValidCategory: validXiaoguoCategory},
   func(host Host) Provider {
    d, ok := host.(*Downloader); if !ok { return nil }
-   provider := registerCustomSource(sourceXiaoguo, "宵果 +", host, d.fetchXiaoguoCategories,
+   provider := registerCustomSource(sourceXiaoguo, "宵果", host, d.fetchXiaoguoCategories,
     d.fetchXiaoguoCatalogPage, d.fetchXiaoguoDetail, d.resolveXiaoguoMedia)
    if p, ok := provider.(*customSiteProvider); ok {
     p.descriptor.ValidCategory = validXiaoguoCategory
@@ -85,7 +85,7 @@ func init() {
  for _, entry := range apk391Sources {
   spec := entry
   descriptor := SourceDescriptor{
-   ID: spec.ID, Name: spec.Name + " +",
+   ID: spec.ID, Name: spec.Name,
    DefaultOff: true, ValidCategory: func(category string) bool {
     return apk391ValidCategory(spec.ID, category)
    },
