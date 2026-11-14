@@ -1,4 +1,4 @@
-name: Build 110 coexist APK - consent checkbox only
+name: Build 110 coexist APK - authorization and channel improvements
 on:
   push:
     branches: [feat/110-coexist-consent-checkbox-20261114]
@@ -6,6 +6,8 @@ on:
       - '.github/workflows/build-110-coexist-consent.yml'
       - 'lib/ui/terms_page.dart'
       - 'lib/ui/widgets/source_bar.dart'
+      - 'lib/ui/widgets/choice_panel.dart'
+      - 'lib/ui/widgets/page_header.dart'
       - 'lib/models.dart'
       - 'lib/local_store.dart'
       - 'lib/ui/explore/source_actions.dart'
@@ -44,13 +46,18 @@ jobs:
           grep -Fq '我已同意' lib/ui/terms_page.dart
           ! grep -Fq 'FormTextField(' lib/ui/terms_page.dart
           grep -Fq 'hideAdditionalSources' lib/local_store.dart
+          grep -Fq "switches[site.id] = true" lib/local_store.dart
+          grep -Fq 'for (final source in store.sources)' lib/ui/explore/source_actions.dart
+          ! grep -Fq '!store.hideAdditionalSources' lib/ui/explore/source_actions.dart
+          grep -Fq 'fontSize: 16' lib/ui/widgets/choice_panel.dart
+          grep -Fq '目前已啟用' lib/ui/settings/sources_view.dart
           grep -Fq 'displayName' lib/models.dart
           ! grep -Fq 'Icons.public_rounded' lib/ui/widgets/source_bar.dart
           grep -Fq 'target = filepath.Clean(resolved)' native/core/app_storage.go
           test ! -e native/sources_custom
           test ! -e native/sources_legacy109
           test ! -e native/sources_missav
-          echo "110 source untouched except lib/ui/terms_page.dart; build workflow is separate." >> "$GITHUB_STEP_SUMMARY"
+          echo "110 coexist Flutter UI and settings changes verified; official 110 provider cores retained." >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/setup-java@v4
         with:
