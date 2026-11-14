@@ -19,7 +19,7 @@ const baseURL = "https://missav.live"
 var categorySlug = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 var mediaSlug = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$`)
 var categoryLinks = regexp.MustCompile(`(?is)<a\b[^>]*href=["'](?:https?://(?:www\.)?missav\.live)?/cn/genres/([a-z0-9_-]{1,64})/?["'][^>]*>(.*?)</a>`)
-var cardLinks = regexp.MustCompile(`(?is)<a\b[^>]*href=["'](?:https?://(?:www\.)?missav\.live)?/cn/([a-z0-9][a-z0-9_-]{2,127})/?["'][^>]*>(.*?)</a>`)
+var cardLinks = regexp.MustCompile(`(?is)<a\b[^>]*href=["'](?:https?://(?:www\.)?missav\.live)?/cn/([a-zA-Z0-9][a-zA-Z0-9_-]{0,127})/?["'][^>]*>(.*?)</a>`)
 var titleAttr = regexp.MustCompile(`(?is)\b(?:alt|title)=["']([^"']+)["']`)
 var imageURL = regexp.MustCompile(`(?is)<(?:img|source)\b[^>]*\b(?:data-src|data-original|src|srcset)=["']([^"']+)["']`)
 var ogImage = regexp.MustCompile(`(?is)<meta\b[^>]*\bproperty=["']og:image["'][^>]*\bcontent=["']([^"']+)["']`)
