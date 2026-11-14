@@ -65,6 +65,20 @@ func LoadVerifiedSiteSession(host Host,source string) VerifiedSiteSession {
  }
  return session
 }
+// VerifiedMediaCredentials attaches the same user-approved session only to
+// first-party media requests; redirects to unrelated hosts never receive its
+// Cookie, while Referer and User-Agent remain available as needed.
+func VerifiedMediaCredentials(host Host,source,referer string)*MediaCredentials {
+ domain:=verifiedSiteHost(source)
+ if domain==""{return nil}
+ session:=LoadVerifiedSiteSession(host,source)
+ if session.Cookie==""{return nil}
+ return &MediaCredentials{
+  Cookie:session.Cookie, UserAgent:session.UserAgent,
+  Origin:"https://"+domain, Referer:referer,
+ }
+}
+
 func VerifiedSiteText(ctx context.Context,host Host,source,address,referer string)(TextResponse,error){
  domain:=verifiedSiteHost(source)
  if domain=="" {return TextResponse{},errors.New("未知的驗證站源")}
