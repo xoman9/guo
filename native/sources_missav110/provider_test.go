@@ -100,7 +100,7 @@ func TestMissAVFallbackMediaUsesSavedFirstPartySession(t *testing.T) {
  page:=baseURL+"/abc-123"
  hls:="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"
  host:=&missFixtureHost{pages:map[string]string{
-  page:`<video src="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"></video>`,
+  page:`<html><head><meta property="og:title" content="Fixture title"></head><body><video src="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"></video></body></html>`,
  }}
  if err:=core.SaveVerifiedSiteSession(host,sourceID,core.VerifiedSiteSession{
   Cookie:"verified=session", UserAgent:"Android WebView",
