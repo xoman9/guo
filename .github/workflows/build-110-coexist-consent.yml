@@ -1,0 +1,200 @@
+name: Build 110 coexist APK - consent checkbox only
+on:
+  push:
+    branches: [feat/110-coexist-consent-checkbox-20261114]
+    paths:
+      - '.github/workflows/build-110-coexist-consent.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guo-110-coexist-checkbox
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      ZHENGUOJIAN_PACKAGE_NAME: com.duanju.coexist
+      ZHENGUOJIAN_DISPLAY_NAME: 小果影視-共存版
+      ZHENGUOJIAN_LATIN_NAME: XiaoGuo
+      EXPECTED_CERT_SHA256: 78cf3a09001eba2c5b8e7b169d2af15301e76bf5c442af00c4031120dcb1fd6a
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify upstream 110 source and single UI change
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fx 'version: 1.0.10+110' pubspec.yaml
+          grep -Fq 'CheckboxListTile(' lib/ui/terms_page.dart
+          grep -Fq '我已同意' lib/ui/terms_page.dart
+          ! grep -Fq 'FormTextField(' lib/ui/terms_page.dart
+          test ! -e native/sources_custom
+          test ! -e native/sources_legacy109
+          test ! -e native/sources_missav
+          echo "110 source untouched except lib/ui/terms_page.dart; build workflow is separate." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36'
+          accept-android-sdk-licenses: true
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=28.2.13676358
+          if [ ! -f "$ANDROID_HOME/ndk/$version/source.properties" ]; then
+            sdkmanager --sdk_root="$ANDROID_HOME" "ndk;$version"
+          fi
+
+      - name: Restore the original 110 full-source native libraries from official 110 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/official-110" "$RUNNER_TEMP/verified-core"
+          python3 - <<'PY'
+          import hashlib
+          import pathlib
+          import urllib.request
+          import zipfile
+          import time
+          base = 'https://github.com/Xanerix/guoapp/releases/download/app-v1.0.10-110/'
+          for abi in ('arm64-v8a', 'armeabi-v7a'):
+              name = f'zhenguojian-1.0.10%2B110-{abi}.apk'
+              url = base + name
+              temp = pathlib.Path('/tmp') / f'guo-official-110-{abi}.apk'
+              for attempt in range(4):
+                  try:
+                      req = urllib.request.Request(url, headers={'User-Agent':'guo110-coexist-build'})
+                      with urllib.request.urlopen(req, timeout=90) as response:
+                          temp.write_bytes(response.read())
+                      break
+                  except Exception:
+                      if attempt == 3:
+                          raise
+                      time.sleep(3 * (attempt+1))
+              with zipfile.ZipFile(temp) as archive:
+                  raw = archive.read(f'lib/{abi}/libduanju_core.so')
+              if len(raw) < 1_000_000 or b'guoapp/sources' not in raw:
+                  raise SystemExit(f'Official full source core missing for {abi}; refusing demo source binary')
+              path = pathlib.Path('android/app/src/main/jniLibs') / abi / 'libduanju_core.so'
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_bytes(raw)
+              digest = hashlib.sha256(raw).hexdigest()
+              pathlib.Path('/tmp/guo-110-core-'+abi+'.sha256').write_text(digest+'\n')
+              print(f'Upstream 110 original sources core for {abi}: {len(raw)} bytes SHA256={digest}')
+          PY
+
+      - name: Load previously configured permanent signing certificate
+        shell: bash
+        env:
+          ORIGINAL_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for value in "$ORIGINAL_KEY" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD"; do
+            [ -n "$value" ] || { echo "::error::Original permanent signing secret missing"; exit 1; }
+          done
+          umask 077
+          printf '%s' "$ORIGINAL_KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/guo-110-permanent.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/guo-110-permanent.jks" >> "$GITHUB_ENV"
+          keytool -list -v -keystore "$RUNNER_TEMP/guo-110-permanent.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/guo-110-cert.txt"
+          actual=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/guo-110-cert.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+          [ "$actual" = "$EXPECTED_CERT_SHA256" ] || { echo "::error::Permanent certificate fingerprint mismatch"; exit 1; }
+
+      - name: Verify Flutter authorization checkbox source
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          dart format --output=none --set-exit-if-changed lib/ui/terms_page.dart
+
+      - name: Build original 110 coexist Flutter APKs with native original provider cores
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          flutter build apk --release --split-per-abi --no-pub \
+            --target-platform android-arm64,android-arm \
+            --dart-define=APP_FLAVOR=zhenguojian \
+            --dart-define=ZHENGUOJIAN_DISPLAY_NAME=小果影視-共存版 \
+            --dart-define=ZHENGUOJIAN_LATIN_NAME=XiaoGuo \
+            2>&1 | tee "$RUNNER_TEMP/guo-110-build.log"
+          python3 scripts/package_release.py --platform android --all-sources \
+            --abi arm64-v8a --abi armeabi-v7a
+
+      - name: Verify signed, full-source 110 coexist APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          signer=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n1)
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n1)
+          test -n "$signer" && test -n "$aapt"
+          mkdir -p verified
+          for abi in arm64-v8a armeabi-v7a; do
+            apk="dist/android/zhenguojian-1.0.10+110-$abi.apk"
+            test -s "$apk" || { echo "::error::Missing $abi APK"; exit 1; }
+            "$signer" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/guo-110-apk-cert.txt"
+            digest=$(grep -m1 'certificate SHA-256 digest:' "$RUNNER_TEMP/guo-110-apk-cert.txt" | awk '{print $NF}' | tr -d ': ' | tr '[:upper:]' '[:lower:]')
+            [ "$digest" = "$EXPECTED_CERT_SHA256" ] || { echo "::error::Wrong APK signer"; exit 1; }
+            "$aapt" dump badging "$apk" | grep -F "package: name='com.duanju.coexist'"
+            "$aapt" dump badging "$apk" | grep -F "versionName='1.0.10'"
+            python3 - "$apk" "$abi" <<'PY'
+          import hashlib, pathlib, sys, zipfile
+          apk, abi = sys.argv[1:]
+          expected = pathlib.Path('/tmp/guo-110-core-'+abi+'.sha256').read_text().strip()
+          with zipfile.ZipFile(apk) as archive:
+              for library in ('libduanju_core.so','libflutter.so','libapp.so','libmpv.so','libffmpegkit.so'):
+                  name=f'lib/{abi}/{library}'
+                  if name not in archive.namelist():
+                      raise SystemExit('Missing '+name)
+              binary=archive.read(f'lib/{abi}/libduanju_core.so')
+              actual=hashlib.sha256(binary).hexdigest()
+              if actual!=expected:
+                  raise SystemExit(f'Original 110 source core unexpectedly replaced {abi}: {actual} != {expected}')
+              print(f'{abi}: intact official source core {actual}')
+          PY
+            cp "$apk" verified/
+          done
+          (cd verified && sha256sum *.apk > SHA256SUMS.txt)
+          echo "Both 110 original-provider cores preserved, only terms checkbox changed. Original historical signing key verified." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload both APKs to Actions artifacts only
+        uses: actions/upload-artifact@v4
+        with:
+          name: guo-110-coexist-checkbox-original-cores-arm64-v7a
+          path: verified/*
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Upload build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guo-110-consent-build-diagnostics
+          path: ${{ runner.temp }}/guo-110-build.log
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Delete temporary signing material
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/guo-110-permanent.jks" "$RUNNER_TEMP/guo-110-cert.txt" "$RUNNER_TEMP/guo-110-apk-cert.txt"
