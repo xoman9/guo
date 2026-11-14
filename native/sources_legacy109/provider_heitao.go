@@ -101,6 +101,21 @@ func heitaoPageAfter(body string,page int)bool{
  }
  return false
 }
+// heitaoCardID rejects injected off-site links and noncanonical routes.
+func heitaoCardID(raw string)string{
+ site,err:=url.Parse(htBase)
+ if err!=nil{return ""}
+ ref,err:=url.Parse(strings.TrimSpace(raw))
+ if err!=nil||ref.User!=nil{return ""}
+ full:=site.ResolveReference(ref)
+ if full.Scheme!="https"||!strings.EqualFold(full.Hostname(),site.Hostname())||full.Port()!=""||full.User!=nil{return ""}
+ path:=full.EscapedPath()
+ const prefix="/index.php/vod/detail/id/"
+ if !strings.HasPrefix(path,prefix)||!strings.HasSuffix(path,".html"){return ""}
+ id:=strings.TrimSuffix(strings.TrimPrefix(path,prefix),".html")
+ if !htID.MatchString(id){return ""}
+ return id
+}
 func heitaoParseCards(body string)[]core.Drama{
  seen:=map[string]bool{}
  var result []core.Drama
@@ -108,9 +123,8 @@ func heitaoParseCards(body string)[]core.Drama{
   if len(m)<3{continue}
   link:=htHref.FindStringSubmatch(m[1])
   if len(link)<2{continue}
-  idMatch:=htDetail.FindStringSubmatch(link[1])
-  if len(idMatch)<2{continue}
-  id:=idMatch[1]
+  id:=heitaoCardID(link[1])
+  if id==""{continue}
   if seen[id]{continue}
   title:=""
   if t:=htTitle.FindStringSubmatch(m[1]);len(t)>1{title=core.CleanText(t[1])}
