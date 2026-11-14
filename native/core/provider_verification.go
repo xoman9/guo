@@ -22,7 +22,7 @@ const verifiedSiteMaxUserAgent = 512
 
 func verifiedSiteHost(source string) string {
  switch source {
- case "missav": return "missav.live"
+ case "missav": return "missav.ws"
  case "tvbox-jable": return "jable.tv"
  }
  return ""
