@@ -84,3 +84,21 @@ func TestShortAndMixedCaseCardIDs(t *testing.T) {
         t.Fatalf("short/mixed case media IDs lost: %+v", rows)
     }
 }
+
+func TestPaginationRequiresExplicitNext(t *testing.T) {
+    cases := []struct {
+        html string
+        more bool
+    }{
+        {`<a href="/cn/new?page=1">1</a><a href="/cn/new?page=2">2</a>`, false},
+        {`<a href="/cn/new?page=2" rel="next">Next</a>`, true},
+        {`<a aria-label="next" href="?page=2">2</a>`, true},
+        {`<a href="?page=1" rel="prev">Previous</a>`, false},
+        {`<script>var page=29</script>`, false},
+    }
+    for _, tc := range cases {
+        if got := hasNextPage(tc.html, 1); got != tc.more {
+            t.Errorf("hasNextPage(%q) = %v, want %v", tc.html, got, tc.more)
+        }
+    }
+}
