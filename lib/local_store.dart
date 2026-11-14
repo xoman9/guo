@@ -442,12 +442,15 @@ class LocalStore extends ChangeNotifier {
       if (epoch != _epoch) throw StateError('当前用户已变更，请重试');
       final settings = <String, Object?>{..._settings};
       settings['hideAdditionalSources'] = value;
-      if (value && !hideAdditionalSources) {
+      if (value) {
+        // A previous app version may have persisted this toggle as true
+        // without enabling the sites. Reconcile them every time the
+        // user explicitly turns the switch on.
         final switches = <String, Object?>{
           ..._map(_settings['sourceSwitches']),
         };
         for (final site in SourceSite.values) {
-          if (site.defaultOff && !sourceEnabled(site.id)) {
+          if (site.defaultOff) {
             switches[site.id] = true;
           }
         }
