@@ -431,8 +431,8 @@ class LocalStore extends ChangeNotifier {
   bool get deleteAfterAutoExport => _flag('deleteAfterAutoExport', false);
   bool get deleteAfterManualExport => _flag('deleteAfterManualExport', false);
   bool get shareUsage => _flag('shareUsage', true);
-  /// One-time bulk-enable control for originally disabled (+) channels.
-  /// Defaults to OFF. Turning it OFF does not disable any channel.
+  /// Bulk on/off switch for optional (+) channels. Native default
+  /// channels retain their individual enabled state.
   bool get hideAdditionalSources => _flag('hideAdditionalSources', false);
 
   Future<void> setHideAdditionalSources(bool value) {
@@ -440,23 +440,19 @@ class LocalStore extends ChangeNotifier {
     return _queue(() async {
       _requireAdmin();
       if (epoch != _epoch) throw StateError('当前用户已变更，请重试');
-      final settings = <String, Object?>{..._settings};
-      settings['hideAdditionalSources'] = value;
-      if (value) {
-        // A previous app version may have persisted this toggle as true
-        // without enabling the sites. Reconcile them every time the
-        // user explicitly turns the switch on.
-        final switches = <String, Object?>{
-          ..._map(_settings['sourceSwitches']),
-        };
-        for (final site in SourceSite.values) {
-          if (site.defaultOff) {
-            switches[site.id] = true;
-          }
+      final switches = <String, Object?>{
+        ..._map(_settings['sourceSwitches']),
+      };
+      for (final site in SourceSite.values) {
+        if (site.defaultOff) {
+          switches[site.id] = value;
         }
-        settings['sourceSwitches'] = switches;
       }
-      await _saveSettings(settings);
+      await _saveSettings({
+        ..._settings,
+        'hideAdditionalSources': value,
+        'sourceSwitches': switches,
+      });
     });
   }
   int get acceptedTerms => switch (_settings['acceptedTerms']) {
