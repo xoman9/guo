@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail CI unless all 16 original IDs and all 13 custom IDs are linked.
+"""Fail CI unless all 16 original IDs and all 14 custom IDs are linked.
 
 This is a static registry audit only, not verification of live websites.
 """
@@ -28,7 +28,7 @@ EXPECTED_ORIGINAL = {
 EXPECTED_EXTRA = {
     "lujj31", "liuguo", "xiaoguo", "youguo", "meiguo", "yingguo",
     "luguo", "liguo", "juguo", "ningguo", "mangguo",
-    "chengguodj", "jiaoguo",
+    "chengguodj", "jiaoguo", "laosebizy.com",
 }
 
 def flavor_ids(path: Path) -> list[str]:
@@ -48,13 +48,14 @@ assert set(extra) == EXPECTED_EXTRA, f"Extra sources changed: {sorted(set(extra)
 assert set(legacy) | set(missav) == set(EXPECTED_ORIGINAL), (
     f"Original IDs missing/extra: {sorted((set(legacy) | set(missav)) ^ set(EXPECTED_ORIGINAL))}"
 )
-assert len(extra + legacy + missav) == len(set(extra + legacy + missav)) == 29
+assert len(extra + legacy + missav) == len(set(extra + legacy + missav)) == 30
 for source, filename in EXPECTED_ORIGINAL.items():
     file = ROOT / "native/sources_legacy109" / filename
     if not file.is_file() or "core.Register(" not in file.read_text(encoding="utf-8"):
         raise AssertionError(f"{source} has no real registered Go source implementation: {file}")
+assert (ROOT / "native/sources_custom/provider_laoguo_tvbox.go").is_file(), "Laoguo TVBox adapter missing"
 assert (ROOT / "native/sources_legacy109/provider_yeguo.go").is_file(), "Yeguo route implementation missing"
 for module in ("sources_custom", "sources_legacy109", "sources_missav"):
     assert (ROOT / "native" / module / "go.mod").is_file(), f"Missing module {module}"
-print("PASS: all 16 original IDs + 13 extra IDs are present and registered (29 total).")
+print("PASS: all 16 original IDs + 14 extra IDs are present and registered (30 total).")
 print("NOTICE: static registry and Go tests do NOT confirm website/API/player availability.")
