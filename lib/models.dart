@@ -216,13 +216,22 @@ class Drama {
       'AI漫剧',
       'AI 漫剧',
     };
+    // Some external video pages expose unrelated recommendations or player
+    // labels as detail metadata. Protect the verified catalog card identity
+    // when returning from detail; still fill fields absent in the catalog.
+    final keepCatalogMetadata =
+        source == 'youguo' || source == 'meiguo';
     return Drama(
       id: id,
       source: fresh.source.isEmpty ? source : fresh.source,
       sourceId: fresh.sourceId.isEmpty ? sourceId : fresh.sourceId,
-      title: fresh.title.isEmpty || fresh.title == '短剧' ? title : fresh.title,
+      title: keepCatalogMetadata && title.isNotEmpty
+          ? title
+          : (fresh.title.isEmpty || fresh.title == '短剧' ? title : fresh.title),
       description: fresh.description.isEmpty ? description : fresh.description,
-      cover: fresh.cover.isEmpty ? cover : fresh.cover,
+      cover: keepCatalogMetadata && cover.isNotEmpty
+          ? cover
+          : (fresh.cover.isEmpty ? cover : fresh.cover),
       episodes: fresh.episodes > 0 ? fresh.episodes : episodes,
       category:
           fresh.category.isEmpty ||
