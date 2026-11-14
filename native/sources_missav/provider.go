@@ -23,7 +23,8 @@ var cardLinks = regexp.MustCompile(`(?is)<a\b[^>]*href=["'](?:https?://(?:www\.)
 var titleAttr = regexp.MustCompile(`(?is)\b(?:alt|title)=["']([^"']+)["']`)
 var imageURL = regexp.MustCompile(`(?is)<(?:img|source)\b[^>]*\b(?:data-src|data-original|src|srcset)=["']([^"']+)["']`)
 var ogImage = regexp.MustCompile(`(?is)<meta\b[^>]*\bproperty=["']og:image["'][^>]*\bcontent=["']([^"']+)["']`)
-var mediaURL = regexp.MustCompile(`(?i)https?://[^\s"'<>\\]+?\.(?:m3u8|mp4)(?:\?[^\s"'<>\\]*)?`)
+var directVideoAttribute = regexp.MustCompile(`(?is)<(?:video|source)\b[^>]*\b(?:src|data-src|data-hls)\s*=\s*["']([^"']+)["']`)
+var directPlayerJSON = regexp.MustCompile(`(?is)"(?:video_url|play_url|src)"\s*:\s*"([^"]+)"`)
 var nextPage = regexp.MustCompile(`(?is)(?:rel=["']next["']|aria-label=["']next["']|\bpage=\d+)`)
 
 var descriptor = core.SourceDescriptor{
@@ -151,15 +152,27 @@ func mediaPageForTask(task core.Task) (string, error) {
 // The original 110 dynamic player has not been reconstructed.
 func directMediaURL(page, body string) (string, error) {
     normalized := strings.ReplaceAll(body, `\/`, "/")
-    match := mediaURL.FindString(normalized)
-    if match == "" {
-        return "", errors.New("MissAV media URL not directly present; packed player unavailable")
+    unique := make(map[string]bool)
+    add := func(raw string) {
+        parsed := core.NormalizeProviderMediaURL(page, raw)
+        if core.IsProviderHTTPMediaURL(parsed) {
+            unique[parsed] = true
+        }
     }
-    parsed := core.NormalizeProviderMediaURL(page, match)
-    if !core.IsProviderHTTPMediaURL(parsed) {
-        return "", errors.New("invalid direct media URL")
+    for _, match := range directVideoAttribute.FindAllStringSubmatch(normalized, -1) {
+        if len(match) > 1 { add(match[1]) }
     }
-    return parsed, nil
+    for _, match := range directPlayerJSON.FindAllStringSubmatch(normalized, -1) {
+        if len(match) > 1 { add(match[1]) }
+    }
+    if len(unique) == 0 {
+        return "", errors.New("MissAV media URL not directly exposed by player; dynamic playback unavailable")
+    }
+    if len(unique) != 1 {
+        return "", errors.New("MissAV player exposes ambiguous media URLs")
+    }
+    for candidate := range unique { return candidate, nil }
+    return "", errors.New("MissAV media URL unavailable")
 }
 
 func (p *provider) ResolveMedia(ctx context.Context, task core.Task) (core.ProviderMedia, error) {
