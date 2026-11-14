@@ -178,12 +178,12 @@ func (engine *nativeEngine) moveDownloads(ctx context.Context, parent string) (s
 		manager.mu.Unlock()
 		return "", "", errors.New("新目录不能与原下载目录互相包含")
 	}
-	if _, err := os.Stat(target); err == nil {
+	// The Android system folder picker returns a directory that already
+	// exists. Accept it if empty; reject non-empty folders to avoid touching
+	// unrelated user files or overwriting an existing download index.
+	if err := nativeVerifyEmptyDownloadsTarget(target); err != nil {
 		manager.mu.Unlock()
-		return "", "", errors.New("目标中已有应用下载目录，请选择空目录，避免覆盖文件")
-	} else if !os.IsNotExist(err) {
-		manager.mu.Unlock()
-		return "", "", errors.New("无法检查目标目录：" + err.Error())
+		return "", "", err
 	}
 	manager.moving = true
 	for id, job := range manager.jobs {
@@ -204,15 +204,30 @@ func (engine *nativeEngine) moveDownloads(ctx context.Context, parent string) (s
 		return "", "", saveErr
 	}
 	source := manager.root
-	if err := os.Mkdir(target, 0700); err != nil {
+	// Never delete a folder the user selected in the file manager. It can
+	// contain their own files if something writes into it during migration.
+	createdTarget := false
+	if err := os.Mkdir(target, 0700); err == nil {
+		createdTarget = true
+	} else if !os.IsExist(err) {
 		return "", "", errors.New("无法创建目标目录，请检查权限或选择其他位置")
 	}
+	if err := nativeVerifyEmptyDownloadsTarget(target); err != nil {
+		return "", "", err
+	}
+	rollbackNewTarget := func() {
+		if createdTarget {
+			// Remove only a directory created by this migration, never an
+			// existing directory chosen by the user.
+			_ = os.RemoveAll(target)
+		}
+	}
 	if err := nativeCopyTree(ctx, source, target); err != nil {
-		_ = os.RemoveAll(target)
-		return "", "", errors.New("文件迁移未完成，原文件已保留，请检查空间与目录权限")
+		rollbackNewTarget()
+		return "", "", errors.New("文件迁移未完成；旧目录已保留，所选既有目录可能留下部分文件，请检查空间与权限")
 	}
 	if err := ctx.Err(); err != nil {
-		_ = os.RemoveAll(target)
+		rollbackNewTarget()
 		return "", "", err
 	}
 	location := filepath.Join(engine.directory, "download-location.json")
@@ -226,14 +241,28 @@ func (engine *nativeEngine) moveDownloads(ctx context.Context, parent string) (s
 		persistErr = nativeDownloadWrite(location, data)
 	}
 	if persistErr != nil {
-		_ = os.RemoveAll(target)
-		return "", "", errors.New("保存下载目录失败，原文件已保留")
+		rollbackNewTarget()
+		return "", "", errors.New("保存下载目录失败；原文件已保留，所选既有目录可能留下复制的文件")
 	}
 	manager.root = target
 	if err := os.RemoveAll(source); err != nil {
 		return source, err.Error(), nil
 	}
 	return "", "", nil
+}
+
+func nativeVerifyEmptyDownloadsTarget(target string) error {
+	entries, err := os.ReadDir(target)
+	if os.IsNotExist(err) {
+		return nil // A new destination will be created after jobs are paused.
+	}
+	if err != nil {
+		return errors.New("无法读取所选目录，请检查存取授权：" + err.Error())
+	}
+	if len(entries) != 0 {
+		return errors.New("请选择空资料夹作为下载位置，以免覆盖其他资料")
+	}
+	return nil
 }
 
 func nativePathsOverlap(first, second string) bool {
