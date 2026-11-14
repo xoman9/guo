@@ -216,8 +216,15 @@ func hg109VideoPage(id,episode,page string)(string,error){
  default:
   return "",errors.New("invalid video type")
  }
- if page!=expected{return "",errors.New("Huangguo video page does not match chapter")}
- return strings.TrimPrefix(expected,hgVideoBase),nil
+ actual,err:=url.Parse(page)
+ if err!=nil||actual.Scheme!="https"||actual.Host!=strings.TrimPrefix(hgVideoBase,"https://")||actual.User!=nil||actual.Fragment!=""{
+  return "",errors.New("Huangguo video page is not on the authorized origin")
+ }
+ wanted,err:=url.Parse(expected)
+ if err!=nil||actual.EscapedPath()!=wanted.EscapedPath(){return "",errors.New("Huangguo video page does not match chapter")}
+ route:=actual.EscapedPath()
+ if actual.RawQuery!=""{route+="?"+actual.RawQuery}
+ return route,nil
 }
 func (p *huangguo109) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
  source,id,ok:=core.SplitProviderDramaID(task.DramaID)
