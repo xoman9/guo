@@ -35,6 +35,8 @@ import android.content.res.Resources
 import android.graphics.Rect
 import android.graphics.drawable.Icon
 import android.media.AudioManager
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import android.media.MediaScannerConnection
 import android.net.ConnectivityManager
 import android.net.Uri
@@ -85,8 +87,65 @@ class MainActivity : FlutterActivity() {
     private var headroomReadAt = 0L
     private var thermalHeadroom: Double? = null
     private var deviceChannel: MethodChannel? = null
+    private var mediaControlChannel: MethodChannel? = null
+    private var headsetSession: MediaSession? = null
     private var televisionMode = false
     private var orientationListener: OrientationEventListener? = null
+
+    // Android media keys (Bluetooth AVRCP/headsets) are delivered through
+    // MediaSession rather than Flutter's keyboard focus.
+    private fun mediaPlaybackState(playing: Boolean, hasPrevious: Boolean, hasNext: Boolean): PlaybackState {
+        var actions = PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or
+            PlaybackState.ACTION_PLAY_PAUSE
+        if (hasPrevious) actions = actions or PlaybackState.ACTION_SKIP_TO_PREVIOUS
+        if (hasNext) actions = actions or PlaybackState.ACTION_SKIP_TO_NEXT
+        return PlaybackState.Builder()
+            .setActions(actions)
+            .setState(
+                if (playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED,
+                PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f
+            )
+            .build()
+    }
+
+    private fun activateHeadsetSession() {
+        if (headsetSession == null) {
+            headsetSession = MediaSession(this, "XiaoGuoVideo").apply {
+                setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or
+                    MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS)
+                setCallback(object : MediaSession.Callback() {
+                    override fun onPlay() { mediaControlChannel?.invokeMethod("mediaAction", "play") }
+                    override fun onPause() { mediaControlChannel?.invokeMethod("mediaAction", "pause") }
+                    override fun onSkipToPrevious() { mediaControlChannel?.invokeMethod("mediaAction", "previous") }
+                    override fun onSkipToNext() { mediaControlChannel?.invokeMethod("mediaAction", "next") }
+                    override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
+                        val event = if (Build.VERSION.SDK_INT >= 33)
+                            mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent::class.java)
+                        else @Suppress("DEPRECATION")
+                            mediaButtonIntent.getParcelableExtra<android.view.KeyEvent>(Intent.EXTRA_KEY_EVENT)
+                        if (event?.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                            when (event.keyCode) {
+                                android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                                android.view.KeyEvent.KEYCODE_HEADSEHOOK -> {
+                                    mediaControlChannel?.invokeMethod("mediaAction", "toggle")
+                                    return true
+                                }
+                            }
+                        }
+                        return super.onMediaButtonEvent(mediaButtonIntent)
+                    }
+                })
+                setPlaybackState(mediaPlaybackState(false, false, false))
+                isActive = true
+            }
+        }
+    }
+
+    private fun releaseHeadsetSession() {
+        headsetSession?.isActive = false
+        headsetSession?.release()
+        headsetSession = null
+    }
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(scaleLargeCanvas(newBase))
@@ -267,6 +326,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        releaseHeadsetSession()
         pictureInPictureReceiver?.let { unregisterReceiver(it) }
         pictureInPictureReceiver = null
         super.onDestroy()
@@ -317,6 +377,24 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         textInput = TextInputBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        mediaControlChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "duanju/media_controls")
+            .also { channel ->
+                channel.setMethodCallHandler { call, result ->
+                    when (call.method) {
+                        "activate" -> { activateHeadsetSession(); result.success(null) }
+                        "state" -> {
+                            headsetSession?.setPlaybackState(mediaPlaybackState(
+                                call.argument<Boolean>("playing") == true,
+                                call.argument<Boolean>("hasPrevious") == true,
+                                call.argument<Boolean>("hasNext") == true
+                            ))
+                            result.success(null)
+                        }
+                        "deactivate" -> { releaseHeadsetSession(); result.success(null) }
+                        else -> result.notImplemented()
+                    }
+                }
+            }
         deviceChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "duanju/device")
             .also { channel ->
                 channel.setMethodCallHandler { call, result ->
@@ -871,6 +949,9 @@ class MainActivity : FlutterActivity() {
         orientationListener = null
         textInput?.dispose()
         textInput = null
+        releaseHeadsetSession()
+        mediaControlChannel?.setMethodCallHandler(null)
+        mediaControlChannel = null
         deviceChannel?.setMethodCallHandler(null)
         deviceChannel = null
         super.cleanUpFlutterEngine(flutterEngine)
