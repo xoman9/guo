@@ -70,3 +70,32 @@ func Test109WebProvidersRejectCrossDramaPlayback(t *testing.T) {
   })
  }
 }
+
+func Test109CardCoverNeverBorrowsNextItem(t *testing.T) {
+ cases:=[]struct{
+  cfg spec
+  html string
+ }{
+  {
+   cfg:korean,
+   html:`<a href="/hanxiaoquan/101.html" title="First" class="module-item-pic"></a>
+<a href="/hanxiaoquan/102.html" title="Second" class="module-item-pic"><img data-src="/second.jpg"></a>`,
+  },
+  {
+   cfg:ghost,
+   html:`<a class="video-link" href="/nv/101.html" title="First"></a>
+<a class="video-link" href="/nv/102.html" title="Second"><span data-background="/second.jpg"></span></a>`,
+  },
+ }
+ for _,tc:=range cases{
+  t.Run(tc.cfg.id,func(t *testing.T){
+   p:=&provider{cfg:tc.cfg}
+   cards:=p.parseCards(tc.html)
+   if len(cards)!=2{t.Fatalf("expected two cards: %+v",cards)}
+   if cards[0].Cover!=""{t.Fatalf("first card borrowed the second cover: %+v",cards[0])}
+   if cards[1].Cover!=tc.cfg.base+"/second.jpg"{
+    t.Fatalf("second cover missing/wrong: %+v",cards[1])
+   }
+  })
+ }
+}
