@@ -11,6 +11,7 @@ import (
  "regexp"
  "strconv"
  "strings"
+ "sync"
 
  "duanjuapp/native/core"
  nethtml "golang.org/x/net/html"
@@ -65,7 +66,56 @@ var descriptor = core.SourceDescriptor{
  Description:"參考提供的 WebHome HTML：missav.ws 的分類、影片和播放頁路由",
  ValidCategory:validCategory,
 }
-type provider struct{host core.Host}
+// WebHome records the stream UUID in each thumbnail preview element.
+// Cache only IDs extracted from a card's own HTML; do not infer UUIDs from
+// unrelated page scripts or video titles.
+type missCardInfo struct {
+ drama core.Drama
+ uuid string
+}
+type provider struct{
+ host core.Host
+ mu sync.RWMutex
+ cards map[string]missCardInfo
+}
+var missUUID = regexp.MustCompile(`(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`)
+func cardUUID(box *nethtml.Node) string {
+ for _,n:=range missNodes(box,"","") {
+  id:=missAttr(n,"id")
+  if !strings.HasPrefix(strings.ToLower(id),"preview-"){continue}
+  if m:=missUUID.FindString(id[len("preview-"):]);m!="" {return strings.ToLower(m)}
+ }
+ return ""
+}
+func (p *provider) cacheCards(doc *nethtml.Node) []core.Drama {
+ rows:=missCards(doc)
+ if len(rows)==0{return rows}
+ hints:=map[string]string{}
+ for _,box:=range missNodes(doc,"div","thumbnail"){
+  uuid:=cardUUID(box)
+  if uuid==""{continue}
+  a:=missFirst(box,"a","text-secondary")
+  id:=missSitePath(missAttr(a,"href"))
+  if id==""{for _,link:=range missNodes(box,"a",""){id=missSitePath(missAttr(link,"href"));if id!=""{break}}}
+  if id!=""{hints[id]=uuid}
+ }
+ p.mu.Lock()
+ defer p.mu.Unlock()
+ if p.cards==nil {p.cards=map[string]missCardInfo{}}
+ if len(p.cards)>1000 {p.cards=map[string]missCardInfo{}}
+ for _,row:=range rows{
+  if uuid:=hints[row.SourceID];uuid!=""{
+   p.cards[row.SourceID]=missCardInfo{drama:row,uuid:uuid}
+  }
+ }
+ return rows
+}
+func (p *provider) card(id string)(missCardInfo,bool){
+ p.mu.RLock()
+ defer p.mu.RUnlock()
+ info,ok:=p.cards[id]
+ return info,ok && info.uuid!=""
+}
 var _ core.Provider=(*provider)(nil)
 var _ core.Searcher=(*provider)(nil)
 func init(){core.Register(descriptor,func(h core.Host)core.Provider{return &provider{host:h}})}
@@ -183,7 +233,7 @@ func (p *provider)CatalogPage(ctx context.Context,page int,category string)([]co
  }
  doc,err:=p.page(ctx,path)
  if err!=nil{return nil,false,err}
- return missCards(doc),missNext(doc),nil
+ return p.cacheCards(doc),missNext(doc),nil
 }
 func (p *provider)Search(ctx context.Context,page int,query string)([]core.Drama,bool,error){
  query=strings.TrimSpace(query)
@@ -193,7 +243,7 @@ func (p *provider)Search(ctx context.Context,page int,query string)([]core.Drama
  if page>1{path+="?page="+strconv.Itoa(page)}
  doc,err:=p.page(ctx,path)
  if err!=nil{return nil,false,err}
- return missCards(doc),missNext(doc),nil
+ return p.cacheCards(doc),missNext(doc),nil
 }
 func missMeta(doc *nethtml.Node,property string)string{
  for _,m:=range missNodes(doc,"meta",""){
@@ -204,6 +254,15 @@ func missMeta(doc *nethtml.Node,property string)string{
 func (p *provider)Detail(ctx context.Context,id string)(core.Drama,[]core.Chapter,error){
  if missSitePath("/"+id)!=id{return core.Drama{},nil,errors.New("invalid MissAV media ID")}
  path:="/"+id
+ // WebHome can start playback from the UUID embedded in the listing card.
+ // Avoid requesting the same challenge-protected detail page unnecessarily.
+ if info,ok:=p.card(id);ok{
+  drama:=info.drama
+  drama.TotalEpisode=1
+  ch:=core.Chapter{ID:core.ProviderChapterID(sourceID,id,"1"),Source:sourceID,
+   Title:"播放",CurrentEpisode:core.RawEpisode(1),PageURL:baseURL+path,Referer:baseURL+path}
+  return drama,[]core.Chapter{ch},nil
+ }
  doc,err:=p.page(ctx,path);if err!=nil{return core.Drama{},nil,err}
  name:=missMeta(doc,"og:title")
  if name==""{name=core.ProviderHTMLText(missFirst(doc,"h1",""))}
@@ -273,6 +332,14 @@ func directMediaURL(page,body string)(string,error){
 func (p *provider)ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
  path,err:=mediaPageForTask(task);if err!=nil{return core.ProviderMedia{},err}
  page:=baseURL+path
+ id:=strings.TrimPrefix(path,"/")
+ if info,ok:=p.card(id);ok{
+  // The source card exposes this stream UUID directly (WebHome behaviour).
+  // Playback layer remains responsible for fetching and validating the HLS.
+  playlist:="https://surrit.com/"+info.uuid+"/playlist.m3u8"
+  return core.ProviderMedia{URL:playlist,Referer:baseURL+"/",
+   Credentials:core.VerifiedMediaCredentials(p.host,sourceID,page)},nil
+ }
  // For media extraction retain the original HTML to detect publicly exposed
  // URLs rather than assuming TVBox's Java parsing service exists.
  resp,err:=p.host.FetchText(ctx,core.TextRequest{URL:page,Referer:baseURL+"/",UserAgent:core.UserAgent,NoCache:true})
