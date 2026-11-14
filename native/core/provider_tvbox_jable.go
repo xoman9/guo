@@ -116,7 +116,7 @@ func (p *tvboxJableProvider) ResolveMedia(ctx context.Context,task Task)(Provide
  address:=strings.ReplaceAll(found[1],"\\/","/")
  u,e:=url.Parse(address)
  if e!=nil||u.Scheme!="https"&&u.Scheme!="http"||u.Hostname()==""||u.User!=nil{return ProviderMedia{},errors.New("Jable HLS 連結無效")}
- return p.host.PrepareWebMedia(ctx,ProviderMedia{URL:address,Referer:page},"Jable")
+ return p.host.PrepareWebMedia(ctx,ProviderMedia{URL:address,Referer:page,Credentials:VerifiedMediaCredentials(p.host,"tvbox-jable",page)},"Jable")
 }
 func init(){
  descriptor:=SourceDescriptor{ID:"tvbox-jable",Name:"Jable",DefaultOff:true,
