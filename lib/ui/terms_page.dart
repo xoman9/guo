@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../app_build.dart';
@@ -31,26 +29,7 @@ class TermsPage extends StatefulWidget {
 
 class _TermsPageState extends State<TermsPage> {
   bool _confirmed = false;
-  late final Timer _timer;
-  var _remaining = 30;
   var _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() => _remaining--);
-      if (_remaining == 0) timer.cancel();
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
-  }
-
-  bool get _reading => _remaining > 0;
 
   Future<void> _accept() async {
     setState(() => _busy = true);
@@ -133,7 +112,7 @@ class _TermsPageState extends State<TermsPage> {
                       value: _confirmed,
                       controlAffinity: ListTileControlAffinity.leading,
                       contentPadding: EdgeInsets.zero,
-                      onChanged: (_reading || _busy)
+                      onChanged: _busy
                           ? null
                           : (checked) => setState(() => _confirmed = checked ?? false),
                     ),
@@ -145,15 +124,8 @@ class _TermsPageState extends State<TermsPage> {
                             Size.fromHeight(48),
                           ),
                         ),
-                        onPressed:
-                            _confirmed && !_reading && !_busy
-                            ? _accept
-                            : null,
-                        child: Text(
-                          television && _reading
-                              ? '同意并继续（$_remaining 秒）'
-                              : '同意并继续',
-                        ),
+                        onPressed: _confirmed && !_busy ? _accept : null,
+                        child: const Text('同意并继续'),
                       ),
                     ),
                   ],
