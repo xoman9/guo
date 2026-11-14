@@ -1,8 +1,8 @@
-name: Verify experimental MissAV reconstruction against upstream 110
+name: Verify all reconstructed providers and new Laoguo TVBox adapter
 on:
   push:
     branches: [feat/recover-109-missav-20261114]
-    paths: [.github/workflows/test-missav-recovery.yml, native/sources_missav/**, native/sources_legacy109/**, scripts/check_reconstructed_sources.py]
+    paths: [.github/workflows/test-missav-recovery.yml, native/sources_missav/**, native/sources_legacy109/**, native/sources_custom/**, scripts/check_reconstructed_sources.py]
 permissions:
   contents: read
 jobs:
@@ -18,7 +18,7 @@ jobs:
         with:
           go-version-file: native/go.mod
           cache-dependency-path: native/go.sum
-      - name: Verify all 29 reconstructed and custom source IDs with Go fixtures
+      - name: Verify all 30 source IDs including Laoguo TVBox fixtures
         shell: bash
         run: |
           set -euo pipefail
@@ -41,4 +41,4 @@ jobs:
           grep -q '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
           grep -q '"guoapp/missav-recovery"' native/bridge/sources_gen.go
           grep -q '"guoapp/legacy109-recovery"' native/bridge/sources_gen.go
-          echo "All three Provider modules and core/bridge fixture tests passed (16 reconstructed + 13 additional IDs). No live playback or Android device verification." >> "$GITHUB_STEP_SUMMARY"
+          echo "All three Provider modules and core/bridge fixture tests passed (16 reconstructed + 14 additional IDs). No live playback or Android device verification." >> "$GITHUB_STEP_SUMMARY"
