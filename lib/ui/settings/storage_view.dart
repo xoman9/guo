@@ -34,6 +34,7 @@ class _StorageViewState extends State<StorageView> {
   Map<String, dynamic>? _info;
   String? _error;
   bool _loaded = false;
+  int _refreshRequest = 0;
 
   @override
   void didChangeDependencies() {
@@ -44,16 +45,21 @@ class _StorageViewState extends State<StorageView> {
   }
 
   Future<void> _refresh() async {
+    // A previous query can complete after the directory was changed.
+    // Only the newest response may update the displayed active path.
+    final request = ++_refreshRequest;
     try {
       final info = await AppScope.of(context).repository.storage();
-      if (mounted) {
+      if (mounted && request == _refreshRequest) {
         setState(() {
           _info = info;
           _error = null;
         });
       }
     } catch (failure) {
-      if (mounted) setState(() => _error = '$failure');
+      if (mounted && request == _refreshRequest) {
+        setState(() => _error = '$failure');
+      }
     }
   }
 
@@ -104,9 +110,16 @@ class _StorageViewState extends State<StorageView> {
   }
 
   Future<void> _move() async {
-    final parent = await _pickParent();
-    if (parent == null || !mounted) return;
-    await _migrate(parent, parent);
+    try {
+      final parent = await _pickParent();
+      if (parent == null || !mounted) return;
+      await _migrate(parent, parent);
+    } catch (failure) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('無法選取下載資料夾：$failure')),
+      );
+    }
   }
 
   Future<void> _restore() => _migrate('', '应用默认目录');
@@ -167,9 +180,34 @@ class _StorageViewState extends State<StorageView> {
     } finally {
       navigator.pop();
     }
+    // The directory shown on screen must come from the live Go core,
+    // not merely from the folder picker result.
+    String? activeDirectory;
+    if (failed == null) {
+      try {
+        activeDirectory = await repository.downloadDirectory();
+        if (activeDirectory == null ||
+            activeDirectory.isEmpty ||
+            (parent.isNotEmpty && activeDirectory != parent)) {
+          failed = '下載核心尚未切換至所選目錄，請確認存取授權並重試；目前核心目錄：$activeDirectory';
+        }
+      } catch (failure) {
+        failed = '無法驗證下載目錄是否更新：$failure';
+      }
+    }
     await _refresh();
-    if (failed != null && mounted) setState(() => _error = failed);
-    if (leftover.path.isEmpty || !mounted) return;
+    if (!mounted) return;
+    if (failed != null) {
+      setState(() => _error = failed);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(failed)),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('當前下載目錄已更新：$activeDirectory')),
+    );
+    if (leftover.path.isEmpty) return;
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
