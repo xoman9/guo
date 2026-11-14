@@ -106,6 +106,20 @@ func (p *yeguo109) Detail(ctx context.Context,id string)(core.Drama,[]core.Chapt
  drama.TotalEpisode=len(chapters)
  return drama,chapters,nil
 }
+// verifyChapter requires a chapter to be present in the current drama's
+// canonical detail list. It also prevents stale/mismatched episode page URLs.
+func (p *yeguo109) verifyChapter(ctx context.Context,dramaID string,chapter core.Chapter)error{
+ _,chapters,err:=p.Detail(ctx,dramaID)
+ if err!=nil{return fmt.Errorf("Yeguo episode verification failed: %w",err)}
+ for _,candidate:=range chapters{
+  if candidate.ID!=chapter.ID{continue}
+  if chapter.PageURL!=""&&candidate.PageURL!=chapter.PageURL{
+   return errors.New("Yeguo episode page does not match selected drama")
+  }
+  return nil
+ }
+ return errors.New("Yeguo episode does not belong to selected drama")
+}
 func (p *yeguo109) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
  source,id,valid:=core.SplitProviderDramaID(task.DramaID)
  if !valid||source!="yeguo"||!dsd109Num(id){return core.ProviderMedia{},errors.New("invalid Yeguo drama")}
@@ -113,6 +127,9 @@ func (p *yeguo109) ResolveMedia(ctx context.Context,task core.Task)(core.Provide
  if !strings.HasPrefix(task.Chapter.ID,prefix){return core.ProviderMedia{},errors.New("invalid Yeguo chapter")}
  eid:=strings.TrimPrefix(task.Chapter.ID,prefix)
  if !dsd109Num(eid){return core.ProviderMedia{},errors.New("invalid episode")}
+ // The play endpoint may accept a valid numeric episode belonging to a
+ // different drama. Verify current ownership before requesting its URL.
+ if err:=p.verifyChapter(ctx,id,task.Chapter);err!=nil{return core.ProviderMedia{},err}
  m,err:=p.call(ctx,"/api/playlet/play",url.Values{
   "playlet_id":{id},"video_id":{id},"episode_id":{eid},
  })
