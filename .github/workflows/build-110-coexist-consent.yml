@@ -109,7 +109,7 @@ jobs:
           PY
           (cd native && go test -tags=zhenguojian -count=1 ./core ./bridge duanjuapp/native/sources_original110 guoapp/missav-recovery) 2>&1 | tee "$RUNNER_TEMP/guo-110-provider-tests.log"
           python3 scripts/build_native.py --platform android --all-sources \
-            --sources native/sources_original110 \
+            --sources native/sources_original110 --sources native/sources_missav110 \
             --abi arm64-v8a --abi armeabi-v7a 2>&1 | tee "$RUNNER_TEMP/guo-110-native-build.log"
           python3 - <<'PY'
           import pathlib, hashlib
