@@ -118,11 +118,11 @@ class MainActivity : FlutterActivity() {
                     override fun onPause() { mediaControlChannel?.invokeMethod("mediaAction", "pause") }
                     override fun onSkipToPrevious() { mediaControlChannel?.invokeMethod("mediaAction", "previous") }
                     override fun onSkipToNext() { mediaControlChannel?.invokeMethod("mediaAction", "next") }
+                    @Suppress("DEPRECATION")
                     override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
-                        val event = if (Build.VERSION.SDK_INT >= 33)
-                            mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, android.view.KeyEvent::class.java)
-                        else @Suppress("DEPRECATION")
-                            mediaButtonIntent.getParcelableExtra<android.view.KeyEvent>(Intent.EXTRA_KEY_EVENT)
+                        val event = mediaButtonIntent.getParcelableExtra<android.view.KeyEvent>(
+                            Intent.EXTRA_KEY_EVENT
+                        )
                         if (event?.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                             when (event.keyCode) {
                                 android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
