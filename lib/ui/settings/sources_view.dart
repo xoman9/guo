@@ -94,7 +94,7 @@ class _SourceTile extends StatelessWidget {
         focusNode: focusNode,
         minTileHeight: 68,
         contentPadding: const EdgeInsets.fromLTRB(20, 4, 16, 4),
-        title: Text(site.name),
+        title: Text(site.displayName),
         subtitle: Text(site.description),
         onTap: onChanged == null ? null : () => onChanged!(!enabled),
         trailing: ExcludeFocus(
