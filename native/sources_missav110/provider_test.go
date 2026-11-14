@@ -96,6 +96,26 @@ func TestJavaMissProviderRoutes(t *testing.T){
  task.Chapter.PageURL=baseURL+"/other"
  if _,e:=mediaPageForTask(task);e==nil{t.Fatal("accepted mismatched media page")}
 }
+func TestMissAVFallbackMediaUsesSavedFirstPartySession(t *testing.T) {
+ page:=baseURL+"/abc-123"
+ hls:="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"
+ host:=&missFixtureHost{pages:map[string]string{
+  page:`<video src="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"></video>`,
+ }}
+ if err:=core.SaveVerifiedSiteSession(host,sourceID,core.VerifiedSiteSession{
+  Cookie:"verified=session", UserAgent:"Android WebView",
+ });err!=nil{t.Fatal(err)}
+ p:=&provider{host:host}
+ drama,chapters,err:=p.Detail(context.Background(),"abc-123")
+ if err!=nil||len(chapters)!=1{t.Fatalf("detail: %v %+v",err,chapters)}
+ media,err:=p.ResolveMedia(context.Background(),core.Task{DramaID:drama.ID,Chapter:chapters[0]})
+ if err!=nil||media.URL!=hls{t.Fatalf("fallback media: %+v %v",media,err)}
+ if host.last.URL!=page||host.last.Cookie!="verified=session"||
+  host.last.UserAgent!="Android WebView"{
+  t.Fatalf("fallback did not use saved first-party session: %+v",host.last)
+ }
+}
+
 func TestWebHomePreviewUUIDPlaysWithoutDetailHTTP(t *testing.T) {
  uuid:="12345678-1234-1234-1234-123456789abc"
  host:=&missFixtureHost{pages:map[string]string{
