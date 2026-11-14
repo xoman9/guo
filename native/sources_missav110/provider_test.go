@@ -40,6 +40,10 @@ type missFixtureHost struct {
  core.Host
  pages map[string]string
 }
+// The real host provides persistent verification state. In these isolated
+// provider tests no browser session exists, so return an empty state rather
+// than invoking the embedded nil Host implementation.
+func(f *missFixtureHost)LoadState(_ string)([]byte,error){return nil,nil}
 func(f *missFixtureHost)FetchText(_ context.Context,req core.TextRequest)(core.TextResponse,error){
  if body,ok:=f.pages[req.URL];ok{return core.TextResponse{Body:body,URL:req.URL},nil}
  return core.TextResponse{},errors.New("missing fixture "+req.URL)
