@@ -30,11 +30,24 @@ class SourceBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final form = AppScope.formFactorOf(context);
     final hint = '在 $source 中搜索';
-    final switcher = Builder(
-      builder: (anchor) => BarButton(
-        icon: Icons.public_rounded,
-        tooltip: '切换站源',
+    final sourceSwitcher = Builder(
+      builder: (anchor) => TextButton(
         onPressed: () => onSwitchSource(anchor),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                source,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 2),
+            const Icon(Icons.arrow_drop_down_rounded, size: 21),
+          ],
+        ),
       ),
     );
     final search = BarButton(
@@ -45,13 +58,14 @@ class SourceBar extends StatelessWidget {
     return switch (form) {
       FormFactor.phone => PageHeader(
         title: source,
-        actions: [...leading, switcher, search, ...actions],
+        titleWidget: Align(alignment: Alignment.centerLeft, child: sourceSwitcher),
+        actions: [...leading, search, ...actions],
       ),
       FormFactor.pad || FormFactor.window => PageHeader(
         title: source,
+        titleWidget: Align(alignment: Alignment.centerLeft, child: sourceSwitcher),
         actions: [
           ...leading,
-          switcher,
           const SizedBox(width: 4),
           SizedBox(
             width: MediaQuery.sizeOf(context).width >= 900 ? 320 : 240,
@@ -71,12 +85,8 @@ class SourceBar extends StatelessWidget {
           spacing: 10,
           children: [
             ?televisionLeading,
+            sourceSwitcher,
             const Spacer(),
-            Text(
-              source,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            switcher,
             search,
             ...actions,
           ],

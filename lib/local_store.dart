@@ -407,7 +407,15 @@ class LocalStore extends ChangeNotifier {
       ThemeColor.byName(_settings['themeColor']) ?? ThemeColor.orange;
   bool get sideBarExpanded => preferences.getBool('sideBarExpanded') ?? true;
   bool get playerWide => preferences.getBool('playerWide') ?? false;
-  double get playerVolume => preferences.getDouble('playerVolume') ?? 100;
+  // Existing saved player levels used a 0-100 scale. Upgrade them once
+  // to the new 0-150 software-volume range without changing system volume.
+  double get playerVolume {
+    final saved = preferences.getDouble('playerVolume') ?? 100.0;
+    if (preferences.getBool('playerVolume150Migrated') == true) {
+      return saved.clamp(0.0, 150.0);
+    }
+    return (saved * 1.5).clamp(0.0, 150.0);
+  }
   ({double left, double top, double extent})? get miniWindow {
     final values = preferences
         .getString('miniWindow')
@@ -431,6 +439,30 @@ class LocalStore extends ChangeNotifier {
   bool get deleteAfterAutoExport => _flag('deleteAfterAutoExport', false);
   bool get deleteAfterManualExport => _flag('deleteAfterManualExport', false);
   bool get shareUsage => _flag('shareUsage', true);
+  /// Bulk on/off switch for optional (+) channels. Native default
+  /// channels retain their individual enabled state.
+  bool get hideAdditionalSources => _flag('hideAdditionalSources', false);
+
+  Future<void> setHideAdditionalSources(bool value) {
+    final epoch = _epoch;
+    return _queue(() async {
+      _requireAdmin();
+      if (epoch != _epoch) throw StateError('当前用户已变更，请重试');
+      final switches = <String, Object?>{
+        ..._map(_settings['sourceSwitches']),
+      };
+      for (final site in SourceSite.values) {
+        if (site.defaultOff) {
+          switches[site.id] = value;
+        }
+      }
+      await _saveSettings({
+        ..._settings,
+        'hideAdditionalSources': value,
+        'sourceSwitches': switches,
+      });
+    });
+  }
   int get acceptedTerms => switch (_settings['acceptedTerms']) {
     final int version => version,
     _ => 0,
@@ -554,8 +586,10 @@ class LocalStore extends ChangeNotifier {
     await preferences.setBool('playerWide', value);
     _notify();
   });
-  Future<void> setPlayerVolume(double value) =>
-      _queue(() => preferences.setDouble('playerVolume', value));
+  Future<void> setPlayerVolume(double value) => _queue(() async {
+    await preferences.setDouble('playerVolume', value.clamp(0.0, 150.0));
+    await preferences.setBool('playerVolume150Migrated', true);
+  });
   Future<void> setMiniWindow(
     ({double left, double top, double extent}) value,
   ) => _queue(

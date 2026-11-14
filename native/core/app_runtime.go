@@ -77,6 +77,8 @@ type nativeInput struct {
 	Directory       string                  `json:"directory"`
 	Downloads       string                  `json:"downloads"`
 	Source          string                  `json:"source"`
+	Cookie          string                  `json:"cookie"`
+	UserAgent       string                  `json:"userAgent"`
 	Page            int                     `json:"page"`
 	Query           string                  `json:"query"`
 	Category        string                  `json:"category"`
@@ -90,6 +92,7 @@ type nativeInput struct {
 	Version         string                  `json:"version"`
 	Since           string                  `json:"since"`
 	Account         json.RawMessage         `json:"account"`
+	Device          string                  `json:"device"`
 }
 
 type nativeCatalogResult struct {
@@ -137,6 +140,7 @@ type nativeEngine struct {
 	catalogSaveError error
 	covers           *nativeCoverCache
 	stream           *nativeStreamServer
+	cast             nativeCast
 	playbacks        map[string]nativePlaybackChoice
 	playbackMu       sync.Mutex
 	playbackSequence int64
@@ -340,6 +344,8 @@ func nativeDispatch(input nativeInput) (any, error) {
 		ctx = work
 	}
 	switch input.Action {
+	case "saveSiteVerification":
+		return true, SaveVerifiedSiteSession(engine.downloader, input.Source, VerifiedSiteSession{Cookie:input.Cookie, UserAgent:input.UserAgent})
 	case "updateSystemProxy":
 		return true, engine.updateSystemProxy(input.SystemProxy)
 	case "resourceSettings":
@@ -441,6 +447,8 @@ func nativeDispatch(input nativeInput) (any, error) {
 	case "release":
 		engine.nativeReleasePlayback(input.Session)
 		return true, nil
+	case "cast":
+		return engine.nativeCast(ctx, input)
 	case "checkUpdate":
 		return engine.checkUpdate(ctx, input.Version)
 	case "reportUsage":

@@ -16,6 +16,7 @@ import '../theme/app_theme.dart';
 import '../theme/motion.dart';
 import '../widgets/contained_slider.dart';
 import '../widgets/motion/motion_widgets.dart';
+import 'cast_page.dart';
 import 'danmaku_overlay.dart';
 import '../widgets/follow_button.dart';
 import 'episode_grid.dart';
@@ -1056,14 +1057,14 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
       color: Colors.black.withValues(alpha: .5),
       borderRadius: BorderRadius.circular(16),
     ),
-    child: const Row(
+    child: Row(
       mainAxisSize: MainAxisSize.min,
       spacing: 6,
       children: [
-        Icon(Icons.fast_forward_rounded, size: 16, color: Colors.white),
+        const Icon(Icons.fast_forward_rounded, size: 16, color: Colors.white),
         Text(
-          '2 倍速播放中',
-          style: TextStyle(
+          '${_session.store.playbackPreferences.boostLabel}播放中',
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -1187,6 +1188,10 @@ class _LandscapePlayerPageState extends State<LandscapePlayerPage>
                   : PlaybackSettingsList(
                       session: session,
                       onFailure: _saveFailed,
+                      onCast: () {
+                        _closePanel();
+                        unawaited(startCast(context, session));
+                      },
                     ),
             ),
           ],

@@ -103,6 +103,12 @@ func (d *Downloader) finishProviderMedia(ctx context.Context, media ProviderMedi
 	}
 	parsed, _ := url.Parse(media.URL)
 	if strings.HasSuffix(strings.ToLower(parsed.Path), ".m3u8") {
+		// Preserve the provider's approved, origin-scoped media credentials
+		// when requesting the HLS manifest. MediaCredentials.apply prevents
+		// first-party cookies from being forwarded to unrelated CDN hosts.
+		if media.Credentials != nil {
+			ctx = providerMediaContext(ctx, media.Credentials)
+		}
 		playlist, finalURL, err := d.fetchMediaPlaylist(ctx, media.URL, media.Referer)
 		if err != nil {
 			return ProviderMedia{}, fmt.Errorf("获取播放列表失败: %w", err)

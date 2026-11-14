@@ -26,7 +26,23 @@ class SourcesView extends StatelessWidget {
           ],
           SettingsCard(
             children: [
-              for (final site in SourceSite.values)
+              SwitchListTile(
+                title: const Text('隱藏頻道'),
+                subtitle: Text(
+                  '預設關閉；開啟時一次啟用所有 + 頻道（目前已啟用 '
+                  '${SourceSite.values.where((site) => site.defaultOff && store.sourceEnabled(site.id)).length}'
+                  '／${SourceSite.values.where((site) => site.defaultOff).length}）。開啟時全部啟用，關閉時全部停用。',
+                ),
+                value: store.hideAdditionalSources,
+                onChanged: admin
+                    ? (value) => saveSetting(
+                        context,
+                        () => store.setHideAdditionalSources(value),
+                      )
+                    : null,
+              ),
+              const Divider(height: 1),
+              for (final site in SourceSite.values) ...[
                 _SourceTile(
                   site: site,
                   enabled: store.sourceEnabled(site.id),
@@ -42,6 +58,7 @@ class SourcesView extends StatelessWidget {
                         })
                       : null,
                 ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -94,8 +111,10 @@ class _SourceTile extends StatelessWidget {
         focusNode: focusNode,
         minTileHeight: 68,
         contentPadding: const EdgeInsets.fromLTRB(20, 4, 16, 4),
-        title: Text(site.name),
-        subtitle: Text(site.description),
+        title: Text(site.displayName),
+        subtitle: (site.id == 'tvbox-jable' || site.id == 'missav')
+            ? null
+            : Text(site.description),
         onTap: onChanged == null ? null : () => onChanged!(!enabled),
         trailing: ExcludeFocus(
           child: Switch(value: enabled, onChanged: onChanged),

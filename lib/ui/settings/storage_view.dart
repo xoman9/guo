@@ -34,6 +34,7 @@ class _StorageViewState extends State<StorageView> {
   Map<String, dynamic>? _info;
   String? _error;
   bool _loaded = false;
+  int _refreshRequest = 0;
 
   @override
   void didChangeDependencies() {
@@ -44,21 +45,29 @@ class _StorageViewState extends State<StorageView> {
   }
 
   Future<void> _refresh() async {
+    // A previous query can complete after the directory was changed.
+    // Only the newest response may update the displayed active path.
+    final request = ++_refreshRequest;
     try {
       final info = await AppScope.of(context).repository.storage();
-      if (mounted) {
+      if (mounted && request == _refreshRequest) {
         setState(() {
           _info = info;
           _error = null;
         });
       }
     } catch (failure) {
-      if (mounted) setState(() => _error = '$failure');
+      if (mounted && request == _refreshRequest) {
+        setState(() => _error = '$failure');
+      }
     }
   }
 
   Future<String?> _pickParent() async {
-    if (!Platform.isAndroid && !Platform.isIOS) {
+    if (Platform.isAndroid) {
+      return AppDevice.chooseDownloadDirectory();
+    }
+    if (!Platform.isIOS) {
       return FilePicker.getDirectoryPath(dialogTitle: '选择下载保存位置');
     }
     final support = await getApplicationSupportDirectory();
@@ -83,10 +92,34 @@ class _StorageViewState extends State<StorageView> {
     );
   }
 
+  Future<void> _requestStorageAccess() async {
+    await saveSetting(context, () async {
+      if (!Platform.isAndroid) {
+        throw AppFailure('儲存授權僅適用 Android');
+      }
+      final granted = await AppDevice.downloadStorageAccess();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(granted
+              ? '已取得下載資料夾所需的檔案存取授權'
+              : '請在系統設定允許「管理所有檔案」，再返回選取下載資料夾'),
+        ),
+      );
+    });
+  }
+
   Future<void> _move() async {
-    final parent = await _pickParent();
-    if (parent == null || !mounted) return;
-    await _migrate(parent, parent);
+    try {
+      final parent = await _pickParent();
+      if (parent == null || !mounted) return;
+      await _migrate(parent, parent);
+    } catch (failure) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('無法選取下載資料夾：$failure')),
+      );
+    }
   }
 
   Future<void> _restore() => _migrate('', '应用默认目录');
@@ -147,9 +180,34 @@ class _StorageViewState extends State<StorageView> {
     } finally {
       navigator.pop();
     }
+    // The directory shown on screen must come from the live Go core,
+    // not merely from the folder picker result.
+    String? activeDirectory;
+    if (failed == null) {
+      try {
+        activeDirectory = await repository.downloadDirectory();
+        if (activeDirectory == null ||
+            activeDirectory.isEmpty ||
+            (parent.isNotEmpty && activeDirectory != parent)) {
+          failed = '下載核心尚未切換至所選目錄，請確認存取授權並重試；目前核心目錄：$activeDirectory';
+        }
+      } catch (failure) {
+        failed = '無法驗證下載目錄是否更新：$failure';
+      }
+    }
     await _refresh();
-    if (failed != null && mounted) setState(() => _error = failed);
-    if (leftover.path.isEmpty || !mounted) return;
+    if (!mounted) return;
+    if (failed != null) {
+      setState(() => _error = failed);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(failed)),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('當前下載目錄已更新：$activeDirectory')),
+    );
+    if (leftover.path.isEmpty) return;
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -221,7 +279,7 @@ class _StorageViewState extends State<StorageView> {
             ),
             const Divider(indent: 16, endIndent: 16),
             SettingsTile(
-              title: '当前下载目录',
+              title: '當前下載目錄',
               subtitle: directory,
               trailing: FocusRing(
                 radius: 999,
@@ -235,7 +293,7 @@ class _StorageViewState extends State<StorageView> {
             ),
             const Divider(indent: 16, endIndent: 16),
             SettingsTile(
-              title: '更改并迁移目录',
+              title: '更改下載位置並遷移',
               subtitle: admin ? '下载会先暂停，复制成功后清理旧目录' : '需要管理员',
               enabled: admin,
               onTap: _move,
@@ -252,7 +310,14 @@ class _StorageViewState extends State<StorageView> {
               onTap: _restore,
             ),
             const Divider(indent: 16, endIndent: 16),
-            SettingsTile(title: '刷新用量', onTap: _refresh),
+            SettingsTile(
+              title: '存取授權',
+              subtitle: Platform.isAndroid
+                  ? '開啟 Android 檔案存取授權設定，以供下載核心寫入所選資料夾'
+                  : '僅 Android 支援',
+              enabled: Platform.isAndroid,
+              onTap: _requestStorageAccess,
+            ),
           ],
         ),
         if (Platform.isAndroid) ...[

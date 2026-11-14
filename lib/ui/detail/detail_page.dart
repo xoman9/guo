@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../app_device.dart';
 import '../../drama_details.dart';
 import '../../local_store.dart';
 import '../../models.dart';
@@ -17,6 +18,7 @@ import '../widgets/cover_image.dart';
 import '../widgets/focus_ring.dart';
 import '../widgets/follow_button.dart';
 import '../theme/motion.dart';
+import '../widgets/choice_panel.dart';
 import '../widgets/motion/motion_widgets.dart';
 import '../widgets/status_view.dart';
 import '../widgets/swipe_switch.dart';
@@ -184,9 +186,15 @@ const _television = _Metrics(
 );
 
 class DetailPage extends StatefulWidget {
-  const DetailPage({super.key, required this.store, required this.drama});
+  const DetailPage({
+    super.key,
+    required this.store,
+    required this.drama,
+    this.autoplay = false,
+  });
   final LocalStore store;
   final Drama drama;
+  final bool autoplay;
 
   @override
   State<DetailPage> createState() => _DetailPageState();
@@ -209,6 +217,8 @@ class _DetailPageState extends State<DetailPage> {
   final _episodeFocus = List.generate(episodeGroupSize, (_) => FocusNode());
   bool _entered = false;
   PlaybackHandle? _watched;
+  late bool _autoplayPending = widget.autoplay;
+  late bool _curtain = widget.autoplay;
 
   @override
   void didChangeDependencies() {
@@ -252,6 +262,27 @@ class _DetailPageState extends State<DetailPage> {
     ).showSnackBar(SnackBar(content: Text(details.error!)));
   }
 
+  Future<void> _openMissAVInApp() async {
+    try {
+      final session = await AppDevice.verifySiteInBrowser(
+        'missav',
+        videoId: widget.drama.sourceId,
+      );
+      if (session == null || !mounted) return;
+      await AppScope.of(context).repository.saveSiteVerification(
+        'missav',
+        session.cookie,
+        session.userAgent,
+      );
+      if (mounted) await _details?.load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('MissAV 原站網頁／驗證失敗：$error')),
+      );
+    }
+  }
+
   double _startAt(int index, {required bool resume}) {
     final watch = _details!.watch;
     return resume &&
@@ -292,6 +323,36 @@ class _DetailPageState extends State<DetailPage> {
     _handle?.session.syncSeasons(seasons);
     _watched?.session.syncSeasons(seasons);
     _preopen();
+    unawaited(_autoplay());
+  }
+
+  Future<void> _autoplay() async {
+    final details = _details!;
+    if (!_autoplayPending || !mounted || details.loading) return;
+    _autoplayPending = false;
+    if (_ready && details.allowed) {
+      await _play(details.resumeIndex, resume: true);
+      if (!mounted) return;
+    }
+    if (_curtain) {
+      setState(() => _curtain = false);
+    } else if (AppScope.of(context).television &&
+        details.currentIndex == null) {
+      _playFocus.requestFocus();
+    }
+  }
+
+  void _liftCurtainAfter(Animation<double> entering) {
+    void lift(AnimationStatus status) {
+      if (status != AnimationStatus.completed) return;
+      entering.removeStatusListener(lift);
+      if (!mounted || !_curtain) return;
+      _entered = true;
+      setState(() => _curtain = false);
+    }
+
+    entering.addStatusListener(lift);
+    lift(entering.status);
   }
 
   void _preopen() {
@@ -344,11 +405,12 @@ class _DetailPageState extends State<DetailPage> {
     handle.session.start(index, position: position);
     _watching = true;
     _watched = handle;
-    await Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PlaybackPage(store: widget.store, handle: handle),
-      ),
+    final route = MaterialPageRoute<void>(
+      builder: (_) => PlaybackPage(store: widget.store, handle: handle),
     );
+    final closed = Navigator.of(context, rootNavigator: true).push(route);
+    if (_curtain) _liftCurtainAfter(route.animation!);
+    await closed;
     _watching = false;
     _watched = null;
     if (!mounted) return;
@@ -407,6 +469,12 @@ class _DetailPageState extends State<DetailPage> {
           ),
         );
       }
+      if (_curtain) {
+        return const Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
       final form = AppScope.formFactorOf(context);
       if (form == FormFactor.television) return _televisionPage(details);
       if (form == FormFactor.phone || MediaQuery.sizeOf(context).width < 840) {
@@ -426,6 +494,12 @@ class _DetailPageState extends State<DetailPage> {
             : Colors.transparent,
       ),
       actions: [
+        if (widget.drama.source == 'missav')
+          IconButton(
+            tooltip: '在 App 內開啟原站網頁播放',
+            onPressed: _openMissAVInApp,
+            icon: const Icon(Icons.language_rounded),
+          ),
         IconButton(
           tooltip: '更新剧集信息',
           onPressed: details.loading ? null : _refresh,
@@ -748,6 +822,7 @@ class _DetailPageState extends State<DetailPage> {
     while (_seasonFocus.length < details.seasons.length) {
       _seasonFocus.add(FocusNode());
     }
+    const focusBleed = 12.0;
     final page = Scaffold(
       body: _withBackdrop(
         details.drama,
@@ -756,7 +831,7 @@ class _DetailPageState extends State<DetailPage> {
           padding: const EdgeInsets.fromLTRB(
             televisionInset,
             40,
-            televisionInset,
+            televisionInset - focusBleed,
             27,
           ),
           child: Focus(
@@ -765,17 +840,24 @@ class _DetailPageState extends State<DetailPage> {
             onKeyEvent: (_, event) => _televisionKey(details, m, event),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 40,
+              spacing: 40 - focusBleed,
               children: [
                 SizedBox(width: 380, child: _televisionInfo(details, m)),
                 Expanded(
                   child: details.seasons.isEmpty
-                      ? FadeSwitcher(
-                          alignment: Alignment.topCenter,
-                          child: _televisionEpisodes(details, m),
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: focusBleed,
+                          ),
+                          child: FadeSwitcher(
+                            alignment: Alignment.topCenter,
+                            child: _televisionEpisodes(details, m),
+                          ),
                         )
                       : SingleChildScrollView(
-                          clipBehavior: Clip.none,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: focusBleed,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -1422,13 +1504,26 @@ class _DetailPageState extends State<DetailPage> {
       );
 
   Widget _episodeError(DramaDetails details, bool autofocus) {
+    final challenge = widget.drama.source == 'missav' &&
+        (details.error?.contains('HTTP 403') == true ||
+         details.error?.contains('瀏覽器驗證') == true ||
+         details.error?.contains('浏览器验证') == true);
     return StatusView(
       key: const ValueKey('error'),
-      title: details.error != null ? '剧集信息暂时不可用' : '暂时没有可播放的集数',
-      message: details.error ?? '可以更新剧集信息后重试。',
+      title: challenge
+          ? 'MissAV 網站要求瀏覽器驗證'
+          : details.error != null
+              ? '剧集信息暂时不可用'
+              : '暂时没有可播放的集数',
+      message: challenge
+          ? '${details.error}\n請使用 App 內的驗證視窗完成驗證，'
+              '再按「使用驗證資訊」；外部 Chrome 的 Cookie 不會自動傳入 App。'
+          : details.error ?? '可以更新剧集信息后重试。',
       icon: Icons.error_outline_rounded,
       action: '重试',
       onAction: details.load,
+      secondaryAction: challenge ? '在 App 內開啟原站影片並驗證' : null,
+      onSecondaryAction: challenge ? _openMissAVInApp : null,
       autofocus: autofocus,
     );
   }
@@ -1480,6 +1575,7 @@ class _DetailPageState extends State<DetailPage> {
     store: widget.store,
     metrics: m,
     swipeHint: !AppScope.of(context).television,
+    collapsed: AppScope.formFactorOf(context) == FormFactor.window,
     focus: AppScope.of(context).television ? _seasonFocus : const [],
     onSelected: (season) => unawaited(_selectSeason(season)),
   );
@@ -1623,9 +1719,11 @@ class _SeasonStrip extends StatefulWidget {
     required this.store,
     required this.metrics,
     required this.swipeHint,
+    required this.collapsed,
     required this.focus,
     required this.onSelected,
   });
+  final bool collapsed;
   final List<FocusNode> focus;
   final List<DramaSeason> seasons;
   final String current;
@@ -1692,60 +1790,96 @@ class _SeasonStripState extends State<_SeasonStrip> {
     return season.drama.episodes > 0 ? '共 ${season.drama.episodes} 集' : '';
   }
 
+  void _openMenu() {
+    unawaited(
+      showAnchoredPanel<void>(
+        context: context,
+        width: context.size!.width,
+        builder: (_) => GridView.builder(
+          shrinkWrap: true,
+          padding: const EdgeInsets.all(12),
+          itemCount: widget.seasons.length,
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 150,
+            mainAxisExtent: 82,
+            mainAxisSpacing: _gap,
+            crossAxisSpacing: _gap,
+          ),
+          itemBuilder: (menu, index) =>
+              _card(menu, widget.seasons[index], null, (season) {
+                Navigator.pop(menu);
+                widget.onSelected(season);
+              }),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final m = widget.metrics;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(4, 10, 4, 12),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: .55),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 10,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Icon(Icons.layers_rounded, size: 16, color: colors.primary),
-                const SizedBox(width: 6),
-                Text(
-                  '系列多季',
-                  style: TextStyle(
-                    fontSize: m.section,
-                    fontWeight: FontWeight.w700,
-                  ),
+    final background = colors.surfaceContainerHighest.withValues(alpha: .55);
+    final currentLabel = widget.seasons
+        .where((season) => season.drama.id == widget.current)
+        .firstOrNull
+        ?.label;
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 10,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(Icons.layers_rounded, size: 16, color: colors.primary),
+              const SizedBox(width: 6),
+              Text(
+                '系列多季',
+                style: TextStyle(
+                  fontSize: m.section,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: .16),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '共 ${widget.seasons.length} 季',
-                    style: TextStyle(fontSize: m.tag, color: colors.primary),
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: .16),
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                const Spacer(),
-                if (widget.swipeHint)
+                child: Text(
+                  '共 ${widget.seasons.length} 季',
+                  style: TextStyle(fontSize: m.tag, color: colors.primary),
+                ),
+              ),
+              const Spacer(),
+              if (widget.collapsed) ...[
+                if (currentLabel != null)
                   Text(
-                    '左右滑动切换',
+                    currentLabel,
                     style: TextStyle(
                       fontSize: m.tag,
                       color: colors.onSurfaceVariant,
                     ),
                   ),
-              ],
-            ),
+                Icon(
+                  Icons.expand_more_rounded,
+                  size: 20,
+                  color: colors.onSurfaceVariant,
+                ),
+              ] else if (widget.swipeHint)
+                Text(
+                  '左右滑动切换',
+                  style: TextStyle(
+                    fontSize: m.tag,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+            ],
           ),
+        ),
+        if (!widget.collapsed)
           SizedBox(
             height: 90,
             child: ListView.separated(
@@ -1758,15 +1892,42 @@ class _SeasonStripState extends State<_SeasonStrip> {
                 context,
                 widget.seasons[index],
                 index < widget.focus.length ? widget.focus[index] : null,
+                widget.onSelected,
               ),
             ),
           ),
-        ],
+      ],
+    );
+    if (widget.collapsed) {
+      return Material(
+        color: background,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _openMenu,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 10, 4, 10),
+            child: content,
+          ),
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.fromLTRB(4, 10, 4, 12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(16),
       ),
+      child: content,
     );
   }
 
-  Widget _card(BuildContext context, DramaSeason season, FocusNode? focusNode) {
+  Widget _card(
+    BuildContext context,
+    DramaSeason season,
+    FocusNode? focusNode,
+    ValueChanged<DramaSeason> onSelected,
+  ) {
     final colors = Theme.of(context).colorScheme;
     final m = widget.metrics;
     final selected = season.drama.id == widget.current;
@@ -1786,7 +1947,7 @@ class _SeasonStripState extends State<_SeasonStrip> {
           focusNode: focusNode,
           onTap: selected && focusNode == null
               ? null
-              : () => widget.onSelected(season),
+              : () => onSelected(season),
           child: Container(
             width: _cardWidth,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
