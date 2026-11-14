@@ -36,9 +36,21 @@ jobs:
           from app_build import link_sources
           link_sources([Path("native/sources_custom"),Path("native/sources_missav"),Path("native/sources_legacy109")])
           PY
-          (cd native && go test -count=1 -tags=zhenguojian ./bridge ./core)
-          (cd native && go test -count=1 -tags=zhenguojian guoapp/missav-recovery guoapp/legacy109-recovery duanjuapp/native/sources_custom)
+          (cd native && go test -v -count=1 -tags=zhenguojian ./bridge ./core) 2>&1 | tee "$RUNNER_TEMP/go-core-tests.log"
+          (cd native && go test -v -count=1 -tags=zhenguojian guoapp/missav-recovery guoapp/legacy109-recovery duanjuapp/native/sources_custom) 2>&1 | tee "$RUNNER_TEMP/go-provider-tests.log"
           grep -q '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
           grep -q '"guoapp/missav-recovery"' native/bridge/sources_gen.go
           grep -q '"guoapp/legacy109-recovery"' native/bridge/sources_gen.go
           echo "All three Provider modules and core/bridge fixture tests passed (16 reconstructed + 14 additional IDs). No live playback or Android device verification." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload Go diagnostic logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guo-30-provider-go-failure-logs
+          path: |
+            ${{ runner.temp }}/go-core-tests.log
+            ${{ runner.temp }}/go-provider-tests.log
+            ${{ runner.temp }}/gofmt-report.txt
+          if-no-files-found: warn
+          retention-days: 14
+
