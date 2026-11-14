@@ -9,6 +9,7 @@ import android.app.AlertDialog
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
@@ -482,9 +483,12 @@ class MainActivity : FlutterActivity() {
                         }
                         "verifySiteInBrowser" -> {
                             val site = call.argument<String>("source")
+                            val videoId = call.argument<String>("videoId").orEmpty()
+                            val safeMissavId = Regex("^(?:cn/)?[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+                                .matches(videoId) && videoId.any { it.isDigit() }
                             val url = when (site) {
                                 "tvbox-jable" -> "https://jable.tv/"
-                                "missav" -> "https://missav.ws/"
+                                "missav" -> if (safeMissavId) "https://missav.ws/$videoId" else "https://missav.ws/"
                                 else -> null
                             }
                             if (url == null) {
@@ -786,6 +790,9 @@ class MainActivity : FlutterActivity() {
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
         web.settings.javaScriptCanOpenWindowsAutomatically = false
+        // The verification dialog may open the selected video page, so the
+        // site can use its own HTML5 player without sending cookies to Chrome.
+        web.webChromeClient = WebChromeClient()
         val rootHost = Uri.parse(target).host ?: ""
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
