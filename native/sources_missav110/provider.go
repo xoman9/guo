@@ -201,7 +201,17 @@ func (p *provider)page(ctx context.Context,path string)(*nethtml.Node,error){
  // FetchHostPage uses the app's browser-aware HTTP transport. Site challenges
  // remain enforced by the remote server; we do not bypass verification.
  target:=baseURL+path
- doc,_,err:=core.FetchHostPage(ctx,p.host,target,baseURL+"/",core.UserAgent)
+ var doc *nethtml.Node
+ var err error
+ if session:=core.LoadVerifiedSiteSession(p.host,sourceID);session.Cookie!=""{
+  // Use the same first-party session only when a user-approved, app-local
+  // verification has actually been stored; external Chrome cookies are not shared.
+  var resp core.TextResponse
+  resp,err=core.VerifiedSiteText(ctx,p.host,sourceID,target,baseURL+"/")
+  if err==nil {doc,err=nethtml.Parse(strings.NewReader(resp.Body))}
+ }else{
+  doc,_,err=core.FetchHostPage(ctx,p.host,target,baseURL+"/",core.UserAgent)
+ }
  if err!=nil{return nil,err}
  for _,n:=range missNodes(doc,"title",""){
   title:=strings.ToLower(core.ProviderHTMLText(n))
