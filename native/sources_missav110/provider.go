@@ -352,7 +352,14 @@ func (p *provider)ResolveMedia(ctx context.Context,task core.Task)(core.Provider
  }
  // For media extraction retain the original HTML to detect publicly exposed
  // URLs rather than assuming TVBox's Java parsing service exists.
- resp,err:=p.host.FetchText(ctx,core.TextRequest{URL:page,Referer:baseURL+"/",UserAgent:core.UserAgent,NoCache:true})
+ var resp core.TextResponse
+ if session:=core.LoadVerifiedSiteSession(p.host,sourceID);session.Cookie!=""{
+  // Reuse the first-party, user-approved WebView session for the media
+  // page, matching the catalog/detail path. Do not forward cookies to HLS CDNs.
+  resp,err=core.VerifiedSiteText(ctx,p.host,sourceID,page,baseURL+"/")
+ }else{
+  resp,err=p.host.FetchText(ctx,core.TextRequest{URL:page,Referer:baseURL+"/",UserAgent:core.UserAgent,NoCache:true})
+ }
  if err!=nil{return core.ProviderMedia{},fmt.Errorf("MissAV media page: %w",err)}
  media,err:=directMediaURL(page,resp.Body);if err!=nil{return core.ProviderMedia{},err}
  return core.ProviderMedia{URL:media,Referer:page,Credentials:core.VerifiedMediaCredentials(p.host,sourceID,page)},nil
