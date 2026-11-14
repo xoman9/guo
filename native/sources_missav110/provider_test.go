@@ -39,15 +39,41 @@ func TestJavaMissScopedThumbnailCards(t *testing.T){
 type missFixtureHost struct {
  core.Host
  pages map[string]string
+ state map[string][]byte
+ last core.TextRequest
 }
-// The real host provides persistent verification state. In these isolated
-// provider tests no browser session exists, so return an empty state rather
-// than invoking the embedded nil Host implementation.
-func(f *missFixtureHost)LoadState(_ string)([]byte,error){return nil,nil}
+func(f *missFixtureHost)SaveState(key string,data []byte)error{
+ if f.state==nil{f.state=map[string][]byte{}}
+ f.state[key]=append([]byte(nil),data...)
+ return nil
+}
+func(f *missFixtureHost)LoadState(key string)([]byte,error){return f.state[key],nil}
 func(f *missFixtureHost)FetchText(_ context.Context,req core.TextRequest)(core.TextResponse,error){
+ f.last=req
  if body,ok:=f.pages[req.URL];ok{return core.TextResponse{Body:body,URL:req.URL},nil}
  return core.TextResponse{},errors.New("missing fixture "+req.URL)
 }
+func TestMissAVUsesAppLocalVerifiedSessionForCatalogAndDetail(t *testing.T) {
+ host:=&missFixtureHost{pages:map[string]string{
+  baseURL+"/":`<div class="thumbnail"><a class="text-secondary" href="/abc-123">卡片</a></div>`,
+  baseURL+"/abc-123":`<meta property="og:title" content="片名">`,
+ }}
+ if err:=core.SaveVerifiedSiteSession(host,sourceID,core.VerifiedSiteSession{
+  Cookie:"verified=session",UserAgent:"Android WebView",
+ });err!=nil{t.Fatal(err)}
+ p:=&provider{host:host}
+ rows,_,err:=p.CatalogPage(context.Background(),1,"")
+ if err!=nil||len(rows)!=1{t.Fatalf("catalog with session: %v %+v",err,rows)}
+ if host.last.Cookie!="verified=session"||host.last.UserAgent!="Android WebView"{
+  t.Fatalf("catalog did not use app-local verified session: %+v",host.last)
+ }
+ _,_,err=p.Detail(context.Background(),"abc-123")
+ if err!=nil{t.Fatalf("detail with session: %v",err)}
+ if host.last.Cookie!="verified=session"||host.last.URL!=baseURL+"/abc-123"{
+  t.Fatalf("detail did not use app-local verified session: %+v",host.last)
+ }
+}
+
 func TestJavaMissProviderRoutes(t *testing.T){
  host:=&missFixtureHost{pages:map[string]string{
   baseURL+"/":`<a class="block bg-nord3" href="/dm">麻豆</a><div class="thumbnail"><a class="text-secondary" href="/abc-123">首頁影片</a><img src="/a.jpg"></div>`,
