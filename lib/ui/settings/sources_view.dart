@@ -112,7 +112,9 @@ class _SourceTile extends StatelessWidget {
         minTileHeight: 68,
         contentPadding: const EdgeInsets.fromLTRB(20, 4, 16, 4),
         title: Text(site.displayName),
-        subtitle: Text(site.description),
+        subtitle: (site.id == 'tvbox-jable' || site.id == 'missav')
+            ? null
+            : Text(site.description),
         onTap: onChanged == null ? null : () => onChanged!(!enabled),
         trailing: ExcludeFocus(
           child: Switch(value: enabled, onChanged: onChanged),
