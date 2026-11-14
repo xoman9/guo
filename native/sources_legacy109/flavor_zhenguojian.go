@@ -1,0 +1,9 @@
+//go:build zhenguojian
+
+package legacy109
+
+import "duanjuapp/native/core"
+
+func init() {
+ core.RegisterFlavor("zhenguojian",[]string{"hanxiaoquan","guipian","heitao","huangju","hongguo","sorani","dsd","jinguoduanju","huangguoai","huangguo-video","jinguo","cloudfront","huangdou","beabox","yeguo"})
+}
