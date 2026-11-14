@@ -85,7 +85,7 @@ jobs:
           (cd native && go test -v -count=1 -tags=zhenguojian ./bridge ./core) 2>&1 | tee "$RUNNER_TEMP/guo-core-test.log"
           (cd native && go test -v -count=1 -tags=zhenguojian guoapp/legacy109-recovery guoapp/missav-recovery duanjuapp/native/sources_custom) 2>&1 | tee "$RUNNER_TEMP/guo-provider-test.log"
           # Verify the linked bridge compiles before touching the permanent keystore.
-          (cd native && go build -tags=zhenguojian ./bridge) 2>&1 | tee "$RUNNER_TEMP/guo-bridge-build.log"
+          (cd native && go build -tags=zhenguojian -o "$RUNNER_TEMP/guo-apk-bridge-preflight" ./bridge) 2>&1 | tee "$RUNNER_TEMP/guo-bridge-build.log"
       - name: Require original fixed Android signing secret
         shell: bash
         env:
