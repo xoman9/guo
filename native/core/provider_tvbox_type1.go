@@ -5,6 +5,7 @@ package core
 import (
  "context"
  "encoding/json"
+ "encoding/xml"
  "errors"
  "fmt"
  "net/url"
@@ -13,13 +14,15 @@ import (
  "strings"
 )
 
-type tvboxType1Spec struct{ id, name, endpoint string }
+type tvboxType1Spec struct{ id, name, endpoint string; xml bool }
 var tvboxType1Specs = []tvboxType1Spec{
  {"tvbox-laoguo", "老果", "https://apilsbzy1.com/api.php/provide/vod/?ac=list"},
  {"tvbox-155", "一五五", "https://155api.com/api.php/provide/vod/?ac=list"},
  {"tvbox-jkun", "jkun", "https://jkunzyapi.com/api.php/provide/vod/?ac=list"},
  {"tvbox-senlin", "森林", "https://slapibf.com/api.php/provide/vod/?ac=list"},
  {"tvbox-jingpinx", "精品下", "http://www.jingpinx.com/api.php/provide/vod/?ac=list"},
+ {"tvbox-fanguo", "番果", "http://fhapi9.com/api.php/provide/vod/"},
+ {"tvbox-leguo", "樂果", "https://lbapi9.com/api.php/provide/vod/at/xml", true},
 }
 var tvboxValidID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
 
@@ -31,18 +34,84 @@ func (p *tvboxType1Provider) Descriptor() SourceDescriptor {
 }
 func (p *tvboxType1Provider) fetch(ctx context.Context,action string, params url.Values) (map[string]any,error) {
  endpoint,err:=url.Parse(p.spec.endpoint)
- if err!=nil||!strings.HasSuffix(strings.ToLower(endpoint.Path),"/api.php/provide/vod/") ||
-  (endpoint.Scheme!="https"&&endpoint.Scheme!="http") || endpoint.User!=nil {return nil,errors.New("無效的 TVBox 資源接口")}
+ if err!=nil||(endpoint.Scheme!="https"&&endpoint.Scheme!="http") || endpoint.User!=nil {
+  return nil,errors.New("無效的 TVBox 資源接口")
+ }
+ suffix:=strings.ToLower(endpoint.Path)
+ if p.spec.xml {
+  if !strings.HasSuffix(suffix,"/api.php/provide/vod/at/xml"){return nil,errors.New("無效的 TVBox XML 接口")}
+ }else if !strings.HasSuffix(suffix,"/api.php/provide/vod/") {
+  return nil,errors.New("無效的 TVBox JSON 接口")
+ }
  q:=endpoint.Query();q.Set("ac",action)
  for k,v:=range params {if len(v)>0{q.Set(k,v[0])}}
  endpoint.RawQuery=q.Encode()
  response,err:=p.host.Fetch(ctx,HTTPRequest{Label:p.spec.name+"接口",Method:"GET",URL:endpoint.String(),Limit:4<<20})
  if err!=nil{return nil,err}
  var data map[string]any
- if json.Unmarshal(response.Body,&data)!=nil{return nil,fmt.Errorf("%s 未返回標準 JSON TVBox 接口資料",p.spec.name)}
+ if p.spec.xml {
+  data,err=tvboxXMLToMap(response.Body)
+  if err!=nil{return nil,fmt.Errorf("%s XML 接口資料無法解析：%w",p.spec.name,err)}
+ }else if err=json.Unmarshal(response.Body,&data);err!=nil{
+  return nil,fmt.Errorf("%s 未返回標準 JSON TVBox 接口資料",p.spec.name)
+ }
  if _,ok:=data["list"];!ok && action!="list" && action!="detail"{return nil,errors.New("TVBox 接口未返回影片列表")}
  return data,nil
 }
+// MacCMS v10 XML TVBox type=0 response. Convert only the known
+// class/video/play fields; never interpret XML content as executable data.
+type tvboxXMLDocument struct {
+ XMLName xml.Name `xml:"rss"`
+ Class struct{ Items []struct{
+  ID string `xml:"id,attr"`
+  Name string `xml:",chardata"`
+ } `xml:"ty"` } `xml:"class"`
+ List struct{
+  PageCount string `xml:"pagecount,attr"`
+  Videos []struct{
+   ID string `xml:"id"`
+   Name string `xml:"name"`
+   TypeName string `xml:"type"`
+   Pic string `xml:"pic"`
+   Content string `xml:"des"`
+   Note string `xml:"note"`
+   Play struct{Lines []struct{
+    Flag string `xml:"flag,attr"`
+    Text string `xml:",chardata"`
+   } `xml:"dd"`} `xml:"dl"`
+  } `xml:"video"`
+ } `xml:"list"`
+}
+func tvboxXMLToMap(body []byte)(map[string]any,error){
+ var doc tvboxXMLDocument
+ if err:=xml.Unmarshal(body,&doc);err!=nil{return nil,err}
+ if doc.XMLName.Local!="rss"{return nil,errors.New("XML 缺少 RSS 根節點")}
+ result:=map[string]any{"pagecount":doc.List.PageCount}
+ classes:=[]any{}
+ for _,entry:=range doc.Class.Items{
+  if entry.ID!=""&&strings.TrimSpace(entry.Name)!=""{
+   classes=append(classes,map[string]any{"type_id":entry.ID,"type_name":strings.TrimSpace(entry.Name)})
+  }
+ }
+ result["class"]=classes
+ videos:=[]any{}
+ for _,v:=range doc.List.Videos{
+  from,urls:=[]string{},[]string{}
+  for _,line:=range v.Play.Lines{
+   if strings.TrimSpace(line.Text)==""{continue}
+   from=append(from,line.Flag)
+   urls=append(urls,strings.TrimSpace(line.Text))
+  }
+  videos=append(videos,map[string]any{
+   "vod_id":v.ID,"vod_name":v.Name,"type_name":v.TypeName,
+   "vod_pic":v.Pic,"vod_content":v.Content,"vod_remarks":v.Note,
+   "vod_play_from":strings.Join(from,"$$"),"vod_play_url":strings.Join(urls,"$$"),
+  })
+ }
+ result["list"]=videos
+ return result,nil
+}
+
 func tvboxRows(value any) []map[string]any {
  raw,ok:=value.([]any);if !ok{return nil}
  out:=make([]map[string]any,0,len(raw))
