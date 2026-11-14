@@ -484,7 +484,7 @@ class MainActivity : FlutterActivity() {
                             val site = call.argument<String>("source")
                             val url = when (site) {
                                 "tvbox-jable" -> "https://jable.tv/"
-                                "missav" -> "https://missav.live/cn/"
+                                "missav" -> "https://missav.ws/"
                                 else -> null
                             }
                             if (url == null) {
