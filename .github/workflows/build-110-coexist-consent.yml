@@ -29,7 +29,7 @@ permissions:
 
 concurrency:
   group: guo-110-coexist-original15-plus13-single-core
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
