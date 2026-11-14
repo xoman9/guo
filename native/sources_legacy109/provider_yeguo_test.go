@@ -10,6 +10,7 @@ import (
 type yg109Fixture struct{
  core.Host
  request []core.HTTPRequest
+ playSortOverride int
 }
 func (f *yg109Fixture) FetchText(_ context.Context,r core.TextRequest)(core.TextResponse,error){
  switch r.URL{
@@ -31,7 +32,9 @@ func (f *yg109Fixture) Fetch(_ context.Context,r core.HTTPRequest)(core.HTTPResp
  case strings.Contains(r.URL,"/api/playlet/detail"):
   data=map[string]any{"video_id":101,"title":"作品","episodes":[]any{map[string]any{"id":201,"sort":1},map[string]any{"id":202,"sort":2}}}
  case strings.Contains(r.URL,"/api/playlet/play"):
-  data=map[string]any{"playlet_id":101,"id":201,"episode_sort":1,"video_url":"https://video.example/e201.mp4"}
+  sort:=1
+  if f.playSortOverride>0{sort=f.playSortOverride}
+  data=map[string]any{"playlet_id":101,"id":201,"episode_sort":sort,"video_url":"https://video.example/e201.mp4"}
  default:return core.HTTPResponse{},errors.New("unknown Yeguo API route: "+r.URL)
  }
  raw,_:=json.Marshal(map[string]any{"status":1,"data":data})
@@ -83,4 +86,15 @@ func TestYeguo109RejectsForeignEpisodeBeforePlayRequest(t *testing.T){
  after:=0
  for _,req:=range host.request{if strings.Contains(req.URL,"/api/playlet/play"){after++}}
  if after!=before{t.Fatal("foreign episode triggered a playback API call")}
+}
+
+func TestYeguo109RejectsWrongPlaybackOrder(t *testing.T){
+ host:=&yg109Fixture{playSortOverride:2}
+ p:=&yeguo109{host:host}
+ drama,chapters,err:=p.Detail(context.Background(),"101")
+ if err!=nil||len(chapters)==0{t.Fatalf("missing detail: %v",err)}
+ _,err=p.ResolveMedia(context.Background(),core.Task{DramaID:drama.ID,Chapter:chapters[0]})
+ if err==nil||!strings.Contains(err.Error(),"order does not match"){
+  t.Fatalf("wrong episode order accepted: %v",err)
+ }
 }
