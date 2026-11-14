@@ -49,7 +49,9 @@ jobs:
           grep -Fq '我已同意' lib/ui/terms_page.dart
           ! grep -Fq 'FormTextField(' lib/ui/terms_page.dart
           grep -Fq 'hideAdditionalSources' lib/local_store.dart
-          grep -Fq "switches[site.id] = true" lib/local_store.dart
+          grep -Fq 'switches[site.id] = value' lib/local_store.dart
+          grep -Fq "'sourceSwitches': switches" lib/local_store.dart
+          grep -Fq '開啟時全部啟用，關閉時全部停用' lib/ui/settings/sources_view.dart
           grep -Fq 'for (final source in store.sources)' lib/ui/explore/source_actions.dart
           ! grep -Fq '!store.hideAdditionalSources' lib/ui/explore/source_actions.dart
           grep -Fq 'fontSize: 16' lib/ui/widgets/choice_panel.dart
