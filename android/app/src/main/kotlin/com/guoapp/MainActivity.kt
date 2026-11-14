@@ -126,7 +126,7 @@ class MainActivity : FlutterActivity() {
                         if (event?.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                             when (event.keyCode) {
                                 android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                                android.view.KeyEvent.KEYCODE_HEADSEHOOK -> {
+                                android.view.KeyEvent.KEYCODE_HEADSETHOOK -> {
                                     mediaControlChannel?.invokeMethod("mediaAction", "toggle")
                                     return true
                                 }
