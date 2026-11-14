@@ -16,6 +16,9 @@ on:
       - 'lib/ui/settings/storage_view.dart'
       - 'lib/ui/settings/settings_sections.dart'
       - 'native/core/app_storage.go'
+      - 'lib/app_device.dart'
+      - 'android/app/src/main/AndroidManifest.xml'
+      - 'android/app/src/main/kotlin/com/guoapp/MainActivity.kt'
   workflow_dispatch:
 
 permissions:
@@ -51,6 +54,9 @@ jobs:
           ! grep -Fq '!store.hideAdditionalSources' lib/ui/explore/source_actions.dart
           grep -Fq 'fontSize: 16' lib/ui/widgets/choice_panel.dart
           grep -Fq '目前已啟用' lib/ui/settings/sources_view.dart
+          grep -Fq 'chooseDownloadDirectory' lib/ui/settings/storage_view.dart
+          grep -Fq 'ACTION_OPEN_DOCUMENT_TREE' android/app/src/main/kotlin/com/guoapp/MainActivity.kt
+          grep -Fq 'MANAGE_EXTERNAL_STORAGE' android/app/src/main/AndroidManifest.xml
           grep -Fq 'displayName' lib/models.dart
           ! grep -Fq 'Icons.public_rounded' lib/ui/widgets/source_bar.dart
           grep -Fq 'target = filepath.Clean(resolved)' native/core/app_storage.go
