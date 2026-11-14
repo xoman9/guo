@@ -78,6 +78,18 @@ func TestWebHomePackedPlaybackScript(t *testing.T) {
  }
 }
 
+func TestMissAVPrefersCanonicalMasterWhenPageHasMultipleMedia(t *testing.T) {
+ page:=baseURL+"/abc-123"
+ playlist:="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"
+ html:=`<video src="https://cdn.example.test/preview.mp4"></video><script>var master="`+playlist+`"</script>`
+ got,err:=directMediaURL(page,html)
+ if err!=nil||got!=playlist{t.Fatalf("should prefer master HLS: %q %v",got,err)}
+ html+=`<script>var other="https://surrit.com/abcdef12-1234-1234-1234-123456789abc/playlist.m3u8"</script>`
+ if got,err:=directMediaURL(page,html);err==nil{
+  t.Fatalf("ambiguous HLS masters accepted: %q",got)
+ }
+}
+
 func TestMissAVSeekAdjacentStreamID(t *testing.T) {
  page:=baseURL+"/abc-123"
  uuid:="12345678-1234-1234-1234-123456789abc"
