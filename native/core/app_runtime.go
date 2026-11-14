@@ -79,6 +79,8 @@ type nativeInput struct {
 	Directory       string                  `json:"directory"`
 	Downloads       string                  `json:"downloads"`
 	Source          string                  `json:"source"`
+	Cookie          string                  `json:"cookie"`
+	UserAgent       string                  `json:"userAgent"`
 	Page            int                     `json:"page"`
 	Query           string                  `json:"query"`
 	Category        string                  `json:"category"`
