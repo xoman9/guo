@@ -31,7 +31,7 @@ var descriptor = core.SourceDescriptor{
     ID: sourceID, Name: "MissAV",
     Description: "由 110 APK 路徑與函式資訊重建的實驗站源；未驗證動態媒體解析",
     DefaultOff: true, BaseURL: baseURL,
-    NoHostRotation: true,
+    NoHostRotation: true, BrowserFingerprint: true,
     ValidCategory: validCategory,
 }
 
