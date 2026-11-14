@@ -151,7 +151,8 @@ func (engine *nativeEngine) moveDownloads(ctx context.Context, parent string) (s
 		if err != nil {
 			return "", "", errors.New("无法打开所选目录")
 		}
-		target = filepath.Join(filepath.Clean(resolved), "zhenguojian-downloads")
+		// The user-selected directory itself is the destination; do not append a subfolder.
+		target = filepath.Clean(resolved)
 	}
 	manager := engine.downloads
 	engine.mu.Lock()
