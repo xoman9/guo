@@ -36,8 +36,8 @@ jobs:
           from app_build import link_sources
           link_sources([Path("native/sources_custom"),Path("native/sources_missav"),Path("native/sources_legacy109")])
           PY
-          (cd native && go test -tags=zhenguojian ./bridge ./core)
-          (cd native && go test -tags=zhenguojian guoapp/missav-recovery guoapp/legacy109-recovery duanjuapp/native/sources_custom)
+          (cd native && go test -count=1 -tags=zhenguojian ./bridge ./core)
+          (cd native && go test -count=1 -tags=zhenguojian guoapp/missav-recovery guoapp/legacy109-recovery duanjuapp/native/sources_custom)
           grep -q '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
           grep -q '"guoapp/missav-recovery"' native/bridge/sources_gen.go
           grep -q '"guoapp/legacy109-recovery"' native/bridge/sources_gen.go
