@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../app_build.dart';
 import '../local_store.dart';
 import 'app_scope.dart';
 import 'widgets/focus_ring.dart';
+import 'widgets/form_text_field.dart';
 
 const termsVersion = 1;
+const _confirmation = '我已确认并同意以上使用条款';
 const _clauses = [
   '$appName 是开源软件，框架与示例站源代码公开，仅供个人学习与技术研究，**不收费，不提供任何付费服务**。',
   '$appName 与红果短剧及其他各站源的运营方**无任何关联**，未获得其授权或认可；文中提到的名称和商标归各自权利人所有。',
@@ -28,11 +32,33 @@ class TermsPage extends StatefulWidget {
 }
 
 class _TermsPageState extends State<TermsPage> {
-  var _agreed = false;
+  final _typed = TextEditingController();
+  late final Timer _timer;
+  var _remaining = 30;
   var _busy = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() => _remaining--);
+      if (_remaining == 0) timer.cancel();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    _typed.dispose();
+    super.dispose();
+  }
+
+  bool get _reading => _remaining > 0;
+
+  bool get _confirmed =>
+      _typed.text.replaceAll(RegExp(r'\s'), '') == _confirmation;
+
   Future<void> _accept() async {
-    if (!_agreed || _busy) return;
     setState(() => _busy = true);
     try {
       await widget.store.setAcceptedTerms(termsVersion);
@@ -66,74 +92,86 @@ class _TermsPageState extends State<TermsPage> {
                 : const EdgeInsets.symmetric(horizontal: 16, vertical: 48),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 16,
-                children: [
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      '$appName 使用条款',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
+              child: ListenableBuilder(
+                listenable: _typed,
+                builder: (context, _) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: 16,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        '$appName 使用条款',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                  ),
-                  for (final (index, clause) in _clauses.indexed)
-                    FocusRing(
-                      radius: 8,
-                      scale: 1,
-                      child: Focus(
-                        canRequestFocus: television,
-                        autofocus: television && index == 0,
-                        child: Text.rich(
-                          TextSpan(
-                            text: '${index + 1}. ',
-                            children: [
-                              for (final (part, text)
-                                  in clause.split('**').indexed)
-                                TextSpan(
-                                  text: text,
-                                  style: part.isOdd ? emphasis : null,
-                                ),
-                            ],
+                    for (final (index, clause) in _clauses.indexed)
+                      FocusRing(
+                        radius: 8,
+                        scale: 1,
+                        child: Focus(
+                          canRequestFocus: television,
+                          autofocus: television && index == 0,
+                          child: Text.rich(
+                            TextSpan(
+                              text: '${index + 1}. ',
+                              children: [
+                                for (final (part, text)
+                                    in clause.split('**').indexed)
+                                  TextSpan(
+                                    text: text,
+                                    style: part.isOdd ? emphasis : null,
+                                  ),
+                              ],
+                            ),
+                            style: body,
                           ),
-                          style: body,
+                        ),
+                      ),
+                    if (!television) ...[
+                      Text(
+                        '请在下方输入「$_confirmation」后继续。',
+                        style: body?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      FormTextField(
+                        controller: _typed,
+                        enabled: !_reading && !_busy,
+                        decoration: InputDecoration(
+                          border: const OutlineInputBorder(),
+                          hintText: _reading
+                              ? '请先阅读条款，$_remaining 秒后可输入'
+                              : '在此输入确认语',
+                        ),
+                        onSubmitted: (_) {
+                          if (_confirmed && !_busy) _accept();
+                        },
+                      ),
+                    ],
+                    FocusRing(
+                      radius: 24,
+                      child: FilledButton(
+                        style: const ButtonStyle(
+                          minimumSize: WidgetStatePropertyAll(
+                            Size.fromHeight(48),
+                          ),
+                        ),
+                        onPressed:
+                            (television ? !_reading : _confirmed) && !_busy
+                            ? _accept
+                            : null,
+                        child: Text(
+                          television && _reading
+                              ? '同意并继续（$_remaining 秒）'
+                              : '同意并继续',
                         ),
                       ),
                     ),
-                  Text(
-                    '請在下方勾選「我已同意」，再點擊「同意並繼續」。',
-                    style: body?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  FocusRing(
-                    radius: 12,
-                    child: CheckboxListTile(
-                      key: const ValueKey('terms-agree-checkbox'),
-                      value: _agreed,
-                      onChanged: _busy
-                          ? null
-                          : (value) => setState(() => _agreed = value ?? false),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                      title: const Text('我已同意'),
-                    ),
-                  ),
-                  FocusRing(
-                    radius: 24,
-                    child: FilledButton(
-                      style: const ButtonStyle(
-                        minimumSize: WidgetStatePropertyAll(
-                          Size.fromHeight(48),
-                        ),
-                      ),
-                      onPressed: _agreed && !_busy ? _accept : null,
-                      child: const Text('同意並繼續'),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

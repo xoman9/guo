@@ -4,7 +4,6 @@ import 'dart:ui' show Size;
 import 'catalog_sort.dart';
 
 const playbackSpeeds = [.5, .75, 1.0, 1.1, 1.25, 1.5, 2.0, 3.0];
-const boostSpeeds = [1.5, 2.0, 2.5, 3.0, 4.0];
 const danmakuColors = [
   0xFFFFFFFF,
   0xFFFFE066,
@@ -70,16 +69,12 @@ const danmakuStrokeMax = 6.0;
 const danmakuShadowMin = 0.0;
 const danmakuShadowMax = 12.0;
 
-const danmakuSpeedMin = .5;
-const danmakuSpeedMax = 2.0;
-
 const danmakuWordLength = 40;
 const danmakuWordLimit = 60;
 
 class PlaybackPreferences {
   const PlaybackPreferences({
     this.speed = 1,
-    this.boostSpeed = 2,
     this.quality = 0,
     this.autoAdvance = true,
     this.danmaku = true,
@@ -90,7 +85,6 @@ class PlaybackPreferences {
     this.danmakuStroke = 0,
     this.danmakuShadow = 3,
     this.danmakuCoverage = DanmakuCoverage.half,
-    this.danmakuSpeed = 1,
     this.danmakuWords = const [],
     this.preload = true,
     this.televisionDecoder = TelevisionDecoder.optimized,
@@ -119,11 +113,6 @@ class PlaybackPreferences {
   final double danmakuStroke;
   final double danmakuShadow;
   final DanmakuCoverage danmakuCoverage;
-  final double danmakuSpeed;
-  final double boostSpeed;
-
-  String get boostLabel =>
-      '${boostSpeed % 1 == 0 ? boostSpeed.toInt() : boostSpeed} 倍速';
   final List<String> danmakuWords;
   final bool preload;
   final TelevisionDecoder televisionDecoder;
@@ -154,8 +143,6 @@ class PlaybackPreferences {
     double? danmakuStroke,
     double? danmakuShadow,
     DanmakuCoverage? danmakuCoverage,
-    double? danmakuSpeed,
-    double? boostSpeed,
     List<String>? danmakuWords,
     bool? preload,
     TelevisionDecoder? televisionDecoder,
@@ -183,8 +170,6 @@ class PlaybackPreferences {
     danmakuStroke: danmakuStroke ?? this.danmakuStroke,
     danmakuShadow: danmakuShadow ?? this.danmakuShadow,
     danmakuCoverage: danmakuCoverage ?? this.danmakuCoverage,
-    danmakuSpeed: danmakuSpeed ?? this.danmakuSpeed,
-    boostSpeed: boostSpeed ?? this.boostSpeed,
     danmakuWords: danmakuWords ?? this.danmakuWords,
     preload: preload ?? this.preload,
     televisionDecoder: televisionDecoder ?? this.televisionDecoder,
@@ -214,8 +199,6 @@ class PlaybackPreferences {
     'danmakuStroke': danmakuStroke,
     'danmakuShadow': danmakuShadow,
     'danmakuCoverage': danmakuCoverage.name,
-    'danmakuSpeed': danmakuSpeed,
-    'boostSpeed': boostSpeed,
     'danmakuWords': danmakuWords,
     'preload': preload,
     'televisionDecoder': televisionDecoder.name,
@@ -236,7 +219,6 @@ class PlaybackPreferences {
   factory PlaybackPreferences.fromJson(Map<String, dynamic> value) {
     final speed = (value['speed'] as num? ?? 1).toDouble();
     final quality = value['quality'] as int? ?? 0;
-    final boostSpeed = (value['boostSpeed'] as num? ?? 2).toDouble();
     final autoAdvance = value['autoAdvance'] as bool? ?? true;
     final danmaku = value['danmaku'] as bool? ?? true;
     final preload = value['preload'] as bool? ?? true;
@@ -247,7 +229,6 @@ class PlaybackPreferences {
     }
     return PlaybackPreferences(
       speed: speed,
-      boostSpeed: boostSpeeds.contains(boostSpeed) ? boostSpeed : 2,
       quality: quality,
       autoAdvance: autoAdvance,
       danmaku: danmaku,
@@ -271,10 +252,6 @@ class PlaybackPreferences {
       danmakuCoverage:
           DanmakuCoverage.values.asNameMap()[value['danmakuCoverage']] ??
           DanmakuCoverage.half,
-      danmakuSpeed: (value['danmakuSpeed'] as num? ?? 1).toDouble().clamp(
-        danmakuSpeedMin,
-        danmakuSpeedMax,
-      ),
       danmakuWords: normalizeDanmakuWords(value['danmakuWords']),
       preload: preload,
       televisionDecoder:

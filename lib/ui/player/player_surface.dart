@@ -11,7 +11,6 @@ import '../settings/sorani_account_view.dart';
 import '../theme/motion.dart';
 import '../widgets/contained_slider.dart';
 import '../widgets/motion/motion_widgets.dart';
-import 'cast_page.dart';
 import 'danmaku_overlay.dart';
 import 'fade_presence.dart';
 import 'playback_handle.dart';
@@ -691,7 +690,6 @@ class _PlayerSurfaceState extends State<PlayerSurface> {
     final showFit = fits(_iconSlot);
     final showMiniWindow = widget.onMiniWindow != null && fits(_iconSlot);
     final showSleep = fits(_iconSlot);
-    final showCast = castSupported && fits(_iconSlot);
     return Row(
       children: [
         _icon(
@@ -781,11 +779,6 @@ class _PlayerSurfaceState extends State<PlayerSurface> {
             '画中画',
             widget.onMiniWindow,
           ),
-        if (showCast)
-          _icon(Icons.cast_rounded, '投屏', () {
-            _close();
-            unawaited(startCast(context, _session));
-          }),
         if (showWide)
           _icon(
             Icons.width_wide_rounded,

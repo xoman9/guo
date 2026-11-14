@@ -113,32 +113,8 @@ class PlaybackSession extends ChangeNotifier {
         if (size == null || _closed) return;
         _videoSize = size;
         _notify();
-        unawaited(_logVideoOutput(parameters));
       }),
     ]);
-  }
-
-  String _videoOutput = '';
-
-  Future<void> _logVideoOutput(VideoParams parameters) async {
-    final platform = player.platform;
-    if (parameters.pixelformat == null || platform is! NativePlayer) return;
-    try {
-      final values = [
-        for (final name in [
-          'hwdec-current',
-          'current-vo',
-          'video-codec',
-          'container-fps',
-        ])
-          await platform.getProperty(name),
-      ];
-      final line =
-          '[Video] decoder=${store.playbackPreferences.televisionDecoder.name} hwdec=${values[0]} vo=${values[1]} codec=${values[2]} fps=${values[3]} format=${parameters.pixelformat} hw_format=${parameters.hwPixelformat} size=${parameters.w}x${parameters.h}';
-      if (_closed || line == _videoOutput) return;
-      _videoOutput = line;
-      DiaryService.add(line);
-    } catch (_) {}
   }
 
   final AppRepository repository;
@@ -268,7 +244,7 @@ class PlaybackSession extends ChangeNotifier {
     preload: true,
   );
 
-  double get _rate => _boosting ? store.playbackPreferences.boostSpeed : _speed;
+  double get _rate => _boosting ? 2 : _speed;
 
   void _buffering(bool buffering) {
     _stallTimer?.cancel();
@@ -979,7 +955,7 @@ class PlaybackSession extends ChangeNotifier {
         return;
       }
       _boosting = true;
-      unawaited(_setRate(_rate));
+      unawaited(_setRate(2));
       _notify();
     });
   }
@@ -989,7 +965,7 @@ class PlaybackSession extends ChangeNotifier {
     _boostTimer?.cancel();
     _boostTimer = null;
     _boosting = true;
-    unawaited(_setRate(_rate));
+    unawaited(_setRate(2));
     _notify();
   }
 
@@ -1138,12 +1114,6 @@ class PlaybackSession extends ChangeNotifier {
   Future<void> setDanmakuShadow(double value) async {
     final shadow = value.clamp(danmakuShadowMin, danmakuShadowMax);
     await _savePreferences(_preferences.copyWith(danmakuShadow: shadow));
-    _notify();
-  }
-
-  Future<void> setDanmakuSpeed(double value) async {
-    final speed = value.clamp(danmakuSpeedMin, danmakuSpeedMax);
-    await _savePreferences(_preferences.copyWith(danmakuSpeed: speed));
     _notify();
   }
 

@@ -53,8 +53,6 @@ import kotlin.math.roundToInt
 private const val SURFACE_RESIZE_REDRAW_WAIT_MS = 100L
 private const val ORIENTATION_SETTLE_MS = 800L
 private const val CREATE_DOCUMENT_REQUEST = 7301
-private const val DOWNLOAD_DIRECTORY_REQUEST = 7304
-private const val MERGE_DIRECTORY_REQUEST = 7303
 private const val STORAGE_PERMISSION_REQUEST = 7302
 private const val PICTURE_IN_PICTURE_ACTION = "com.guoapp.PICTURE_IN_PICTURE_ACTION"
 
@@ -74,8 +72,6 @@ class MainActivity : FlutterActivity() {
     private var pictureInPicture: PlayerPictureInPicture? = null
     private var pictureInPictureReceiver: BroadcastReceiver? = null
     private var documentResult: MethodChannel.Result? = null
-    private var downloadDirectoryResult: MethodChannel.Result? = null
-    private var mergeDirectoryResult: MethodChannel.Result? = null
     private var permissionResult: MethodChannel.Result? = null
     private var textInput: TextInputBridge? = null
     private var headroomReadAt = 0L
@@ -502,105 +498,6 @@ class MainActivity : FlutterActivity() {
                                 DocumentsContract.deleteDocument(contentResolver, Uri.parse(uri))
                             }.getOrDefault(false))
                         }
-                        "sharedStorageAccess", "hasDownloadFileAccess" -> {
-                            result.success(
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                    Environment.isExternalStorageManager()
-                                } else {
-                                    checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
-                                        PackageManager.PERMISSION_GRANTED
-                                }
-                            )
-                        }
-                        "requestSharedStorageAccess", "requestDownloadFileAccess" -> {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                if (Environment.isExternalStorageManager()) {
-                                    result.success(true)
-                                } else {
-                                    try {
-                                        startActivity(Intent(
-                                            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                                            Uri.parse("package:$packageName")
-                                        ))
-                                        result.success(false)
-                                    } catch (_: Exception) {
-                                        try {
-                                            startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-                                            result.success(false)
-                                        } catch (_: Exception) {
-                                            result.error("storage_settings", "無法開啟檔案授權設定", null)
-                                        }
-                                    }
-                                }
-                            } else {
-                                val allowed = checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
-                                    PackageManager.PERMISSION_GRANTED
-                                if (!allowed) {
-                                    requestPermissions(
-                                        arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                                        STORAGE_PERMISSION_REQUEST
-                                    )
-                                }
-                                result.success(allowed)
-                            }
-                        }
-                        "chooseMergeDirectory" -> {
-                            if (mergeDirectoryResult != null) {
-                                result.error("picker_busy", "正在选择合并目录", null)
-                            } else {
-                                try {
-                                    mergeDirectoryResult = result
-                                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                                            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-                                    }
-                                    startActivityForResult(intent, MERGE_DIRECTORY_REQUEST)
-                                } catch (error: Exception) {
-                                    mergeDirectoryResult = null
-                                    result.error("picker_unavailable", "无法选择合并目录", null)
-                                }
-                            }
-                        }
-                        "createMergeDocument" -> {
-                            val tree = call.argument<String>("treeUri")
-                            val name = call.argument<String>("name")
-                            if (tree.isNullOrEmpty() || name.isNullOrEmpty()) {
-                                result.error("invalid_merge_directory", "请先选择合并目录", null)
-                            } else {
-                                try {
-                                    val treeUri = Uri.parse(tree)
-                                    val parent = DocumentsContract.buildDocumentUriUsingTree(
-                                        treeUri, DocumentsContract.getTreeDocumentId(treeUri))
-                                    val uri = DocumentsContract.createDocument(
-                                        contentResolver, parent, "video/mp4", name)
-                                    if (uri == null) result.error("merge_file_failed", "无法建立合并文件", null)
-                                    else result.success(uri.toString())
-                                } catch (error: Exception) {
-                                    result.error("merge_directory_permission", "合并目录无法写入，请重新选择", null)
-                                }
-                            }
-                        }
-                        "chooseDownloadDirectory" -> {
-                            if (downloadDirectoryResult != null) {
-                                result.error("picker_busy", "已有下載資料夾選擇器開啟", null)
-                            } else {
-                                try {
-                                    downloadDirectoryResult = result
-                                    startActivityForResult(
-                                        Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                                                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-                                        },
-                                        DOWNLOAD_DIRECTORY_REQUEST
-                                    )
-                                } catch (_: Exception) {
-                                    downloadDirectoryResult = null
-                                    result.error("folder_picker", "無法開啟系統資料夾選擇器", null)
-                                }
-                            }
-                        }
                         "requestVideoExport" -> {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ||
                                 checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
@@ -614,33 +511,6 @@ class MainActivity : FlutterActivity() {
                                     arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
                                     STORAGE_PERMISSION_REQUEST
                                 )
-                            }
-                        }
-                        "copyFileToDocument" -> {
-                            val source = call.argument<String>("source")
-                            val target = call.argument<String>("uri")
-                            if (source.isNullOrEmpty() || target.isNullOrEmpty()) {
-                                result.error("invalid_document_copy", "無法儲存合併檔案：路徑不足", null)
-                            } else {
-                                Thread {
-                                    val outcome = runCatching {
-                                        val file = File(source).canonicalFile
-                                        val cacheRoot = cacheDir.canonicalFile
-                                        if (!file.path.startsWith(cacheRoot.path + File.separator) || !file.isFile) {
-                                            throw IOException("合併暫存檔無效")
-                                        }
-                                        val uri = Uri.parse(target)
-                                        if (uri.scheme != "content") throw IOException("目標位置無效")
-                                        val output = contentResolver.openOutputStream(uri, "wt")
-                                            ?: throw IOException("無法寫入選定目錄")
-                                        output.use { stream -> file.inputStream().use { it.copyTo(stream) } }
-                                    }
-                                    runOnUiThread {
-                                        outcome.fold({ result.success(null) }, { error ->
-                                            result.error("document_copy_failed", "儲存合併影片失敗：${error.message}", null)
-                                        })
-                                    }
-                                }.start()
                             }
                         }
                         "exportVideo" -> {
@@ -815,58 +685,6 @@ class MainActivity : FlutterActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode == DOWNLOAD_DIRECTORY_REQUEST) {
-            val pending = downloadDirectoryResult
-            downloadDirectoryResult = null
-            if (pending == null) return
-            val uri = if (resultCode == RESULT_OK) data?.data else null
-            if (uri == null) {
-                pending.success(null)
-                return
-            }
-            try {
-                if (uri.authority != "com.android.externalstorage.documents") {
-                    pending.error("unsupported_volume", "目前僅支援內部共享儲存空間", null)
-                    return
-                }
-                val id = DocumentsContract.getTreeDocumentId(uri)
-                if (!id.startsWith("primary:")) {
-                    pending.error("unsupported_volume", "目前不支援外接 SD 卡", null)
-                    return
-                }
-                val root = Environment.getExternalStorageDirectory().canonicalFile
-                val relative = id.removePrefix("primary:")
-                val folder = File(root, relative).canonicalFile
-                if (folder == root || !folder.path.startsWith(root.path + File.separator) ||
-                    !folder.isDirectory) {
-                    pending.error("invalid_directory", "請選擇內部儲存空間中的有效子資料夾", null)
-                    return
-                }
-                contentResolver.takePersistableUriPermission(
-                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-                pending.success(folder.absolutePath)
-            } catch (_: Exception) {
-                pending.error("folder_picker", "無法讀取所選資料夾", null)
-            }
-            return
-        }
-        if (requestCode == MERGE_DIRECTORY_REQUEST) {
-            val result = mergeDirectoryResult
-            mergeDirectoryResult = null
-            val uri = if (resultCode == RESULT_OK) data?.data else null
-            if (uri != null) {
-                runCatching {
-                    contentResolver.takePersistableUriPermission(
-                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                }.onFailure {
-                    result?.error("directory_permission", "无法保存合并目录授权", null)
-                    return
-                }
-            }
-            result?.success(uri?.toString())
-            return
-        }
         if (requestCode != CREATE_DOCUMENT_REQUEST) {
             return super.onActivityResult(requestCode, resultCode, data)
         }

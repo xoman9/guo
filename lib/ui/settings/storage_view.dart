@@ -8,7 +8,6 @@ import 'package:path_provider/path_provider.dart';
 import '../../app_device.dart';
 import '../../core_bridge.dart';
 import '../../local_store.dart';
-import '../../merge_location.dart';
 import '../app_scope.dart';
 import '../widgets/focus_ring.dart';
 import '../widgets/group_card.dart';
@@ -31,93 +30,10 @@ class StorageView extends StatefulWidget {
   State<StorageView> createState() => _StorageViewState();
 }
 
-class _StorageViewState extends State<StorageView> with WidgetsBindingObserver {
+class _StorageViewState extends State<StorageView> {
   Map<String, dynamic>? _info;
   String? _error;
   bool _loaded = false;
-  bool? _fileAccessGranted;
-  bool _requestingFileAccess = false;
-  String? _mergeTreeUri;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _checkFileAccess();
-    _loadMergeLocation();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkFileAccess();
-      _refresh();
-    }
-  }
-
-  Future<void> _checkFileAccess() async {
-    if (!Platform.isAndroid) return;
-    try {
-      const channel = MethodChannel('duanju/device');
-      final granted = await channel.invokeMethod<bool>('sharedStorageAccess') ?? false;
-      if (mounted) setState(() => _fileAccessGranted = granted);
-    } catch (error) {
-      if (mounted) setState(() => _error = '無法檢查存取授權：$error');
-    }
-  }
-
-  Future<void> _manageFileAccess() async {
-    if (!Platform.isAndroid || _requestingFileAccess) return;
-    setState(() => _requestingFileAccess = true);
-    try {
-      const channel = MethodChannel('duanju/device');
-      final granted = await channel.invokeMethod<bool>('sharedStorageAccess') ?? false;
-      if (mounted) setState(() => _fileAccessGranted = granted);
-      if (granted) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('已取得檔案存取授權')),
-          );
-        }
-      } else {
-        await channel.invokeMethod<bool>('requestSharedStorageAccess');
-      }
-    } catch (error) {
-      if (mounted) setState(() => _error = '無法開啟存取授權：$error');
-    } finally {
-      if (mounted) setState(() => _requestingFileAccess = false);
-    }
-  }
-
-
-  Future<void> _loadMergeLocation() async {
-    try {
-      final uri = await MergeLocation.current();
-      if (mounted) setState(() => _mergeTreeUri = uri);
-    } catch (error) {
-      if (mounted) setState(() => _error = '$error');
-    }
-  }
-
-  Future<void> _chooseMergeLocation() async {
-    try {
-      final uri = await MergeLocation.choose();
-      if (uri != null && mounted) setState(() => _mergeTreeUri = uri);
-    } catch (error) {
-      if (mounted) setState(() => _error = '$error');
-    }
-  }
-
-  Future<void> _clearMergeLocation() async {
-    await MergeLocation.clear();
-    if (mounted) setState(() => _mergeTreeUri = null);
-  }
 
   @override
   void didChangeDependencies() {
@@ -168,27 +84,9 @@ class _StorageViewState extends State<StorageView> with WidgetsBindingObserver {
   }
 
   Future<void> _move() async {
-    try {
-      String? parent;
-      if (Platform.isAndroid) {
-        const channel = MethodChannel('duanju/device');
-        final granted = await channel.invokeMethod<bool>('sharedStorageAccess') ?? false;
-        if (!granted) {
-          await _manageFileAccess();
-          if (mounted) {
-            setState(() => _error = '請先授權檔案存取，返回後重新選擇下載目錄。');
-          }
-          return;
-        }
-        parent = await channel.invokeMethod<String>('chooseDownloadDirectory');
-      } else {
-        parent = await _pickParent();
-      }
-      if (parent == null || !mounted) return;
-      await _migrate(parent, parent);
-    } catch (error) {
-      if (mounted) setState(() => _error = '選擇下載目錄失敗：$error');
-    }
+    final parent = await _pickParent();
+    if (parent == null || !mounted) return;
+    await _migrate(parent, parent);
   }
 
   Future<void> _restore() => _migrate('', '应用默认目录');
@@ -337,19 +235,6 @@ class _StorageViewState extends State<StorageView> with WidgetsBindingObserver {
             ),
             const Divider(indent: 16, endIndent: 16),
             SettingsTile(
-              title: '存取授權',
-              subtitle: !Platform.isAndroid
-                  ? '此平台不需要 Android 檔案存取授權'
-                  : _fileAccessGranted == true
-                  ? '已授權存取共享儲存空間'
-                  : _fileAccessGranted == false
-                  ? '尚未授權，點擊前往系統設定'
-                  : '正在檢查授權狀態',
-              enabled: Platform.isAndroid && !_requestingFileAccess,
-              onTap: _manageFileAccess,
-            ),
-            const Divider(indent: 16, endIndent: 16),
-            SettingsTile(
               title: '更改并迁移目录',
               subtitle: admin ? '下载会先暂停，复制成功后清理旧目录' : '需要管理员',
               enabled: admin,
@@ -371,28 +256,6 @@ class _StorageViewState extends State<StorageView> with WidgetsBindingObserver {
           ],
         ),
         if (Platform.isAndroid) ...[
-          const SizedBox(height: 16),
-          GroupCard(
-            children: [
-              SettingsTile(
-                title: '合併輸出位置',
-                subtitle: _mergeTreeUri == null
-                    ? '每次合併使用 Movies 資料夾；可設定固定輸出位置'
-                    : '已設定固定輸出資料夾（Android SAF 授權）',
-                enabled: admin,
-                onTap: _chooseMergeLocation,
-              ),
-              if (_mergeTreeUri != null) ...[
-                const Divider(indent: 16, endIndent: 16),
-                SettingsTile(
-                  title: '清除合併位置',
-                  subtitle: '恢復原本的 Movies 輸出方式',
-                  enabled: admin,
-                  onTap: _clearMergeLocation,
-                ),
-              ],
-            ],
-          ),
           const SizedBox(height: 16),
           ListenableBuilder(
             listenable: widget.store,

@@ -20,29 +20,13 @@ class SourceSite {
     this.account = false,
     this.vipPrompt = true,
   });
-  static String _withHiddenSuffix(String value, bool hidden) {
-    if (!hidden || value.trim().isEmpty || value.trimRight().endsWith('+')) {
-      return value;
-    }
-    return '${value.trimRight()} +';
-  }
-
   factory SourceSite.fromJson(Map<String, dynamic> json) => SourceSite(
     json['id'] as String? ?? '',
-    _withHiddenSuffix(
-      json['name'] as String? ?? '',
-      json['defaultOff'] == true,
-    ),
+    json['name'] as String? ?? '',
     json['description'] as String? ?? '',
     group: json['group'] as String? ?? '',
-    groupLabel: _withHiddenSuffix(
-      json['groupName'] as String? ?? '',
-      json['defaultOff'] == true,
-    ),
-    entryLabel: _withHiddenSuffix(
-      json['entryName'] as String? ?? '',
-      json['defaultOff'] == true,
-    ),
+    groupLabel: json['groupName'] as String? ?? '',
+    entryLabel: json['entryName'] as String? ?? '',
     defaultOff: json['defaultOff'] == true,
     available: json['available'] == true,
     pagedSearch: json['search'] == true,
@@ -504,8 +488,6 @@ class DownloadJob {
 }
 
 typedef DownloadConversion = ({String input, String key, String output});
-typedef CastDevice = ({String id, String name});
-typedef CastStatus = ({String state, double position, double duration});
 
 List<Map<String, dynamic>> readJsonList(String? value) {
   try {

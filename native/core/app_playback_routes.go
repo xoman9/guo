@@ -56,19 +56,6 @@ func nativePlaybackChoices(media ProviderMedia, quality int) nativePlaybackChoic
 	return choice
 }
 
-func (engine *nativeEngine) streamServer() (*nativeStreamServer, error) {
-	engine.mu.Lock()
-	defer engine.mu.Unlock()
-	if engine.stream == nil {
-		stream, err := newNativeStreamServer(engine.downloader)
-		if err != nil {
-			return nil, err
-		}
-		engine.stream = stream
-	}
-	return engine.stream, nil
-}
-
 func (engine *nativeEngine) nativeOpenPlayback(ctx context.Context, choice nativePlaybackChoice) (nativePlan, error) {
 	if err := ctx.Err(); err != nil {
 		return nativePlan{}, err
@@ -77,6 +64,7 @@ func (engine *nativeEngine) nativeOpenPlayback(ctx context.Context, choice nativ
 		return nativePlan{}, errors.New("该集没有其他可用的播放线路")
 	}
 	media := choice.media[choice.index]
+	var err error
 	if !IsProviderHTTPMediaURL(media.URL) {
 		return nativePlan{}, errors.New("站源未返回有效的播放地址")
 	}
@@ -96,11 +84,19 @@ func (engine *nativeEngine) nativeOpenPlayback(ctx context.Context, choice nativ
 		}
 		plan.ExpiresAt = media.Credentials.Expires.UnixMilli()
 	}
-	stream, err := engine.streamServer()
-	if err != nil {
-		return nativePlan{}, err
+	choice.streamSession = ""
+	{
+		engine.mu.Lock()
+		if engine.stream == nil {
+			engine.stream, err = newNativeStreamServer(engine.downloader)
+		}
+		stream := engine.stream
+		engine.mu.Unlock()
+		if err != nil {
+			return nativePlan{}, err
+		}
+		plan.URL, choice.streamSession = stream.nativeOpen(media)
 	}
-	plan.URL, choice.streamSession = stream.nativeOpen(media)
 	choice.created = time.Now()
 	engine.mu.Lock()
 	if engine.playbacks == nil {
@@ -124,9 +120,12 @@ func (engine *nativeEngine) nativeOpenPlayback(ctx context.Context, choice nativ
 		delete(engine.playbacks, oldest)
 	}
 	engine.playbacks[plan.Session] = choice
+	stream := engine.stream
 	engine.mu.Unlock()
-	for _, token := range expired {
-		stream.nativeRelease(token)
+	if stream != nil {
+		for _, token := range expired {
+			stream.nativeRelease(token)
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		engine.nativeReleasePlayback(plan.Session)
