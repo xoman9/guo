@@ -17,7 +17,7 @@ import (
 )
 
 const sourceID = "missav"
-const baseURL = "https://missav.com"
+const baseURL = "https://missav.ws"
 var mediaSlug = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
 var categorySlug = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
 var nextPage = regexp.MustCompile(`(?is)(?:rel\s*=\s*["']next["']|aria-label\s*=\s*["']next["'])`)
@@ -27,14 +27,14 @@ var directPlayerJSON = regexp.MustCompile(`(?is)"(?:video_url|play_url|src)"\s*:
 var descriptor = core.SourceDescriptor{
  ID:sourceID,Name:"MissAV",DefaultOff:true,BaseURL:baseURL,
  NoHostRotation:true,BrowserFingerprint:true,
- Description:"依 TVBox csp_Miss Java 解析規則提供分類、影片、搜尋及詳情",
+ Description:"參考提供的 WebHome HTML：missav.ws 的分類、影片和播放頁路由",
  ValidCategory:validCategory,
 }
 type provider struct{host core.Host}
 var _ core.Provider=(*provider)(nil)
 var _ core.Searcher=(*provider)(nil)
 func init(){core.Register(descriptor,func(h core.Host)core.Provider{return &provider{host:h}})}
-func validCategory(s string)bool{return s==""||categorySlug.MatchString(s)}
+func validCategory(s string)bool{if s==""{return true};_,ok:=webHomeCategoryPath(s);return ok}
 func (p *provider)Descriptor()core.SourceDescriptor{return descriptor}
 func (p *provider)BaseURL()string{return baseURL}
 
@@ -57,12 +57,12 @@ func missURL(base,raw string)string{
 }
 func missSitePath(raw string)string{
  resolved:=missURL(baseURL+"/",raw)
- u,e:=url.Parse(resolved);if e!=nil||!strings.EqualFold(u.Hostname(),"missav.com")||u.RawQuery!=""||u.Fragment!=""{return ""}
+ u,e:=url.Parse(resolved);if e!=nil||!strings.EqualFold(u.Hostname(),"missav.ws")||u.RawQuery!=""||u.Fragment!=""{return ""}
  path:=strings.Trim(u.Path,"/")
  if path==""{return ""}
  parts:=strings.Split(path,"/")
- if len(parts)==1&&mediaSlug.MatchString(parts[0]){return parts[0]}
- if len(parts)==2&&parts[0]=="cn"&&mediaSlug.MatchString(parts[1]){return path}
+ if len(parts)==1&&mediaSlug.MatchString(parts[0])&&strings.ContainsAny(parts[0],"0123456789"){return parts[0]}
+ if len(parts)==2&&parts[0]=="cn"&&mediaSlug.MatchString(parts[1])&&strings.ContainsAny(parts[1],"0123456789"){return path}
  return ""
 }
 func missCategoryPath(raw string)string{
@@ -72,20 +72,10 @@ func missCategoryPath(raw string)string{
  if strings.HasPrefix(strings.ToLower(token),"dm")||strings.Contains(strings.ToUpper(token),"VR"){return path}
  return ""
 }
-func missCategories(doc *nethtml.Node)[]core.Category{
- categories:=[]core.Category{{ID:"",Name:"全部"}}
- seen:=map[string]bool{}
- // Java: a.block.px-4.py-2.text-sm.leading-5.text-nord5.bg-nord3
- for _,a:=range missNodes(doc,"a","bg-nord3"){
-  if !core.ProviderHTMLClass(a,"block"){continue}
-  id:=missCategoryPath(missAttr(a,"href"))
-  if id==""||seen[id]{continue}
-  name:=core.ProviderHTMLText(a)
-  if name==""{continue}
-  seen[id]=true
-  categories=append(categories,core.Category{ID:id,Name:name})
- }
- return categories
+func missCategories(_ *nethtml.Node)[]core.Category{
+ out:=[]core.Category{{ID:"",Name:"全部"}}
+ for _,c:=range webHomeCategories{out=append(out,core.Category{ID:c.ID,Name:c.Name})}
+ return out
 }
 func missCards(doc *nethtml.Node)[]core.Drama{
  out:=[]core.Drama{}
@@ -94,13 +84,23 @@ func missCards(doc *nethtml.Node)[]core.Drama{
  for _,box:=range missNodes(doc,"div","thumbnail"){
   a:=missFirst(box,"a","text-secondary")
   id:=missSitePath(missAttr(a,"href"))
-  if id==""||seen[id]||id=="new"||id=="search"{continue}
+  if id==""{
+   for _,link:=range missNodes(box,"a",""){id=missSitePath(missAttr(link,"href"));if id!=""{break}}
+  }
+  if id==""||seen[id]{continue}
   name:=core.ProviderHTMLText(a)
-  if name==""{continue}
+  if name==""{
+   if h:=missFirst(box,"h3","");h!=nil{name=core.ProviderHTMLText(h)}
+  }
+  if name==""{
+   if img:=missFirst(box,"img","");img!=nil{name=missAttr(img,"alt")}
+  }
+  if name==""{name=strings.ToUpper(strings.TrimPrefix(id,"cn/"))}
   cover:=""
   for _,img:=range missNodes(box,"img",""){
    pic:=missAttr(img,"data-src")
    if pic==""{pic=missAttr(img,"src")}
+   if strings.HasPrefix(pic,"data:"){continue}
    if address:=missURL(baseURL+"/",pic);address!=""{cover=address;break}
   }
   seen[id]=true
@@ -126,12 +126,10 @@ func (p *provider)page(ctx context.Context,path string)(*nethtml.Node,error){
  }
  return doc,nil
 }
-func (p *provider)Categories(ctx context.Context,_ bool)([]core.Category,error){
- doc,err:=p.page(ctx,"/")
- if err!=nil{return nil,err}
- cats:=missCategories(doc)
- if len(cats)<2{return nil,errors.New("MissAV 未解析到 TVBox Java 分類")}
- return cats,nil
+func (p *provider)Categories(_ context.Context,_ bool)([]core.Category,error){
+ // These are route definitions extracted from the provided WebHome source.
+ // A catalogue request subsequently verifies whether a route is still live.
+ return missCategories(nil),nil
 }
 func hasNextPage(raw string,current int)bool{return current>0&&nextPage.MatchString(raw)}
 func missNext(doc *nethtml.Node)bool{
@@ -143,7 +141,7 @@ func missNext(doc *nethtml.Node)bool{
 func (p *provider)CatalogPage(ctx context.Context,page int,category string)([]core.Drama,bool,error){
  if page<1||page>10000||!validCategory(category){return nil,false,errors.New("invalid MissAV page/category")}
  path:="/"
- if category!=""{path="/"+url.PathEscape(category)}
+ if category!=""{var ok bool;path,ok=webHomeCategoryPath(category);if !ok{return nil,false,errors.New("unknown MissAV WebHome category")}}
  if page>1{
   q:=url.Values{"page":{strconv.Itoa(page)}}
   path+="?"+q.Encode()
@@ -156,7 +154,8 @@ func (p *provider)Search(ctx context.Context,page int,query string)([]core.Drama
  query=strings.TrimSpace(query)
  if query==""{return nil,false,nil}
  if page<1||page>10000||len(query)>200{return nil,false,errors.New("invalid MissAV search")}
- path:="/search/"+url.PathEscape(query)+"?page="+strconv.Itoa(page)
+ path:="/cn/search/"+url.PathEscape(query)
+ if page>1{path+="?page="+strconv.Itoa(page)}
  doc,err:=p.page(ctx,path)
  if err!=nil{return nil,false,err}
  return missCards(doc),missNext(doc),nil
