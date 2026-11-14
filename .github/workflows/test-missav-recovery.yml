@@ -18,12 +18,17 @@ jobs:
         with:
           go-version-file: native/go.mod
           cache-dependency-path: native/go.sum
-      - name: Compile the new MissAV adapter and all existing added providers without original private sources
+      - name: Verify all 29 reconstructed and custom source IDs with Go fixtures
         shell: bash
         run: |
           set -euo pipefail
           python scripts/check_reconstructed_sources.py
-          gofmt -w native/sources_missav/*.go native/sources_legacy109/*.go
+          # Check source parsing/formatting without silently rewriting the checkout.
+          gofmt -l native/sources_missav/*.go native/sources_legacy109/*.go native/sources_custom/*.go > "$RUNNER_TEMP/gofmt-report.txt"
+          if [ -s "$RUNNER_TEMP/gofmt-report.txt" ]; then
+            echo "Go files awaiting gofmt (informational):"
+            cat "$RUNNER_TEMP/gofmt-report.txt"
+          fi
           python - <<'PY'
           from pathlib import Path
           import sys
@@ -32,8 +37,8 @@ jobs:
           link_sources([Path("native/sources_custom"),Path("native/sources_missav"),Path("native/sources_legacy109")])
           PY
           (cd native && go test -tags=zhenguojian ./bridge ./core)
-          (cd native && go test -tags=zhenguojian guoapp/missav-recovery guoapp/legacy109-recovery)
+          (cd native && go test -tags=zhenguojian guoapp/missav-recovery guoapp/legacy109-recovery duanjuapp/native/sources_custom)
           grep -q '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
           grep -q '"guoapp/missav-recovery"' native/bridge/sources_gen.go
           grep -q '"guoapp/legacy109-recovery"' native/bridge/sources_gen.go
-          echo "Go adapter compiled and pure HTML fixture tests passed. 109 Hanxiaoquan/Guipian/Heitao adapters compile with MissAV. No live source playback/online verification." >> "$GITHUB_STEP_SUMMARY"
+          echo "All three Provider modules and core/bridge fixture tests passed (16 reconstructed + 13 additional IDs). No live playback or Android device verification." >> "$GITHUB_STEP_SUMMARY"
