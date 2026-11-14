@@ -21,9 +21,9 @@ jobs:
     env:
       GOPROXY: https://proxy.golang.org,direct
       GOSUMDB: sum.golang.org
-      ZHENGUOJIAN_PACKAGE_NAME: ${{ vars.ZHENGUOJIAN_PACKAGE_NAME }}
-      ZHENGUOJIAN_DISPLAY_NAME: ${{ vars.ZHENGUOJIAN_DISPLAY_NAME }}
-      ZHENGUOJIAN_LATIN_NAME: ${{ vars.ZHENGUOJIAN_LATIN_NAME }}
+      ZHENGUOJIAN_PACKAGE_NAME: com.duanju.coexist
+      ZHENGUOJIAN_DISPLAY_NAME: 小果影視-共存版
+      ZHENGUOJIAN_LATIN_NAME: XiaoGuo
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
