@@ -46,8 +46,6 @@ type LibraryDrama struct {
 	MetadataSchema int      `json:"metadataSchema"`
 	ID             string   `json:"id"`
 	Source         string   `json:"source"`
-	Cookie          string                  `json:"cookie"`
-	UserAgent       string                  `json:"userAgent"`
 	SourceID       string   `json:"sourceId"`
 	Title          string   `json:"title"`
 	Description    string   `json:"description"`
