@@ -101,7 +101,7 @@ jobs:
           from pathlib import Path
           link_sources([Path('native/sources_custom'), Path('native/sources_legacy109')])
           PY
-          (cd native && go test -count=1 ./core guoapp/legacy109-recovery duanjuapp/native/sources_custom) 2>&1 | tee "$RUNNER_TEMP/guo-110-provider-tests.log"
+          (cd native && go test -tags=zhenguojian -count=1 ./core guoapp/legacy109-recovery duanjuapp/native/sources_custom) 2>&1 | tee "$RUNNER_TEMP/guo-110-provider-tests.log"
           python3 scripts/build_native.py --platform android --all-sources \
             --sources native/sources_custom --sources native/sources_legacy109 \
             --abi arm64-v8a --abi armeabi-v7a 2>&1 | tee "$RUNNER_TEMP/guo-110-native-build.log"
