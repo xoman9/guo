@@ -27,11 +27,22 @@ func TestTVBoxType1IdentityAndPoster(t *testing.T){
  b,ok:=p.drama(map[string]any{"vod_id":"124","vod_name":"影片 B","vod_pic":"javascript:alert(1)"})
  if !ok||b.Cover!=""||b.ID==a.ID{t.Fatalf("unsafe or mixed poster: %+v",b)}
 }
-func TestTVBoxJableScopedCards(t *testing.T){
- html:=`<div><a href="/videos/video-one/" title="第一片"><img data-src="https://img.example.test/one.jpg"></a><a href="/videos/video-two/" title="第二片"><img src="https://img.example.test/two.jpg"></a></div>`
- doc,e:=nethtml.Parse(strings.NewReader(html));if e!=nil{t.Fatal(e)}
+func TestTVBoxJableScopedCards(t *testing.T) {
+ raw:=`<div class="video-img-box"><a href="https://jable.tv/videos/video-one/"><img data-src="https://img.example.test/one.jpg"></a><div class="detail"><h6>第一片</h6></div></div>
+ <div class="video-img-box"><a href="/videos/video-two/"><img data-src="https://img.example.test/two.jpg"></a><div class="detail"><h6>第二片</h6></div></div>`
+ doc,e:=nethtml.Parse(strings.NewReader(raw));if e!=nil{t.Fatal(e)}
  items:=tvboxJableCards(doc)
- if len(items)!=2||items[0].SourceID!="video-one"||items[1].SourceID!="video-two"||items[0].Cover==items[1].Cover{
-  t.Fatalf("Jable cover/title must stay within a video anchor: %+v",items)
+ if len(items)!=2||items[0].SourceID!="video-one"||items[1].SourceID!="video-two"||items[0].Title!="第一片"||items[1].Title!="第二片"||items[0].Cover==items[1].Cover {
+  t.Fatalf("Jable should keep names/covers scoped to their video-img-box: %+v",items)
+ }
+}
+
+func TestTVBoxJableCategories(t *testing.T) {
+ raw:=`<div class="img-box"><a href="https://jable.tv/categories/alpha/"><div class="absolute-center"><h4>分類甲</h4></div></a></div>
+ <div class="img-box"><a href="/categories/beta/"><div class="absolute-center"><h4>分類乙</h4></div></a></div>`
+ doc,e:=nethtml.Parse(strings.NewReader(raw));if e!=nil{t.Fatal(e)}
+ got:=tvboxJableCategories(doc)
+ if len(got)!=2||got[0].ID!="alpha"||got[0].Name!="分類甲"||got[1].ID!="beta"||got[1].Name!="分類乙" {
+  t.Fatalf("Jable must use actual TVBox category slugs: %+v",got)
  }
 }
