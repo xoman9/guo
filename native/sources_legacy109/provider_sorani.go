@@ -181,6 +181,16 @@ func (p *sorani109) authorizedToken()(string,error){
  }
  return session.AccessToken,nil
 }
+// verifyEpisode fails closed when a requested episode does not belong to
+// the current drama. Authorization still happens only at the playback route.
+func (p *sorani109) verifyEpisode(ctx context.Context,dramaID,chapterID string)error{
+ _,chapters,err:=p.Detail(ctx,dramaID)
+ if err!=nil{return fmt.Errorf("Sorani episode verification failed: %w",err)}
+ for _,ch:=range chapters{
+  if ch.ID==chapterID{return nil}
+ }
+ return errors.New("Sorani episode does not belong to selected drama")
+}
 func (p *sorani109) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
  source,id,ok:=core.SplitProviderDramaID(task.DramaID)
  if !ok||source!="sorani"||!sorani109ID(id){return core.ProviderMedia{},errors.New("invalid Sorani drama")}
@@ -188,6 +198,9 @@ func (p *sorani109) ResolveMedia(ctx context.Context,task core.Task)(core.Provid
  if !strings.HasPrefix(task.Chapter.ID,prefix){return core.ProviderMedia{},errors.New("invalid Sorani chapter")}
  episode:=strings.TrimPrefix(task.Chapter.ID,prefix)
  if !sorani109ID(episode){return core.ProviderMedia{},errors.New("invalid Sorani episode")}
+ // Validate the selected episode against the canonical detail list before
+ // requesting media or sending any saved account authorization.
+ if err:=p.verifyEpisode(ctx,id,task.Chapter.ID);err!=nil{return core.ProviderMedia{},err}
  token,err:=p.authorizedToken()
  if err!=nil{return core.ProviderMedia{},err}
  payload,err:=p.fetch(ctx,"/video/episode/"+url.PathEscape(episode)+"/play",url.Values{
