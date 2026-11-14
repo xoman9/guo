@@ -73,3 +73,28 @@ func Test109HuangguoVideoResolveRejectsWrongEpisodeBeforeFetch(t *testing.T){
  _,err:=p.ResolveMedia(context.Background(),task)
  if err==nil||!strings.Contains(err.Error(),"does not match chapter"){t.Fatalf("wrong episode accepted: %v",err)}
 }
+
+func Test109HuangguoCatalogRejectsOffDomainAndNestedPaths(t *testing.T){
+ origin:=hgVideoBase+"/series?page=1"
+ cases:=[]struct{url,id string}{
+  {"/series/abc-1","series/abc-1"},
+  {"https://huangguo.video/video/ep1","video/ep1"},
+  {"https://evil.example/series/abc-1",""},
+  {"https://huangguo.video.evil.example/series/abc-1",""},
+  {"/series/abc-1/episode/2",""},
+  {"/series/%2e%2e",""},
+  {"/video/one/extra",""},
+  {"/series/abc-1?sort=hot","series/abc-1"},
+ }
+ for _,tc:=range cases{
+  if got:=hg109CardID(origin,tc.url);got!=tc.id{
+   t.Errorf("card URL %q: got %q, want %q",tc.url,got,tc.id)
+  }
+ }
+ html:=`<article class="video-card"><a href="https://evil.example/series/abc-1" title="External"><img src="/x.jpg"></a></article>
+ <article class="video-card"><a href="/series/real" title="Real"><img src="/y.jpg"></a></article>`
+ rows:=hgVideoItems(html,origin)
+ if len(rows)!=1||rows[0].SourceID!="series/real"{
+  t.Fatalf("unexpected catalog cards: %+v",rows)
+ }
+}
