@@ -247,7 +247,6 @@ func heitaoPlayerRoute(task core.Task)(string,error){
  return route,nil
 }
 func (p *heitaoProvider) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
- page:=task.Chapter.PageURL
  route,verifyErr:=heitaoPlayerRoute(task)
  if verifyErr!=nil{return core.ProviderMedia{},verifyErr}
  body,err:=p.get(ctx,route)
