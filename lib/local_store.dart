@@ -431,6 +431,10 @@ class LocalStore extends ChangeNotifier {
   bool get deleteAfterAutoExport => _flag('deleteAfterAutoExport', false);
   bool get deleteAfterManualExport => _flag('deleteAfterManualExport', false);
   bool get shareUsage => _flag('shareUsage', true);
+  /// Hide optional original default-off channels from the channel picker.
+  bool get hideAdditionalSources => _flag('hideAdditionalSources', true);
+  Future<void> setHideAdditionalSources(bool value) =>
+      _setting('hideAdditionalSources', value);
   int get acceptedTerms => switch (_settings['acceptedTerms']) {
     final int version => version,
     _ => 0,
