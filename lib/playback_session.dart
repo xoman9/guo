@@ -52,7 +52,7 @@ class PlaybackSession extends ChangeNotifier {
     _quality = preferences.quality;
     _danmakuEnabled = preferences.danmaku;
     _videoFit = preferences.videoFit;
-    _unmutedVolume = store.playerVolume.clamp(1.0, 100.0);
+    _unmutedVolume = store.playerVolume.clamp(1.0, 150.0);
     unawaited(_player.setVolume(_unmutedVolume));
     _loader = PlaybackLoader(repository);
     _preloader = PlaybackPreloader(repository)..addListener(_prime);
@@ -1020,7 +1020,7 @@ class PlaybackSession extends ChangeNotifier {
   }
 
   void setVolume(double value) {
-    final volume = value.clamp(0.0, 100.0);
+    final volume = value.clamp(0.0, 150.0);
     if (volume > 0) {
       _unmutedVolume = volume;
       _volumeTimer?.cancel();
@@ -1040,7 +1040,7 @@ class PlaybackSession extends ChangeNotifier {
   }
 
   double changeVolume(double delta) {
-    final volume = (player.state.volume + delta).clamp(0.0, 100.0);
+    final volume = (player.state.volume + delta).clamp(0.0, 150.0);
     setVolume(volume);
     return volume;
   }
