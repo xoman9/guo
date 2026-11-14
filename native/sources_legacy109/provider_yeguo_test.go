@@ -58,3 +58,29 @@ func TestYeguo109RejectsTamperedSignedPayload(t *testing.T){
  if _,_,_,err:=yg109PublicConfig(`version:"v0",mode:"CBC",padding:"Pkcs7",key:"1234567890abcdef",iv:"1234567890abcdef",sign_key:"sign-key"`);err!=nil{t.Fatal(err)}
  if yg109ValidCat("theme:../../")||!yg109ValidCat("theme:123"){t.Fatal("invalid Yeguo category rules")}
 }
+
+func TestYeguo109RejectsForeignEpisodeBeforePlayRequest(t *testing.T){
+ host:=&yg109Fixture{}
+ p:=&yeguo109{host:host}
+ _,chapters,err:=p.Detail(context.Background(),"101")
+ if err!=nil||len(chapters)!=2{t.Fatalf("fixture detail unavailable: %v",err)}
+ before:=0
+ for _,req:=range host.request{if strings.Contains(req.URL,"/api/playlet/play"){before++}}
+ foreign:=core.Task{DramaID:core.ProviderDramaID("yeguo","101"),
+  Chapter:core.Chapter{
+   ID:core.ProviderChapterID("yeguo","101","999"),
+   PageURL:yg109Site+"/drama/video/101/ep-3/",
+  }}
+ _,err=p.ResolveMedia(context.Background(),foreign)
+ if err==nil||!strings.Contains(err.Error(),"does not belong"){
+  t.Fatalf("foreign episode accepted: %v",err)
+ }
+ wrongURL:=core.Task{DramaID:core.ProviderDramaID("yeguo","101"),Chapter:chapters[0]}
+ wrongURL.Chapter.PageURL=yg109Site+"/drama/video/999/ep-1/"
+ if _,err=p.ResolveMedia(context.Background(),wrongURL);err==nil||!strings.Contains(err.Error(),"does not match"){
+  t.Fatalf("foreign episode page accepted: %v",err)
+ }
+ after:=0
+ for _,req:=range host.request{if strings.Contains(req.URL,"/api/playlet/play"){after++}}
+ if after!=before{t.Fatal("foreign episode triggered a playback API call")}
+}
