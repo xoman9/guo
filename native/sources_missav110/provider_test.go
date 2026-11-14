@@ -66,6 +66,25 @@ func TestJavaMissProviderRoutes(t *testing.T){
  task.Chapter.PageURL=baseURL+"/other"
  if _,e:=mediaPageForTask(task);e==nil{t.Fatal("accepted mismatched media page")}
 }
+func TestWebHomeInlineSurritPlaylist(t *testing.T){
+ page:=baseURL+"/abc-123"
+ playlist:="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"
+ cases:=[]string{
+  `<script>const stream = "`+playlist+`";</script>`,
+  `<script>const stream = "https:\/\/surrit.com\/12345678-1234-1234-1234-123456789abc\/playlist.m3u8";</script>`,
+ }
+ for _,body:=range cases{
+  got,err:=directMediaURL(page,body)
+  if err!=nil||got!=playlist{t.Fatalf("WebHome HLS: %q %v",got,err)}
+ }
+ for _,body:=range []string{
+  `<script>const id="12345678-1234-1234-1234-123456789abc";</script>`,
+  `<script>const stream="https://other.example/12345678-1234-1234-1234-123456789abc/playlist.m3u8";</script>`,
+ }{
+  if got,err:=directMediaURL(page,body);err==nil{t.Fatalf("guessed media from unsupported script: %q",got)}
+ }
+}
+
 func TestMissAVDirectMediaOnly(t *testing.T){
  page:=baseURL+"/abc-123"
  for _,body:=range []string{`<video src="https://cdn.example.test/clip.mp4"></video>`,`{"src":"https:\/\/cdn.example.test\/clip.mp4"}`}{
