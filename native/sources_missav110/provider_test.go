@@ -78,6 +78,25 @@ func TestWebHomePackedPlaybackScript(t *testing.T) {
  }
 }
 
+func TestMissAVSeekAdjacentStreamID(t *testing.T) {
+ page:=baseURL+"/abc-123"
+ uuid:="12345678-1234-1234-1234-123456789abc"
+ expected:="https://surrit.com/"+uuid+"/playlist.m3u8"
+ for _,body:=range []string{
+  `<script>var stream="12345678-1234-1234-1234-123456789abc",seek=0;</script>`,
+  `<script>player("12345678-1234-1234-1234-123456789abc");seek(0)</script>`,
+ }{
+  got,err:=directMediaURL(page,body)
+  if err!=nil||got!=expected{t.Fatalf("seek-adjacent stream: %q %v",got,err)}
+ }
+ for _,body:=range []string{
+  `<meta content="12345678-1234-1234-1234-123456789abc"><script>seek(0)</script>`,
+  `<script>var unrelated="12345678-1234-1234-1234-123456789abc"; var text="1234567890123456789012345678901234567890"; seek(0);</script>`,
+ }{
+  if got,err:=directMediaURL(page,body);err==nil{t.Fatalf("guessed unrelated stream: %q",got)}
+ }
+}
+
 func TestWebHomeInlineSurritPlaylist(t *testing.T){
  page:=baseURL+"/abc-123"
  playlist:="https://surrit.com/12345678-1234-1234-1234-123456789abc/playlist.m3u8"
