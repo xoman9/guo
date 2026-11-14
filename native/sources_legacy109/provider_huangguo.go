@@ -87,16 +87,26 @@ func hgAIDrama(row map[string]any)(core.Drama,error){
   SourceID:id,Title:name,Name:name,Cover:core.ResolveProviderURL(hgAIBase+"/",image),
   TotalEpisode:episodes,Desc:hgField(row,"description","intro")},nil
 }
+// hg109CardID accepts only canonical same-origin /series/{id} or /video/{id} links.
+func hg109CardID(origin,raw string)string{
+ base,err:=url.Parse(hgVideoBase)
+ if err!=nil{return ""}
+ ref,err:=url.Parse(strings.TrimSpace(raw))
+ if err!=nil{return ""}
+ if ref.User!=nil{return ""}
+ resolved,err:=url.Parse(origin)
+ if err!=nil{return ""}
+ resolved=resolved.ResolveReference(ref)
+ if resolved.Scheme!="https"||!strings.EqualFold(resolved.Hostname(),base.Hostname())||resolved.Port()!=""||resolved.User!=nil{return ""}
+ parts:=strings.Split(strings.Trim(resolved.EscapedPath(),"/"),"/")
+ if len(parts)!=2||(parts[0]!="series"&&parts[0]!="video")||!hgIDRX.MatchString(parts[1]){return ""}
+ return parts[0]+"/"+parts[1]
+}
 func hgVideoItems(raw,origin string)[]core.Drama{
  var out []core.Drama;seen:=map[string]bool{}
  for _,block:=range hgVideoCardRX.FindAllString(raw,-1){
   m:=hgVideoLinkRX.FindStringSubmatch(block);if len(m)<3{continue}
-  u,err:=url.Parse(m[1]);if err!=nil{continue}
-  segments:=strings.Split(strings.Trim(u.Path,"/"),"/")
-  id:=""
-  for i:=0;i+1<len(segments);i++{
-   if segments[i]=="series"||segments[i]=="video"{id=segments[i]+"/"+segments[i+1];break}
-  }
+  id:=hg109CardID(origin,m[1])
   if id==""||seen[id]{continue}
   title:=""
   if t:=hgAttrTitleRX.FindStringSubmatch(block);len(t)>1{title=t[1]}
