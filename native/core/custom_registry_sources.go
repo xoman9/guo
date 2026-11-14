@@ -49,27 +49,29 @@ func registerCustomSource(id, name string, host Host,
  if !ok { return nil }
  return &customSiteProvider{
   d: d, descriptor: SourceDescriptor{ID: id, Name: name, DefaultOff: true,
+   BaseURL: map[string]string{sourceLujj31: lujj31BaseURL, sourceLiuguo: liuguoBaseURL, sourceXiaoguo: xiaoguoBaseURL}[id],
+   NoHostRotation: true,
    ValidCategory: func(category string) bool { return category == "" || WebProviderNumericID.MatchString(category) }},
   categories: categories, catalog: catalog, detail: detail, media: media,
  }
 }
 
 func init() {
- Register(SourceDescriptor{ID: sourceLujj31, Name: "桃果", DefaultOff: true,
+ Register(SourceDescriptor{ID: sourceLujj31, Name: "桃果", DefaultOff: true, BaseURL: lujj31BaseURL, NoHostRotation: true,
   ValidCategory: func(category string) bool { return category == "" || WebProviderNumericID.MatchString(category) }},
   func(host Host) Provider {
    d, ok := host.(*Downloader); if !ok { return nil }
    return registerCustomSource(sourceLujj31, "桃果", host, d.fetchLujj31Categories,
     d.fetchLujj31CatalogPage, d.fetchLujj31Detail, d.resolveLujj31Media)
   })
- Register(SourceDescriptor{ID: sourceLiuguo, Name: "榴果", DefaultOff: true,
+ Register(SourceDescriptor{ID: sourceLiuguo, Name: "榴果", DefaultOff: true, BaseURL: liuguoBaseURL, NoHostRotation: true,
   ValidCategory: func(category string) bool { return category == "" || WebProviderNumericID.MatchString(category) }},
   func(host Host) Provider {
    d, ok := host.(*Downloader); if !ok { return nil }
    return registerCustomSource(sourceLiuguo, "榴果", host, d.fetchLiuguoCategories,
     d.fetchLiuguoCatalogPage, d.fetchLiuguoDetail, d.resolveLiuguoMedia)
   })
- Register(SourceDescriptor{ID: sourceXiaoguo, Name: "宵果", DefaultOff: true,
+ Register(SourceDescriptor{ID: sourceXiaoguo, Name: "宵果", DefaultOff: true, BaseURL: xiaoguoBaseURL, NoHostRotation: true,
   ValidCategory: validXiaoguoCategory},
   func(host Host) Provider {
    d, ok := host.(*Downloader); if !ok { return nil }
