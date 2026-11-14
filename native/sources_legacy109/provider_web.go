@@ -209,9 +209,31 @@ func (p *provider) validPlayURL(raw string)bool{
     host!=strings.TrimPrefix(strings.TrimPrefix(p.cfg.base,"https://"),"www.") {return false}
  return strings.HasSuffix(u.Path,".html")&&strings.Contains(u.Path,"/play/")
 }
+// verifyChapterForDrama ties the selected playback page to the episode
+// list returned by the currently selected drama, not just the source host.
+func (p *provider) verifyChapterForDrama(ctx context.Context, task core.Task) error {
+ source, id, ok := core.SplitProviderDramaID(task.DramaID)
+ if !ok || source != p.cfg.id || !idPattern.MatchString(id) {
+  return errors.New("legacy109 playback drama invalid")
+ }
+ if !p.validPlayURL(task.Chapter.PageURL) {
+  return errors.New("legacy109 player URL invalid")
+ }
+ if !strings.HasPrefix(task.Chapter.ID, core.ProviderChapterID(p.cfg.id,id,"")) {
+  return errors.New("legacy109 chapter belongs to another drama")
+ }
+ _, chapters, err := p.Detail(ctx,id)
+ if err != nil { return fmt.Errorf("legacy109 episode verification failed: %w",err) }
+ for _, chapter := range chapters {
+  if chapter.ID == task.Chapter.ID && chapter.PageURL == task.Chapter.PageURL {
+   return nil
+  }
+ }
+ return errors.New("legacy109 chapter not found in selected drama")
+}
 func (p *provider) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
  page:=task.Chapter.PageURL
- if !p.validPlayURL(page){return core.ProviderMedia{},errors.New("legacy109 player URL invalid")}
+ if err:=p.verifyChapterForDrama(ctx,task);err!=nil{return core.ProviderMedia{},err}
  body,err:=p.get(ctx,page)
  if err!=nil{return core.ProviderMedia{},err}
  media:=""
