@@ -97,3 +97,14 @@ func Test109HeitaoPlayerRouteBindsSeriesAndEpisode(t *testing.T){
  }
  if host.calls!=before{t.Fatal("mismatched chapter triggered a network request")}
 }
+
+func Test109HeitaoEqualLengthPlaylistsChooseStableSID(t *testing.T){
+ html:=`<a href="/index.php/vod/play/id/91/sid/3/nid/1.html">線路三</a>
+<a href="/index.php/vod/play/id/91/sid/2/nid/1.html">線路二</a>`
+ for i:=0;i<200;i++{
+  chapters:=heitaoParseEpisodes(html,"91")
+  if len(chapters)!=1||chapters[0].PageURL!=htBase+"/index.php/vod/player/id/91/nid/1/sid/2.html"{
+   t.Fatalf("unstable playlist on iteration %d: %+v",i,chapters)
+  }
+ }
+}
