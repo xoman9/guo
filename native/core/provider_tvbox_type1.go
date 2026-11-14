@@ -16,12 +16,12 @@ import (
 
 type tvboxType1Spec struct{ id, name, endpoint string; xml bool }
 var tvboxType1Specs = []tvboxType1Spec{
- {"tvbox-laoguo", "老果", "https://apilsbzy1.com/api.php/provide/vod/?ac=list"},
- {"tvbox-155", "一五五", "https://155api.com/api.php/provide/vod/?ac=list"},
- {"tvbox-jkun", "jkun", "https://jkunzyapi.com/api.php/provide/vod/?ac=list"},
- {"tvbox-senlin", "森林", "https://slapibf.com/api.php/provide/vod/?ac=list"},
- {"tvbox-jingpinx", "精品下", "http://www.jingpinx.com/api.php/provide/vod/?ac=list"},
- {"tvbox-fanguo", "番果", "http://fhapi9.com/api.php/provide/vod/"},
+ {"tvbox-laoguo", "老果", "https://apilsbzy1.com/api.php/provide/vod/?ac=list", false},
+ {"tvbox-155", "一五五", "https://155api.com/api.php/provide/vod/?ac=list", false},
+ {"tvbox-jkun", "jkun", "https://jkunzyapi.com/api.php/provide/vod/?ac=list", false},
+ {"tvbox-senlin", "森林", "https://slapibf.com/api.php/provide/vod/?ac=list", false},
+ {"tvbox-jingpinx", "精品下", "http://www.jingpinx.com/api.php/provide/vod/?ac=list", false},
+ {"tvbox-fanguo", "番果", "http://fhapi9.com/api.php/provide/vod/", false},
  {"tvbox-leguo", "樂果", "https://lbapi9.com/api.php/provide/vod/at/xml", true},
 }
 var tvboxValidID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,80}$`)
