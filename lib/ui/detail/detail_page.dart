@@ -262,6 +262,27 @@ class _DetailPageState extends State<DetailPage> {
     ).showSnackBar(SnackBar(content: Text(details.error!)));
   }
 
+  Future<void> _openMissAVInApp() async {
+    try {
+      final session = await AppDevice.verifySiteInBrowser(
+        'missav',
+        videoId: widget.drama.sourceId,
+      );
+      if (session == null || !mounted) return;
+      await AppScope.of(context).repository.saveSiteVerification(
+        'missav',
+        session.cookie,
+        session.userAgent,
+      );
+      if (mounted) await _details?.load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('MissAV 原站網頁／驗證失敗：$error')),
+      );
+    }
+  }
+
   double _startAt(int index, {required bool resume}) {
     final watch = _details!.watch;
     return resume &&
@@ -473,6 +494,12 @@ class _DetailPageState extends State<DetailPage> {
             : Colors.transparent,
       ),
       actions: [
+        if (widget.drama.source == 'missav')
+          IconButton(
+            tooltip: '在 App 內開啟原站網頁播放',
+            onPressed: _openMissAVInApp,
+            icon: const Icon(Icons.language_rounded),
+          ),
         IconButton(
           tooltip: '更新剧集信息',
           onPressed: details.loading ? null : _refresh,
@@ -1496,30 +1523,7 @@ class _DetailPageState extends State<DetailPage> {
       action: '重试',
       onAction: details.load,
       secondaryAction: challenge ? '在 App 內開啟原站影片並驗證' : null,
-      onSecondaryAction: challenge
-          ? () async {
-              final repository = AppScope.of(context).repository;
-              try {
-                final session = await AppDevice.verifySiteInBrowser(
-                  'missav',
-                  videoId: widget.drama.sourceId,
-                );
-                if (session == null || !mounted) return;
-                await repository.saveSiteVerification(
-                  'missav',
-                  session.cookie,
-                  session.userAgent,
-                );
-                if (!mounted) return;
-                await details.load();
-              } catch (error) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('MissAV 驗證未完成：$error')),
-                );
-              }
-            }
-          : null,
+      onSecondaryAction: challenge ? _openMissAVInApp : null,
       autofocus: autofocus,
     );
   }
