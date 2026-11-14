@@ -208,12 +208,33 @@ func heitaoReadPlayerConfig109(body string)(struct{URL string `json:"url"`; Encr
  return entry,nil
 }
 
+// heitaoPlayerRoute validates that the selected drama, chapter and player
+// route all identify the same series/playlist/episode before fetching.
+func heitaoPlayerRoute(task core.Task)(string,error){
+ source,id,ok:=core.SplitProviderDramaID(task.DramaID)
+ if !ok||source!="heitao"||!htID.MatchString(id){
+  return "",errors.New("invalid heitao series")
+ }
+ prefix:=core.ProviderChapterID("heitao",id,"")
+ if !strings.HasPrefix(task.Chapter.ID,prefix){
+  return "",errors.New("heitao chapter belongs to another series")
+ }
+ parts:=strings.Split(strings.TrimPrefix(task.Chapter.ID,prefix),":")
+ if len(parts)!=2||!htID.MatchString(parts[0])||!htID.MatchString(parts[1]){
+  return "",errors.New("invalid heitao playlist or episode")
+ }
+ sid,nid:=parts[0],parts[1]
+ route:=fmt.Sprintf("/index.php/vod/player/id/%s/nid/%s/sid/%s.html",id,nid,sid)
+ if task.Chapter.PageURL!=htBase+route{
+  return "",errors.New("heitao chapter player URL does not match episode")
+ }
+ return route,nil
+}
 func (p *heitaoProvider) ResolveMedia(ctx context.Context,task core.Task)(core.ProviderMedia,error){
  page:=task.Chapter.PageURL
- if !strings.HasPrefix(page,htBase+"/index.php/vod/player/id/") {
-  return core.ProviderMedia{},errors.New("invalid heitao episode address")
- }
- body,err:=p.get(ctx,strings.TrimPrefix(page,htBase))
+ route,verifyErr:=heitaoPlayerRoute(task)
+ if verifyErr!=nil{return core.ProviderMedia{},verifyErr}
+ body,err:=p.get(ctx,route)
  if err!=nil{return core.ProviderMedia{},err}
  entry,err:=heitaoReadPlayerConfig109(body)
  if err!=nil{return core.ProviderMedia{},err}
