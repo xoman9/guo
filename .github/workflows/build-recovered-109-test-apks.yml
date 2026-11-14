@@ -1,3 +1,4 @@
+# GitHub Actions direct build request, 2026-11-14: compile ARM64 + armeabi-v7a; keep the permanent signer and publish only Actions artifacts.
 name: Build recovered 109+110 30-provider permanently signed test APKs
 on:
   push:
