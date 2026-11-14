@@ -13,6 +13,69 @@ import '../../playback_preferences.dart';
 
 const danmakuMaxRows = 64;
 
+// Hongguo sends common reactions as literal bracketed labels. Convert only
+// recognized reaction tokens for rendering; preserve the original source text
+// for moderation, caching, and timeline identity.
+const danmakuReactions = <String, String>{
+  '拍手': '👏',
+  '鼓掌': '👏',
+  '捂臉': '🤦',
+  '捂脸': '🤦',
+  '笑哭': '😂',
+  '大笑': '😆',
+  '哈哈': '😄',
+  '微笑': '🙂',
+  '呲牙': '😁',
+  '偷笑': '🤭',
+  '害羞': '😊',
+  '害羞脸': '😊',
+  '愛心': '❤️',
+  '爱心': '❤️',
+  '心': '❤️',
+  '比心': '🫶',
+  '点赞': '👍',
+  '點讚': '👍',
+  '赞': '👍',
+  '讚': '👍',
+  '强': '💪',
+  '強': '💪',
+  '哭': '😭',
+  '流泪': '😢',
+  '流淚': '😢',
+  '生氣': '😠',
+  '生气': '😠',
+  '发怒': '😡',
+  '發怒': '😡',
+  '惊讶': '😮',
+  '驚訝': '😮',
+  '震惊': '😱',
+  '震驚': '😱',
+  '疑問': '❓',
+  '疑问': '❓',
+  '無語': '😑',
+  '无语': '😑',
+  '尴尬': '😅',
+  '尷尬': '😅',
+  '思考': '🤔',
+  '調皮': '😜',
+  '调皮': '😜',
+  '亲亲': '😘',
+  '親親': '😘',
+  '玫瑰': '🌹',
+  '鲜花': '💐',
+  '鮮花': '💐',
+  '666': '👍',
+};
+
+final RegExp _reactionToken = RegExp(r'\[([^\[\]\r\n]{1,16})\]');
+
+String renderDanmakuReactions(String text) => text.replaceAllMapped(
+  _reactionToken,
+  (match) => danmakuReactions[match.group(1)] ?? match.group(0)!,
+);
+
+
+
 class DanmakuFlight {
   const DanmakuFlight(this.item, this.text, this.lane, this.width);
   final DanmakuItem item;
@@ -51,7 +114,8 @@ List<DanmakuFlight> planDanmaku(
         24) {
       continue;
     }
-    final runes = item.text.runes;
+    final rendered = renderDanmakuReactions(item.text);
+    final runes = rendered.runes;
     final text =
         String.fromCharCodes(runes.take(100)) + (runes.length > 100 ? '…' : '');
     final size = measure(text).ceilToDouble() + 8;
