@@ -6,6 +6,7 @@ on:
       - '.github/workflows/build-main-apk-only.yml'
       - 'lib/ui/terms_page.dart'
       - 'lib/ui/detail/detail_page.dart'
+      - 'lib/ui/player/playback_page.dart'
       - 'lib/ui/widgets/status_view.dart'
       - 'lib/ui/widgets/source_bar.dart'
       - 'lib/ui/widgets/choice_panel.dart'
