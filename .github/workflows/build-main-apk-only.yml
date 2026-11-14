@@ -7,6 +7,8 @@ on:
       - 'lib/ui/terms_page.dart'
       - 'lib/ui/detail/detail_page.dart'
       - 'lib/ui/player/playback_page.dart'
+      - 'lib/ui/player/danmaku_overlay.dart'
+      - 'test/danmaku_emoji_test.dart'
       - 'lib/ui/widgets/status_view.dart'
       - 'lib/ui/widgets/source_bar.dart'
       - 'lib/ui/widgets/choice_panel.dart'
@@ -145,12 +147,13 @@ jobs:
           actual=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/guo-110-cert.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
           [ "$actual" = "$EXPECTED_CERT_SHA256" ] || { echo "::error::Permanent certificate fingerprint mismatch"; exit 1; }
 
-      - name: Verify Flutter authorization checkbox source
+      - name: Verify Flutter authorization checkbox and danmaku emojis
         shell: bash
         run: |
           set -euo pipefail
           flutter pub get --enforce-lockfile
-          dart format lib/ui/terms_page.dart
+          flutter test test/danmaku_emoji_test.dart
+          dart format --output=none lib/ui/terms_page.dart lib/ui/player/danmaku_overlay.dart lib/ui/player/playback_page.dart test/danmaku_emoji_test.dart
 
       - name: Package 110 Flutter coexist APKs with newly built 13-provider core
         shell: bash
