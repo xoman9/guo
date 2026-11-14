@@ -6,10 +6,8 @@ import '../app_build.dart';
 import '../local_store.dart';
 import 'app_scope.dart';
 import 'widgets/focus_ring.dart';
-import 'widgets/form_text_field.dart';
 
 const termsVersion = 1;
-const _confirmation = '我已确认并同意以上使用条款';
 const _clauses = [
   '$appName 是开源软件，框架与示例站源代码公开，仅供个人学习与技术研究，**不收费，不提供任何付费服务**。',
   '$appName 与红果短剧及其他各站源的运营方**无任何关联**，未获得其授权或认可；文中提到的名称和商标归各自权利人所有。',
@@ -32,7 +30,7 @@ class TermsPage extends StatefulWidget {
 }
 
 class _TermsPageState extends State<TermsPage> {
-  final _typed = TextEditingController();
+  bool _confirmed = false;
   late final Timer _timer;
   var _remaining = 30;
   var _busy = false;
@@ -49,14 +47,10 @@ class _TermsPageState extends State<TermsPage> {
   @override
   void dispose() {
     _timer.cancel();
-    _typed.dispose();
     super.dispose();
   }
 
   bool get _reading => _remaining > 0;
-
-  bool get _confirmed =>
-      _typed.text.replaceAll(RegExp(r'\s'), '') == _confirmation;
 
   Future<void> _accept() async {
     setState(() => _busy = true);
@@ -92,9 +86,7 @@ class _TermsPageState extends State<TermsPage> {
                 : const EdgeInsets.symmetric(horizontal: 16, vertical: 48),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
-              child: ListenableBuilder(
-                listenable: _typed,
-                builder: (context, _) => Column(
+              child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   spacing: 16,
                   children: [
@@ -132,25 +124,19 @@ class _TermsPageState extends State<TermsPage> {
                           ),
                         ),
                       ),
-                    if (!television) ...[
-                      Text(
-                        '请在下方输入「$_confirmation」后继续。',
-                        style: body?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      FormTextField(
-                        controller: _typed,
-                        enabled: !_reading && !_busy,
-                        decoration: InputDecoration(
-                          border: const OutlineInputBorder(),
-                          hintText: _reading
-                              ? '请先阅读条款，$_remaining 秒后可输入'
-                              : '在此输入确认语',
-                        ),
-                        onSubmitted: (_) {
-                          if (_confirmed && !_busy) _accept();
-                        },
-                      ),
-                    ],
+                    Text(
+                      '請在下方勾選「我已同意」後繼續。',
+                      style: body?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    CheckboxListTile(
+                      title: const Text('我已同意'),
+                      value: _confirmed,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (_reading || _busy)
+                          ? null
+                          : (checked) => setState(() => _confirmed = checked ?? false),
+                    ),
                     FocusRing(
                       radius: 24,
                       child: FilledButton(
@@ -160,7 +146,7 @@ class _TermsPageState extends State<TermsPage> {
                           ),
                         ),
                         onPressed:
-                            (television ? !_reading : _confirmed) && !_busy
+                            _confirmed && !_reading && !_busy
                             ? _accept
                             : null,
                         child: Text(
@@ -171,7 +157,6 @@ class _TermsPageState extends State<TermsPage> {
                       ),
                     ),
                   ],
-                ),
               ),
             ),
           ),
