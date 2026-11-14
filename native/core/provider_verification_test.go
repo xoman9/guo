@@ -33,9 +33,9 @@ func TestVerifiedSiteSessionIsFirstPartyAndPrivate(t *testing.T){
  if err:=SaveVerifiedSiteSession(host,"missav",VerifiedSiteSession{Cookie:"verified=yes",UserAgent:"Android WebView"});err!=nil{t.Fatal(err)}
  if got:=LoadVerifiedSiteSession(host,"missav");got.Cookie!="verified=yes"||got.UserAgent!="Android WebView"{t.Fatalf("bad first party session: %+v",got)}
  if got:=LoadVerifiedSiteSession(host,"tvbox-jable");got.Cookie!=""{t.Fatal("MissAV cookie leaked to Jable")}
- if _,err:=VerifiedSiteText(context.Background(),host,"missav","https://missav.live/cn/new","https://missav.live/cn/");err!=nil{t.Fatal(err)}
+ if _,err:=VerifiedSiteText(context.Background(),host,"missav","https://missav.ws/cn/new","https://missav.ws/cn/");err!=nil{t.Fatal(err)}
  if host.last.Cookie!="verified=yes"||host.last.UserAgent!="Android WebView"{t.Fatalf("missing session headers: %+v",host.last)}
- if _,err:=VerifiedSiteText(context.Background(),host,"missav","https://evil.example.test/","https://missav.live/");err==nil{t.Fatal("cross-site request must be rejected")}
+ if _,err:=VerifiedSiteText(context.Background(),host,"missav","https://evil.example.test/","https://missav.ws/");err==nil{t.Fatal("cross-site request must be rejected")}
 }
 func TestVerifiedSiteSessionRejectsInvalidInputAndExplains403(t *testing.T){
  h:=&fakeVerifiedHost{err:errors.New("HTTP 403")}
