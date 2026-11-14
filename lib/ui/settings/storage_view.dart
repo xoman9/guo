@@ -58,7 +58,10 @@ class _StorageViewState extends State<StorageView> {
   }
 
   Future<String?> _pickParent() async {
-    if (!Platform.isAndroid && !Platform.isIOS) {
+    if (Platform.isAndroid) {
+      return AppDevice.chooseDownloadDirectory();
+    }
+    if (!Platform.isIOS) {
       return FilePicker.getDirectoryPath(dialogTitle: '选择下载保存位置');
     }
     final support = await getApplicationSupportDirectory();
@@ -88,12 +91,14 @@ class _StorageViewState extends State<StorageView> {
       if (!Platform.isAndroid) {
         throw AppFailure('儲存授權僅適用 Android');
       }
-      if (!await AppDevice.requestVideoExport()) {
-        throw AppFailure('未取得檔案匯出授權');
-      }
+      final granted = await AppDevice.downloadStorageAccess();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已確認目前 Android 系統允許影片匯出；下載目錄仍需個別具備寫入權限。')),
+        SnackBar(
+          content: Text(granted
+              ? '已取得下載資料夾所需的檔案存取授權'
+              : '請在系統設定允許「管理所有檔案」，再返回選取下載資料夾'),
+        ),
       );
     });
   }
@@ -270,7 +275,7 @@ class _StorageViewState extends State<StorageView> {
             SettingsTile(
               title: '存取授權',
               subtitle: Platform.isAndroid
-                  ? '檢查影片匯出權限（不會授權任意檔案路徑）'
+                  ? '開啟 Android 檔案存取授權設定，以供下載核心寫入所選資料夾'
                   : '僅 Android 支援',
               enabled: Platform.isAndroid,
               onTap: _requestStorageAccess,
