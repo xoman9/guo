@@ -36,6 +36,8 @@ class _PlaybackPageState extends State<PlaybackPage> {
   bool _shown = false;
   Player? _bound;
   StreamSubscription<bool>? _playing;
+  static const _headsetChannel = MethodChannel('duanju/media_controls');
+  bool _headsetActive = false;
 
   PlaybackSession get _session => widget.handle.session;
 
@@ -51,6 +53,8 @@ class _PlaybackPageState extends State<PlaybackPage> {
     _padFullscreen.addListener(_padFullscreenChanged);
     _pip.addListener(_pipChanged);
     _pip.onAction = _action;
+    _headsetChannel.setMethodCallHandler(_headsetCommand);
+    unawaited(_activateHeadset());
     _bind();
     WidgetsBinding.instance.addPostFrameCallback((_) => _sync());
   }
@@ -60,6 +64,9 @@ class _PlaybackPageState extends State<PlaybackPage> {
     _session.removeListener(_changed);
     _pip.removeListener(_pipChanged);
     if (_pip.onAction == _action) _pip.onAction = null;
+    _headsetChannel.setMethodCallHandler(null);
+    _headsetActive = false;
+    unawaited(_headsetChannel.invokeMethod<void>('deactivate').catchError((Object _) {}));
     _pip.clear();
     if (_pip.window) unawaited(_restore());
     unawaited(_playing?.cancel());
@@ -69,6 +76,48 @@ class _PlaybackPageState extends State<PlaybackPage> {
     unawaited(AppDevice.resetBrightness());
     widget.handle.dispose();
     super.dispose();
+  }
+
+  Future<void> _activateHeadset() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _headsetChannel.invokeMethod<void>('activate');
+      if (!mounted) {
+        await _headsetChannel.invokeMethod<void>('deactivate');
+        return;
+      }
+      _headsetActive = true;
+      _syncHeadsetState();
+    } catch (_) {
+      // Video playback still works if Android media controls are unavailable.
+    }
+  }
+
+  Future<void> _headsetCommand(MethodCall call) async {
+    if (!mounted || call.method != 'mediaAction') return;
+    switch (call.arguments) {
+      case 'toggle':
+        _session.togglePlayback();
+      case 'play':
+        if (!_session.player.state.playing) _session.togglePlayback();
+      case 'pause':
+        if (_session.player.state.playing) _session.togglePlayback();
+      case 'previous':
+        unawaited(_session.previous());
+      case 'next':
+        unawaited(_session.next());
+    }
+  }
+
+  void _syncHeadsetState() {
+    if (!_headsetActive || !mounted) return;
+    unawaited(
+      _headsetChannel.invokeMethod<void>('state', {
+        'playing': _session.player.state.playing,
+        'hasPrevious': _session.hasPrevious,
+        'hasNext': _session.hasNext,
+      }).catchError((Object _) {}),
+    );
   }
 
   void _changed() {
@@ -101,6 +150,7 @@ class _PlaybackPageState extends State<PlaybackPage> {
           widget.store.playbackPreferences.autoPictureInPicture,
     );
     _pip.resize(session.aspectRatio);
+    _syncHeadsetState();
   }
 
   void _pipChanged() {
