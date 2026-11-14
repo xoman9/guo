@@ -41,7 +41,7 @@ class SourceBar extends StatelessWidget {
                 source,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
             const SizedBox(width: 2),
