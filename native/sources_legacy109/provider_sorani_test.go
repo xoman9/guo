@@ -60,6 +60,7 @@ func TestSorani109DetailAndNoCrossEpisodePlayback(t *testing.T){
 func TestSorani109HonorsAccountAuthorization(t *testing.T){
  address:=sorani109API+"/video/episode/456/play?lineCode=anime_jp_m3u8"
  f:=&sorani109Host{pages:map[string]string{
+  sorani109API+"/video/123":`{"data":{"id":123,"title":"動畫","episodes":[{"episodeId":456,"episodeOrder":1}]}}`,
   address:`{"data":{"canPlay":false,"message":"请登录"}}`,
  }}
  p:=&sorani109{host:f}
@@ -75,6 +76,22 @@ func TestSorani109HonorsAccountAuthorization(t *testing.T){
  last:=f.requests[len(f.requests)-1]
  if last.Header["Authorization"]!="Bearer valid-authorized-token"{t.Fatal("saved account token not used")}
 }
+func TestSorani109RejectsCrossDramaEpisodeBeforePlayback(t *testing.T){
+ f:=&sorani109Host{pages:map[string]string{
+  sorani109API+"/video/123":`{"data":{"id":123,"title":"動畫","episodes":[{"episodeId":456,"episodeOrder":1}]}}`,
+ }}
+ p:=&sorani109{host:f}
+ wrong:=core.Task{DramaID:core.ProviderDramaID("sorani","123"),
+  Chapter:core.Chapter{ID:core.ProviderChapterID("sorani","123","999")}}
+ _,err:=p.ResolveMedia(context.Background(),wrong)
+ if err==nil||!strings.Contains(err.Error(),"does not belong"){
+  t.Fatalf("unexpected cross-drama episode result: %v",err)
+ }
+ for _,request:=range f.requests{
+  if strings.Contains(request.URL,"/play"){t.Fatalf("foreign episode triggered playback request: %s",request.URL)}
+ }
+}
+
 func TestSorani109AuthenticationPayloadPreservesJSONNumbers(t *testing.T){
  var parsed any
  decoder:=json.NewDecoder(strings.NewReader(`{"data":{"id":12345678901234567890,"title":"Test"}}`))
