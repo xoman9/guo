@@ -28,6 +28,33 @@ var directPlayerJSON = regexp.MustCompile(`(?is)"(?:video_url|play_url|src)"\s*:
 // of a playable stream and must not be turned into a fabricated URL.
 var webHomeHLS = regexp.MustCompile(`(?i)(?:https?:)?//surrit\.com/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/playlist\.m3u8(?:\?[^\s"\x27<>\\]*)?`)
 
+// WebHome's unpackEvals parses the text of Dean Edwards' packer without
+// executing it. Only decoded text containing a complete media URL is accepted.
+var missPackerCall = regexp.MustCompile(`(?s)\\}\\('((?:\\\\.|[^'\\\\])*)',(\\d+),(\\d+),'((?:\\\\.|[^'\\\\])*)'\\.split\\('\\|'\\)`)
+var missExplicitHLS = regexp.MustCompile(`(?i)https?://[^\\s"'<>\\\\]+\\.m3u8(?:\\?[^\\s"'<>\\\\]*)?`)
+
+func unpackMissPacker(body string) string {
+ matches := missPackerCall.FindAllStringSubmatch(body, 8)
+ var out strings.Builder
+ for _,m:=range matches {
+  base,err1:=strconv.Atoi(m[2])
+  count,err2:=strconv.Atoi(m[3])
+  if err1!=nil||err2!=nil||base<2||base>36||count<1||count>256||len(m[1])>100000 {continue}
+  payload:=strings.ReplaceAll(strings.ReplaceAll(m[1],`\\'`,"'"),`\\\\`,`\\`)
+  keys:=strings.Split(m[4],"|")
+  for i:=count-1;i>=0;i-- {
+   if i>=len(keys)||keys[i]==""{continue}
+   token:=strconv.FormatInt(int64(i),base)
+   pattern,err:=regexp.Compile(`\\b`+regexp.QuoteMeta(token)+`\\b`)
+   if err!=nil{continue}
+   payload=pattern.ReplaceAllLiteralString(payload,keys[i])
+  }
+  out.WriteString(payload)
+  out.WriteByte('\\n')
+ }
+ return out.String()
+}
+
 var descriptor = core.SourceDescriptor{
  ID:sourceID,Name:"MissAV",DefaultOff:true,BaseURL:baseURL,
  NoHostRotation:true,BrowserFingerprint:true,
@@ -208,6 +235,13 @@ func directMediaURL(page,body string)(string,error){
  for _,m:=range directVideoAttribute.FindAllStringSubmatch(normalized,-1){if len(m)>1{add(m[1])}}
  for _,m:=range directPlayerJSON.FindAllStringSubmatch(normalized,-1){if len(m)>1{add(m[1])}}
  for _,m:=range webHomeHLS.FindAllString(normalized,-1){add(m)}
+ // WebHome also scans packed inline JavaScript. Decode text only: never
+ // evaluate scripts or synthesize a URL from an unrelated UUID.
+ if packed:=unpackMissPacker(normalized);packed!="" {
+  packed=strings.ReplaceAll(packed,`\\/`,"/")
+  for _,m:=range webHomeHLS.FindAllString(packed,-1){add(m)}
+  for _,m:=range missExplicitHLS.FindAllString(packed,-1){add(m)}
+ }
  if len(unique)==0{return "",errors.New("MissAV Java 播放解析依賴 TVBox parse 服務；頁面未提供直接媒體連結")}
  if len(unique)>1{return "",errors.New("MissAV 播放頁提供多個不同媒體連結，無法安全選擇")}
  for u:=range unique{return u,nil}
