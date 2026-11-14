@@ -80,8 +80,8 @@ jobs:
           grep -F '"duanjuapp/native/sources_custom"' native/bridge/sources_gen.go
           grep -F '"guoapp/legacy109-recovery"' native/bridge/sources_gen.go
           grep -F '"guoapp/missav-recovery"' native/bridge/sources_gen.go
-          (cd native && go test -count=1 -tags=zhenguojian ./bridge ./core)
-          (cd native && go test -count=1 -tags=zhenguojian guoapp/legacy109-recovery guoapp/missav-recovery duanjuapp/native/sources_custom)
+          (cd native && go test -v -count=1 -tags=zhenguojian ./bridge ./core) 2>&1 | tee "$RUNNER_TEMP/guo-core-test.log"
+          (cd native && go test -v -count=1 -tags=zhenguojian guoapp/legacy109-recovery guoapp/missav-recovery duanjuapp/native/sources_custom) 2>&1 | tee "$RUNNER_TEMP/guo-provider-test.log"
       - name: Require original fixed Android signing secret
         shell: bash
         env:
@@ -145,6 +145,17 @@ jobs:
           path: verified/*
           retention-days: 14
           if-no-files-found: error
+      - name: Retain failing Go and source diagnostic logs on GitHub
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guo-30-apk-build-failure-diagnostics
+          path: |
+            ${{ runner.temp }}/guo-core-test.log
+            ${{ runner.temp }}/guo-provider-test.log
+            ${{ runner.temp }}/gofmt-report.txt
+          retention-days: 14
+          if-no-files-found: warn
       - name: Remove secret signing material
         if: always()
         shell: bash
