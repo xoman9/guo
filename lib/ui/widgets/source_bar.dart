@@ -57,14 +57,15 @@ class SourceBar extends StatelessWidget {
     );
     return switch (form) {
       FormFactor.phone => PageHeader(
-        title: '',
-        actions: [...leading, sourceSwitcher, search, ...actions],
+        title: source,
+        titleWidget: Align(alignment: Alignment.centerLeft, child: sourceSwitcher),
+        actions: [...leading, search, ...actions],
       ),
       FormFactor.pad || FormFactor.window => PageHeader(
-        title: '',
+        title: source,
+        titleWidget: Align(alignment: Alignment.centerLeft, child: sourceSwitcher),
         actions: [
           ...leading,
-          sourceSwitcher,
           const SizedBox(width: 4),
           SizedBox(
             width: MediaQuery.sizeOf(context).width >= 900 ? 320 : 240,
@@ -84,8 +85,8 @@ class SourceBar extends StatelessWidget {
           spacing: 10,
           children: [
             ?televisionLeading,
-            const Spacer(),
             sourceSwitcher,
+            const Spacer(),
             search,
             ...actions,
           ],
