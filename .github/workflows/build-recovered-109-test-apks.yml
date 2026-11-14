@@ -1,4 +1,4 @@
-name: Build recovered 109+110 29-provider permanently signed test APKs
+name: Build recovered 109+110 30-provider permanently signed test APKs
 on:
   push:
     branches: [feat/recover-109-missav-20261114]
@@ -18,7 +18,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: guo-recovered-29-provider-test
+  group: guo-recovered-30-provider-test
   cancel-in-progress: false
 jobs:
   build:
@@ -101,7 +101,7 @@ jobs:
           keytool -list -v -keystore "$RUNNER_TEMP/guo-original.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/guo-certificate.txt"
           actual=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/guo-certificate.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
           [ "$actual" = "$EXPECTED_CERT_SHA256" ] || { echo "::error::Original permanent signer fingerprint mismatch"; exit 1; }
-      - name: Build both release-format APKs containing 29 source IDs
+      - name: Build both release-format APKs containing 30 source IDs
         shell: bash
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -137,11 +137,11 @@ jobs:
           done
           cp native/sources_legacy109/flavor_zhenguojian.go verified/ORIGINAL_SOURCE_MANIFEST.go
           (cd verified && sha256sum *.apk > SHA256SUMS.txt)
-          echo "EXPERIMENTAL ONLY: 16 reconstructed original provider implementations + 13 extra provider IDs; live playback is not verified." >> "$GITHUB_STEP_SUMMARY"
+          echo "EXPERIMENTAL ONLY: 16 reconstructed original provider implementations + 14 extra provider IDs; live playback is not verified." >> "$GITHUB_STEP_SUMMARY"
       - name: Upload both permanently signed experimental APKs
         uses: actions/upload-artifact@v4
         with:
-          name: guo-29-reconstructed-providers-ARM64-v7a-fixed-signer-EXPERIMENTAL
+          name: guo-30-reconstructed-providers-ARM64-v7a-fixed-signer-EXPERIMENTAL
           path: verified/*
           retention-days: 14
           if-no-files-found: error
