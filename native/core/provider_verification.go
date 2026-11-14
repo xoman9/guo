@@ -94,7 +94,7 @@ func VerifiedSiteText(ctx context.Context,host Host,source,address,referer strin
   lower:=strings.ToLower(err.Error())
   if strings.Contains(lower,"403") || strings.Contains(lower,"browser verification") ||
    strings.Contains(lower,"challenge") || strings.Contains(lower,"瀏覽器驗證") {
-   return TextResponse{},fmt.Errorf("%s HTTP 403：請到站源管理，使用「驗證網站」完成站方要求的驗證，再刷新；若仍 403，可能不支援 WebView 或原生 HTTP 請求",source)
+   return TextResponse{},fmt.Errorf("%s HTTP 403：站方拒絕目前的連線或要求額外驗證；無法自動取得分類和影片",source)
   }
  }
  return response,err
