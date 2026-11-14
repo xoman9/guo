@@ -50,6 +50,7 @@ func TestSingle110CoreIncludesOriginal16AndCustom13(t *testing.T) {
     optional := []string{
         "lujj31", "liuguo", "xiaoguo", "youguo", "meiguo", "yingguo",
         "luguo", "liguo", "juguo", "ningguo", "mangguo", "chengguodj", "jiaoguo",
+        "tvbox-laoguo", "tvbox-jable", "tvbox-155", "tvbox-jkun", "tvbox-senlin", "tvbox-jingpinx",
     }
     for _, id := range original {
         site, ok := found[id]
@@ -64,6 +65,6 @@ func TestSingle110CoreIncludesOriginal16AndCustom13(t *testing.T) {
         }
     }
     if len(found) < len(original)+len(optional) {
-        t.Errorf("expected 29 original/custom IDs, only %d are registered", len(found))
+        t.Errorf("expected 35 original/custom IDs, only %d are registered", len(found))
     }
 }
