@@ -35,12 +35,27 @@ func TestDSD109CategoriesCatalogDetailAndPlayback(t *testing.T){
 }
 func TestDSD109IdentityRejectsWrongEpisodeAndHost(t *testing.T){
  if _,_,ok:=dsd109Route(dsd109Base+"/","https://evil.example/index.php/vod/type/id/3.html");ok{t.Fatal("external URL accepted")}
+ if _,_,ok:=dsd109Route(dsd109Base+"/","https://www.dsd.com.se:8443/index.php/vod/type/id/3.html");ok{t.Fatal("alternate port accepted")}
+ if _,_,ok:=dsd109Route(dsd109Base+"/","https://www.dsd.com.se/index.php/vod/type/id/3.html#fragment");ok{t.Fatal("fragment accepted")}
  h:=&dsd109Fixture{routes:map[string]string{
  dsd109Base+dsd109Page("100",1,2):`<script>var player_aaaa={"id":"100","sid":1,"nid":1,"url":"https://example.com/preview.mp4"};</script>`,
  }}
  _,err:=(&dsd109{host:h}).ResolveMedia(context.Background(),core.Task{
  DramaID:core.ProviderDramaID("dsd","100"),
- Chapter:core.Chapter{ID:core.ProviderChapterID("dsd","100","1-2")},
+ Chapter:core.Chapter{ID:core.ProviderChapterID("dsd","100","1-2"),PageURL:dsd109Base+dsd109Page("100",1,2)},
  })
  if err==nil{t.Fatal("wrong episode accepted")}
+}
+
+func TestDSD109RejectsMismatchedEpisodePageBeforeNetwork(t *testing.T){
+ h:=&dsd109Fixture{routes:map[string]string{}}
+ task:=core.Task{DramaID:core.ProviderDramaID("dsd","100"),
+  Chapter:core.Chapter{
+   ID:core.ProviderChapterID("dsd","100","1-2"),
+   PageURL:dsd109Base+dsd109Page("100",1,3),
+  }}
+ _,err:=(&dsd109{host:h}).ResolveMedia(context.Background(),task)
+ if err==nil||!strings.Contains(err.Error(),"does not match episode"){
+  t.Fatalf("DSD cross-episode page was not rejected: %v",err)
+ }
 }
