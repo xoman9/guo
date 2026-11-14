@@ -11,6 +11,8 @@ class StatusView extends StatelessWidget {
     this.icon = Icons.movie_filter_outlined,
     this.action,
     this.onAction,
+    this.secondaryAction,
+    this.onSecondaryAction,
     this.autofocus = false,
   }) : loading = false;
 
@@ -19,6 +21,8 @@ class StatusView extends StatelessWidget {
       icon = null,
       action = null,
       onAction = null,
+      secondaryAction = null,
+      onSecondaryAction = null,
       autofocus = false,
       loading = true;
 
@@ -27,6 +31,8 @@ class StatusView extends StatelessWidget {
   final IconData? icon;
   final String? action;
   final VoidCallback? onAction;
+  final String? secondaryAction;
+  final VoidCallback? onSecondaryAction;
   final bool autofocus;
   final bool loading;
 
@@ -75,6 +81,13 @@ class StatusView extends StatelessWidget {
                   onPressed: onAction,
                   child: Text(action),
                 ),
+              ),
+            ],
+            if (secondaryAction case final secondaryAction?) ...[
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: onSecondaryAction,
+                child: Text(secondaryAction),
               ),
             ],
           ],
