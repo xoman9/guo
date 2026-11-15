@@ -334,7 +334,10 @@ class LocalStore extends ChangeNotifier {
   bool sourceEnabled(String source) => switch (_settings['sourceSwitches']) {
     final Map switches when switches[source] is bool =>
       switches[source] as bool,
-    _ => !SourceSite.isRestricted(source),
+    // Netflav JS is shown by default after first install/upgrade so the
+    // newly imported TVBox channel is discoverable. An explicitly saved user
+    // switch (including the bulk hidden-channel toggle) still takes priority.
+    _ => source == 'tvbox-netflav' || !SourceSite.isRestricted(source),
   };
 
   Future<void> setSourceEnabled(String source, bool enabled) {
