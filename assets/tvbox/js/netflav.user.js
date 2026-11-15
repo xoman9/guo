@@ -249,6 +249,21 @@ if (typeof unsafeWindow.gmSpiderRunning === "undefined") {
                             }
                             if (candidates[index - 1]) {
                                 candidates[index - 1].click();
+                                // Some embeds create an HTML5 player but do
+                                // not request media until play() is called.
+                                // Request playback using the page's own video,
+                                // without inventing a URL.
+                                const startHtml5 = () => {
+                                    const element = document.querySelector("video");
+                                    if (element && typeof element.play === "function") {
+                                        const task = element.play();
+                                        if (task && typeof task.catch === "function") {
+                                            task.catch(() => {});
+                                        }
+                                    }
+                                };
+                                setTimeout(startHtml5, 400);
+                                setTimeout(startHtml5, 1600);
                                 resolve({type: "match", stage: "source_clicked"});
                                 return;
                             }
