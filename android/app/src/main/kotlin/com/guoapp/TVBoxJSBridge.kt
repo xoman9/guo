@@ -136,7 +136,8 @@ internal class TVBoxJSBridge(private val activity: Activity) {
             }
             override fun onReceivedHttpError(v: WebView?, request: WebResourceRequest?,
                 response: WebResourceResponse?) {
-                if (request?.isForMainFrame == true && response?.statusCode in listOf(403, 429)) {
+                if (request?.isForMainFrame == true &&
+                    (response?.statusCode == 403 || response?.statusCode == 429)) {
                     handler.post { finish(error = "$scriptName HTTP ${response?.statusCode}：網站拒絕請求，請稍後再試或自行完成網站驗證") }
                 }
             }
@@ -215,7 +216,8 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                 }
                 builder.appendQueryParameter("page", number(1).toString()).build().toString()
             }
-            "detailContent", "playerContent" -> "https://netflav.com/video?id=${encode(slug(mediaId()))}/"
+            "detailContent" -> "https://netflav.com/video?id=${encode(slug(mediaId()))}/"
+            "playerContent" -> "https://netflav.com/video?id=${encode(slug(mediaId()))}#${number(1)}"
             "searchContent" -> "https://netflav.com/search?keyword=${encode(param(0))}&page=${number(2)}&type=title"
             else -> error("Unsupported")
         }
