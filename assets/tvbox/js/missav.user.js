@@ -284,7 +284,7 @@ console.log(JSON.stringify(GM_info));
                     try {
                         const parsed = new URL(candidate, window.location.href);
                         if (parsed.protocol === "https:" &&
-                            /\\.(?:m3u8|mp4)$/i.test(parsed.pathname)) {
+                            /\.(?:m3u8|mp4)$/i.test(parsed.pathname)) {
                             vod.vod_play_url = "多视轨$" + parsed.href;
                             publish();
                             return;
