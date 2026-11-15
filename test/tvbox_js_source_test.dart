@@ -12,6 +12,9 @@ void main() {
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
+          // Netflav prioritizes user playback by cancelling the active
+          // WebView before executing playerContent. Mirror the platform API.
+          if (call.method == 'cancel') return null;
           if (call.method != 'execute') throw StateError('unexpected call');
           final args = Map<String, dynamic>.from(call.arguments as Map);
           final method = args['operation'];
