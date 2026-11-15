@@ -308,7 +308,7 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                 }
                 builder.appendQueryParameter("page", number(1).toString()).build().toString()
             }
-            "detailContent" -> "https://netflav.com/video?id=${encode(slug(mediaId()))}/"
+            "detailContent" -> "https://netflav.com/video?id=${encode(slug(mediaId()))}"
             "playerContent" -> "https://netflav.com/video?id=${encode(slug(mediaId()))}#${number(1)}"
             "searchContent" -> "https://netflav.com/search?keyword=${encode(param(0))}&page=${number(2)}&type=title"
             else -> error("Unsupported")
