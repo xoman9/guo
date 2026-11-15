@@ -1,0 +1,188 @@
+package com.guoapp
+
+import android.app.Activity
+import android.os.Handler
+import android.os.Looper
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceError
+import android.webkit.WebResourceResponse
+import io.flutter.plugin.common.MethodChannel
+import org.json.JSONArray
+import org.json.JSONObject
+
+// Runs only bundled, inspected TVBox csp_GM user scripts on their first-party
+// sites. The site still decides whether the WebView may access its pages.
+internal class TVBoxJSBridge(private val activity: Activity) {
+    private val handler = Handler(Looper.getMainLooper())
+    private var active: WebView? = null
+    private var pending: MethodChannel.Result? = null
+    private var timedOut: Runnable? = null
+
+    private fun finish(value: String? = null, error: String? = null) {
+        val completion = pending ?: return
+        pending = null
+        timedOut?.let(handler::removeCallbacks)
+        timedOut = null
+        val view = active
+        active = null
+        if (view != null) {
+            view.stopLoading()
+            view.removeJavascriptInterface("GmSpiderInject")
+            view.destroy()
+        }
+        if (error == null) completion.success(value)
+        else completion.error("tvbox_js", error, null)
+    }
+
+    fun close() { finish(error = "JS 執行已取消") }
+
+    fun execute(source: String, method: String, args: List<Any?>, result: MethodChannel.Result) {
+        if (pending != null) {
+            result.error("tvbox_js_busy", "另一個 JavaScript 站源請求仍在執行", null)
+            return
+        }
+        val allowedMethods = setOf(
+            "homeContent", "categoryContent", "searchContent", "detailContent", "playerContent")
+        val host = when (source) {
+            "missav" -> "missav.ws"
+            "tvbox-netflav" -> "netflav.com"
+            else -> {
+                result.error("tvbox_js_source", "不支援的 JavaScript 站源", null)
+                return
+            }
+        }
+        if (method !in allowedMethods) {
+            result.error("tvbox_js_method", "不支援的 JS 操作", null)
+            return
+        }
+        val scriptName = if (source == "missav") "missav" else "netflav"
+        val script = try {
+            activity.assets.open("flutter_assets/assets/tvbox/js/$scriptName.user.js")
+                .bufferedReader().use { it.readText() }
+        } catch (error: Exception) {
+            result.error("tvbox_js_missing", "缺少內建 $scriptName JavaScript：${error.message}", null)
+            return
+        }
+        val url = try { route(source, method, args) }
+        catch (error: Exception) {
+            result.error("tvbox_js_route", error.message, null)
+            return
+        }
+        pending = result
+        val requestArgs = JSONArray().put(method)
+        args.forEach { requestArgs.put(it ?: JSONObject.NULL) }
+        val view = WebView(activity)
+        active = view
+        view.settings.javaScriptEnabled = true
+        view.settings.domStorageEnabled = true
+        view.settings.javaScriptCanOpenWindowsAutomatically = false
+        view.settings.allowFileAccess = false
+        view.settings.allowContentAccess = false
+        view.settings.setSupportMultipleWindows(false)
+        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(view, false)
+        val api = object {
+            @JavascriptInterface
+            fun GetSpiderArgs(): String = requestArgs.toString()
+            @JavascriptInterface
+            fun SetSpiderResult(payload: String) {
+                handler.post {
+                    if (active === view && pending != null) {
+                        if (payload.isBlank()) finish(error = "$scriptName JS 未回傳資料")
+                        else finish(value = payload)
+                    }
+                }
+            }
+        }
+        view.addJavascriptInterface(api, "GmSpiderInject")
+        var injected = false
+        view.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
+                val uri = request?.url ?: return true
+                val name = uri.host.orEmpty()
+                return uri.scheme != "https" || (name != host && !name.endsWith(".$host"))
+            }
+            override fun onReceivedHttpError(v: WebView?, request: WebResourceRequest?,
+                response: WebResourceResponse?) {
+                if (request?.isForMainFrame == true && response?.statusCode in listOf(403, 429)) {
+                    handler.post { finish(error = "$scriptName HTTP ${response?.statusCode}：網站拒絕請求，請稍後再試或自行完成網站驗證") }
+                }
+            }
+            override fun onReceivedError(v: WebView?, request: WebResourceRequest?,
+                error: WebResourceError?) {
+                if (request?.isForMainFrame == true) {
+                    handler.post { finish(error = "$scriptName 網頁載入失敗：${error?.description}") }
+                }
+            }
+            override fun onPageFinished(v: WebView?, url: String?) {
+                if (active !== view || injected) return
+                injected = true
+                val boot = """
+                  (function () {
+                    window.unsafeWindow = window;
+                    window.GM_info = {script:{name:${JSONObject.quote(scriptName)}}};
+                    window.GM_toastLong = function(){};
+                    const run = function() {
+                      try {
+                        const userScript = document.createElement('script');
+                        userScript.textContent = ${JSONObject.quote(script)};
+                        document.documentElement.appendChild(userScript);
+                        userScript.remove();
+                      } catch(e) { GmSpiderInject.SetSpiderResult(JSON.stringify({error:String(e)})); }
+                    };
+                    if (window.jQuery) { run(); return; }
+                    const jquery = document.createElement('script');
+                    jquery.src = 'https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.slim.min.js';
+                    jquery.onload = run;
+                    jquery.onerror = function() {
+                      GmSpiderInject.SetSpiderResult(JSON.stringify({error:'jQuery 載入失敗'}));
+                    };
+                    document.head.appendChild(jquery);
+                  })();
+                """.trimIndent()
+                view.evaluateJavascript(boot, null)
+            }
+        }
+        val timer = Runnable { finish(error = "$scriptName JS 執行逾時；可能需要網站驗證或網頁已改版") }
+        timedOut = timer
+        handler.postDelayed(timer, 30000)
+        view.loadUrl(url)
+    }
+
+    private fun route(source: String, method: String, args: List<Any?>): String {
+        fun param(i: Int) = (args.getOrNull(i)?.toString() ?: "")
+        fun number(i: Int) = (param(i).toIntOrNull() ?: 1).coerceIn(1, 10000)
+        fun encode(input: String) = java.net.URLEncoder.encode(input, "UTF-8")
+        fun slug(input: String): String {
+            require(input.matches(Regex("[a-zA-Z0-9_-]{1,160}"))) { "不合法的影片 ID" }
+            return input
+        }
+        if (source == "missav") {
+            return when(method) {
+                "homeContent" -> "https://missav.ws/cn/"
+                "categoryContent" -> {
+                    val tid = param(0)
+                    require(tid.matches(Regex("[a-zA-Z0-9_/-]{1,120}")) && !tid.contains("..")) { "不合法的分類" }
+                    "https://missav.ws/cn/$tid?page=${number(1)}"
+                }
+                "detailContent", "playerContent" -> "https://missav.ws/cn/${slug(param(0))}"
+                "searchContent" -> "https://missav.ws/cn/search/${encode(param(0))}?page=${number(2)}"
+                else -> error("Unsupported")
+            }
+        }
+        return when(method) {
+            "homeContent" -> "https://netflav.com/trending"
+            "categoryContent" -> {
+                val category = param(0)
+                require(category.matches(Regex("[a-zA-Z0-9_?=&%-]{1,150}")) && !category.contains("..")) { "不合法的分類" }
+                val separator = if (category.contains("?")) "&" else "?"
+                "https://netflav.com/$category${separator}page=${number(1)}"
+            }
+            "detailContent", "playerContent" -> "https://netflav.com/video?id=${encode(slug(param(0)))}/"
+            "searchContent" -> "https://netflav.com/search?keyword=${encode(param(0))}&page=${number(2)}&type=title"
+            else -> error("Unsupported")
+        }
+    }
+}
