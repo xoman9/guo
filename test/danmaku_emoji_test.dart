@@ -14,6 +14,8 @@ void main() {
     );
     expect(renderDanmakuReactions('原样[未知表情]文字'), '原样[未知表情]文字');
     expect(renderDanmakuReactions('已经有😂 [拍手]'), '已经有😂 👏');
+    expect(renderDanmakuReactions('[吃瓜][酷][送花]'), '🍉😎💐');
+    expect(renderDanmakuReactions('[奸笑][愛慕][快哭了][怒]'), '😏😍🥺😡');
   });
 
   test('flight uses emoji display while preserving source identity and time', () {
