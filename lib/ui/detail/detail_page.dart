@@ -1512,17 +1512,26 @@ class _DetailPageState extends State<DetailPage> {
         (details.error?.contains('HTTP 403') == true ||
          details.error?.contains('瀏覽器驗證') == true ||
          details.error?.contains('浏览器验证') == true);
+    final netflavWithoutSources =
+        details.drama.source == 'tvbox-netflav' &&
+        details.error == null &&
+        details.episodes.isEmpty;
     return StatusView(
       key: const ValueKey('error'),
       title: challenge
           ? 'MissAV 網站要求瀏覽器驗證'
-          : details.error != null
-              ? '剧集信息暂时不可用'
-              : '暂时没有可播放的集数',
+          : netflavWithoutSources
+              ? 'Netflav 未提供播放來源'
+              : details.error != null
+                  ? '剧集信息暂时不可用'
+                  : '暂时没有可播放的集数',
       message: challenge
           ? '${details.error}\n請使用 App 內的驗證視窗完成驗證，'
               '再按「使用驗證資訊」；外部 Chrome 的 Cookie 不會自動傳入 App。'
-          : details.error ?? '可以更新剧集信息后重试。',
+          : netflavWithoutSources
+              ? '影片資料已載入，但原站未回傳可用的播放源。'
+                  '重新整理可以再次檢查，但不保證有影片可以播放。'
+              : details.error ?? '可以更新剧集信息后重试。',
       icon: Icons.error_outline_rounded,
       action: '重试',
       onAction: details.load,
