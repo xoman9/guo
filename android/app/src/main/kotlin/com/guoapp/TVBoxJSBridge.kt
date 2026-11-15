@@ -202,7 +202,14 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                 return null
             }
             override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
-                val uri = request?.url ?: return true
+                val navigation = request ?: return true
+                val uri = navigation.url
+                if (uri.scheme != "https" && uri.scheme != "http") return true
+                // Netflav's selected player is frequently hosted in a
+                // cross-origin iframe. Restrict the top-level spider page to
+                // its first-party domain, but allow HTTPS subframes to load.
+                // Reject non-HTTPS subframes; never disable web security.
+                if (!navigation.isForMainFrame) return uri.scheme != "https"
                 val name = uri.host.orEmpty()
                 return uri.scheme != "https" || (name != host && !name.endsWith(".$host"))
             }
