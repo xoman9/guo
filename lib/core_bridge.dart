@@ -301,16 +301,21 @@ class NativeRepository extends AppRepository {
     Episode episode, {
     int quality = 0,
     bool online = false,
-  }) async => PlaybackPlan.fromJson(
-    await _read('preload', {
-      'action': 'preload',
-      'drama': drama.toJson(),
-      'chapter': episode.raw,
-      'index': episode.number,
-      'quality': quality,
-      'force': online || access?.canDownload == false,
-    }),
-  );
+  }) async {
+    // Browser-hosted TVBox playback must never fall back into the old Go
+    // resolver during background preloading.
+    if (TVBoxJavaScriptSource.supports(drama.source)) return null;
+    return PlaybackPlan.fromJson(
+      await _read('preload', {
+        'action': 'preload',
+        'drama': drama.toJson(),
+        'chapter': episode.raw,
+        'index': episode.number,
+        'quality': quality,
+        'force': online || access?.canDownload == false,
+      }),
+    );
+  }
 
   @override
   Future<DanmakuPage> danmaku(
@@ -1134,6 +1139,7 @@ class NativeRepository extends AppRepository {
 
   @override
   Future<PlaybackPlan?> localPlayback(Drama drama, Episode episode) async {
+    if (TVBoxJavaScriptSource.supports(drama.source)) return null;
     final result = await _call({
       'action': 'localPlayback',
       'drama': drama.toJson(),
