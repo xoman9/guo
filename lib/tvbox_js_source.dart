@@ -131,7 +131,16 @@ class TVBoxJavaScriptSource {
       id: drama.id,
       source: drama.source,
       sourceId: drama.sourceId,
-      title: data['vod_name']?.toString() ?? drama.title,
+      // MissAV's legacy TVBox spider returns an uppercased ID as vod_name.
+      // Prefer the verified catalog title instead of replacing it with a
+      // one-character/placeholder name from the detail scraper.
+      title: drama.source == 'missav' &&
+              drama.title.trim().length > 1 &&
+              drama.title.trim() != '['
+          ? drama.title
+          : (data['vod_name']?.toString().trim().isNotEmpty == true
+              ? data['vod_name'].toString().trim()
+              : drama.title),
       cover: data['vod_pic']?.toString() ?? drama.cover,
       description: data['vod_content']?.toString() ?? '',
       episodes: 1,
