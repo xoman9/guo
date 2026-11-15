@@ -67,6 +67,13 @@ internal class TVBoxJSBridge(private val activity: Activity) {
             result.error("tvbox_js_missing", "缺少內建 $scriptName JavaScript：${error.message}", null)
             return
         }
+        val jquery = try {
+            activity.assets.open("flutter_assets/assets/tvbox/js/jquery.slim.min.js")
+                .bufferedReader().use { it.readText() }
+        } catch (error: Exception) {
+            result.error("tvbox_js_missing", "缺少內建 jQuery：${error.message}", null)
+            return
+        }
         val url = try { route(source, method, args) }
         catch (error: Exception) {
             result.error("tvbox_js_route", error.message, null)
@@ -143,29 +150,19 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                 if (active !== view || injected) return
                 injected = true
                 val boot = """
-                  (function () {
                     window.unsafeWindow = window;
                     window.GM_info = {script:{name:${JSONObject.quote(scriptName)}}};
                     window.GM_toastLong = function(){};
-                    const run = function() {
-                      try {
-                        const userScript = document.createElement('script');
-                        userScript.textContent = ${JSONObject.quote(script)};
-                        document.documentElement.appendChild(userScript);
-                        userScript.remove();
-                      } catch(e) { GmSpiderInject.SetSpiderResult(JSON.stringify({error:String(e)})); }
-                    };
-                    if (window.jQuery) { run(); return; }
-                    const jquery = document.createElement('script');
-                    jquery.src = 'https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.slim.min.js';
-                    jquery.onload = run;
-                    jquery.onerror = function() {
-                      GmSpiderInject.SetSpiderResult(JSON.stringify({error:'jQuery 載入失敗'}));
-                    };
-                    document.head.appendChild(jquery);
-                  })();
                 """.trimIndent()
-                view.evaluateJavascript(boot, null)
+                // Load inspected local jQuery before invoking the bundled
+                // user script. This does not depend on an external CDN.
+                view.evaluateJavascript(boot) {
+                    if (active === view) {
+                        view.evaluateJavascript(jquery) {
+                            if (active === view) view.evaluateJavascript(script, null)
+                        }
+                    }
+                }
             }
         }
         val timer = Runnable { finish(error = "$scriptName JS 執行逾時；可能需要網站驗證或網頁已改版") }
