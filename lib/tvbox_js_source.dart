@@ -28,8 +28,12 @@ class TVBoxJavaScriptSource {
       // User-initiated playback takes priority over a slow detail request.
       // Cancel the currently running WebView before queuing playback; the
       // cancelled detail future will release _chain.
+      // Capture the prior queue before updating _chain. Referring to
+      // _chain inside this callback would await our own completion and
+      // deadlock the request.
+      final previous = _chain;
       final result = _channel.invokeMethod<void>('cancel').then(
-        (_) => _chain.then((_) => _perform(source, operation, args)),
+        (_) => previous.then((_) => _perform(source, operation, args)),
       );
       _chain = result.then<void>((_) {}, onError: (Object _) {});
       return result;
