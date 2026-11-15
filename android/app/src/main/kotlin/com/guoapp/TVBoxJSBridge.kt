@@ -201,9 +201,19 @@ internal class TVBoxJSBridge(private val activity: Activity) {
             "homeContent" -> "https://netflav.com/trending"
             "categoryContent" -> {
                 val category = param(0)
-                require(category.matches(Regex("[a-zA-Z0-9_?=&%-]{1,150}")) && !category.contains("..")) { "不合法的分類" }
-                val separator = if (category.contains("?")) "&" else "?"
-                "https://netflav.com/$category${separator}page=${number(1)}"
+                val path = category.substringBefore("?")
+                require(path.matches(Regex("[a-zA-Z0-9_-]{1,80}"))) { "不合法的分類路徑" }
+                val builder = Uri.Builder().scheme("https").authority("netflav.com").appendPath(path)
+                val query = category.substringAfter("?", "")
+                if (query.isNotEmpty()) {
+                    for (part in query.split("&")) {
+                        val key = part.substringBefore("=")
+                        val value = part.substringAfter("=", "")
+                        require(key.matches(Regex("[a-zA-Z0-9_-]{1,32}"))) { "不合法的分類篩選參數" }
+                        builder.appendQueryParameter(key, value)
+                    }
+                }
+                builder.appendQueryParameter("page", number(1).toString()).build().toString()
             }
             "detailContent", "playerContent" -> "https://netflav.com/video?id=${encode(slug(mediaId()))}/"
             "searchContent" -> "https://netflav.com/search?keyword=${encode(param(0))}&page=${number(2)}&type=title"
