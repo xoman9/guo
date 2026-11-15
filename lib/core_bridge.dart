@@ -802,6 +802,10 @@ class NativeRepository extends AppRepository {
     // need a Go provider to be visible. Keep them discoverable even when the
     // installed native core omits an optional provider from its registry.
     if (Platform.isAndroid && appFlavor == 'zhenguojian') {
+      // Native-only availability flags must not hide a Dart/Android JS source.
+      nativeSources.removeWhere((site) =>
+          (site.id == 'tvbox-netflav' || site.id == 'missav') &&
+          !site.available);
       if (!nativeSources.any((site) => site.id == 'tvbox-netflav')) {
         nativeSources.add(const SourceSite(
           'tvbox-netflav', 'Netflav',
