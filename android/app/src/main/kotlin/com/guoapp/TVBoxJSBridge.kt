@@ -159,6 +159,8 @@ internal class TVBoxJSBridge(private val activity: Activity) {
         // Enable this only during its playback, not for catalog searches.
         android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(
             view, source == "tvbox-netflav" && method == "playerContent")
+        var netflavPlaybackStage = "waiting_for_page"
+        var netflavEmbedHttpError: Int? = null
         val api = object {
             @JavascriptInterface
             fun GetSpiderArgs(): String = requestArgs.toString()
@@ -181,8 +183,6 @@ internal class TVBoxJSBridge(private val activity: Activity) {
         }
         view.addJavascriptInterface(api, "GmSpiderInject")
         var injected = false
-        var netflavPlaybackStage = "waiting_for_page"
-        var netflavEmbedHttpError: Int? = null
         view.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(v: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 if (method == "playerContent" && request != null) {
