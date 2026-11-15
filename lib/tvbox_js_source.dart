@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,7 +15,21 @@ class TVBoxJavaScriptSource {
   static bool supports(String source) =>
       Platform.isAndroid && (source == 'missav' || source == 'tvbox-netflav');
 
+  // A single hidden Android WebView handles one request at a time.
+  // Serialize adjacent category/search requests instead of reporting busy.
+  static Future<void> _chain = Future<void>.value();
+
   static Future<Map<String, dynamic>> _execute(
+    String source,
+    String operation,
+    List<Object?> args,
+  ) {
+    final result = _chain.then((_) => _perform(source, operation, args));
+    _chain = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
+
+  static Future<Map<String, dynamic>> _perform(
     String source,
     String operation,
     List<Object?> args,
