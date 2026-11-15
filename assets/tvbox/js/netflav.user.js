@@ -256,7 +256,7 @@ if (typeof unsafeWindow.gmSpiderRunning === "undefined") {
                             // no switcher at all. Native WebView watches actual
                             // HLS/MP4 requests separately.
                             const iframe = document.querySelector(
-                                ".videoiframe iframe, .videoiframe_container iframe, iframe[src^='https://']"
+                                ".videoiframe iframe, .videoiframe_container iframe, [class*='videoiframe'] iframe"
                             );
                             const video = document.querySelector("video[src], video source[src]");
                             if ((iframe || video) && index === 1) {
