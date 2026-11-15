@@ -57,7 +57,13 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                   if (typeof value === 'string') candidates.push(value);
                 }
               }
-              return candidates.find(x => /^https:\\/\\/[^\\s]+\\.(?:m3u8|mp4)(?:\\?[^\\s]*)?$/i.test(x)) || null;
+              return candidates.find(x => {
+                try {
+                  const u = new URL(x, document.location.href);
+                  const path = u.pathname.toLowerCase();
+                  return u.protocol === 'https:' && (path.endsWith('.m3u8') || path.endsWith('.mp4'));
+                } catch (_) { return false; }
+              }) || null;
             })();
         """.trimIndent()
         view.evaluateJavascript(probe) { raw ->
