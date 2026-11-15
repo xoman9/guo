@@ -89,6 +89,7 @@ class MainActivity : FlutterActivity() {
     private var deviceChannel: MethodChannel? = null
     private var mediaControlChannel: MethodChannel? = null
     private var headsetSession: MediaSession? = null
+    private var tvboxJSBridge: TVBoxJSBridge? = null
     private var televisionMode = false
     private var orientationListener: OrientationEventListener? = null
 
@@ -326,6 +327,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        tvboxJSBridge?.close()
+        tvboxJSBridge = null
         releaseHeadsetSession()
         pictureInPictureReceiver?.let { unregisterReceiver(it) }
         pictureInPictureReceiver = null
@@ -377,6 +380,22 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         textInput = TextInputBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        tvboxJSBridge = TVBoxJSBridge(this)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "duanju/tvbox_js")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "execute" -> {
+                        val source = call.argument<String>("source").orEmpty()
+                        val operation = call.argument<String>("operation").orEmpty()
+                        val args = call.argument<List<Any?>>("args") ?: emptyList()
+                        tvboxJSBridge?.execute(source, operation, args, result)
+                            ?: result.error("tvbox_js_unavailable", "JS 執行器尚未初始化", null)
+                    }
+                    "cancel" -> { tvboxJSBridge?.close(); result.success(null) }
+                    else -> result.notImplemented()
+                }
+            }
+
         mediaControlChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "duanju/media_controls")
             .also { channel ->
                 channel.setMethodCallHandler { call, result ->
