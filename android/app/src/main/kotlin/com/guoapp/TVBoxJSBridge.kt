@@ -40,6 +40,39 @@ internal class TVBoxJSBridge(private val activity: Activity) {
 
     fun close() { finish(error = "JS 執行已取消") }
 
+    // MissAV's supplied GMSpider script has no playerContent handler. Its
+    // playback page itself may publish a real media URL or load a real HLS
+    // manifest. Inspect only the current first-party page, never fabricate a
+    // playlist path from an unrelated UUID or bypass the site's response.
+    private fun inspectMissavPlayer(view: WebView) {
+        if (active !== view || pending == null) return
+        val probe = """
+            (function() {
+              const candidates = [];
+              try {
+                if (window.hls && typeof window.hls.url === 'string') candidates.push(window.hls.url);
+              } catch (_) {}
+              for (const node of document.querySelectorAll('video, video source')) {
+                for (const value of [node.currentSrc, node.src, node.getAttribute('data-src')]) {
+                  if (typeof value === 'string') candidates.push(value);
+                }
+              }
+              return candidates.find(x => /^https:\\/\\/[^\\s]+\\.(?:m3u8|mp4)(?:\\?[^\\s]*)?$/i.test(x)) || null;
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(probe) { raw ->
+            if (active !== view || pending == null) return@evaluateJavascript
+            val media = runCatching { org.json.JSONTokener(raw).nextValue() as? String }.getOrNull()
+            val uri = media?.let { Uri.parse(it) }
+            val path = uri?.path.orEmpty().lowercase()
+            if (uri?.scheme == "https" && !uri.host.isNullOrEmpty() &&
+                (path.endsWith(".m3u8") || path.endsWith(".mp4"))) {
+                finish(value = JSONObject().put("url", media).toString())
+            }
+        }
+    }
+
+
     fun execute(source: String, method: String, args: List<Any?>, result: MethodChannel.Result) {
         if (pending != null) {
             result.error("tvbox_js_busy", "另一個 JavaScript 站源請求仍在執行", null)
@@ -150,6 +183,14 @@ internal class TVBoxJSBridge(private val activity: Activity) {
             override fun onPageFinished(v: WebView?, url: String?) {
                 if (active !== view || injected) return
                 injected = true
+                if (source == "missav" && method == "playerContent") {
+                    // The original MissAV user script implements detailContent
+                    // but not playerContent: observe the actual webpage player.
+                    inspectMissavPlayer(view)
+                    handler.postDelayed({ inspectMissavPlayer(view) }, 1200)
+                    handler.postDelayed({ inspectMissavPlayer(view) }, 3500)
+                    return
+                }
                 val boot = """
                     window.unsafeWindow = window;
                     window.GM_info = {script:{name:${JSONObject.quote(scriptName)}}};
