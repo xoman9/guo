@@ -9,6 +9,7 @@ import (
  "regexp"
  "strconv"
  "strings"
+ "sync"
  "time"
  nethtml "golang.org/x/net/html"
 )
@@ -16,6 +17,46 @@ import (
 const tvboxJableBase = "https://jable.tv"
 var tvboxJableSlug = regexp.MustCompile(`^[A-Za-z0-9_-]{1,120}$`)
 var tvboxJableMedia = regexp.MustCompile(`(?i)\bhlsUrl\s*[:=]\s*["\x27]([^"\x27]+)["\x27]`)
+
+// Shared limiter also covers providers recreated by the registry. It avoids
+// hammering the origin on search, pagination, and automatic retries.
+var tvboxJableLimiter = struct {
+ sync.Mutex
+ next time.Time
+ cooldown time.Time
+}{}
+const tvboxJableRequestSpacing = 2 * time.Second
+const tvboxJable429Cooldown = 90 * time.Second
+
+func tvboxJableWait(ctx context.Context) error {
+ tvboxJableLimiter.Lock()
+ now := time.Now()
+ if now.Before(tvboxJableLimiter.cooldown) {
+  remaining := time.Until(tvboxJableLimiter.cooldown).Round(time.Second)
+  tvboxJableLimiter.Unlock()
+  return fmt.Errorf("Jable HTTP 429：請求過於頻繁，請於 %s 後再試", remaining)
+ }
+ scheduled := now
+ if scheduled.Before(tvboxJableLimiter.next) { scheduled = tvboxJableLimiter.next }
+ tvboxJableLimiter.next = scheduled.Add(tvboxJableRequestSpacing)
+ tvboxJableLimiter.Unlock()
+ if delay := time.Until(scheduled); delay > 0 {
+  timer := time.NewTimer(delay)
+  defer timer.Stop()
+  select {
+  case <-ctx.Done(): return ctx.Err()
+  case <-timer.C:
+  }
+ }
+ return ctx.Err()
+}
+func tvboxJableRecord429() {
+ tvboxJableLimiter.Lock()
+ defer tvboxJableLimiter.Unlock()
+ until := time.Now().Add(tvboxJable429Cooldown)
+ if until.After(tvboxJableLimiter.cooldown) { tvboxJableLimiter.cooldown = until }
+ if until.After(tvboxJableLimiter.next) { tvboxJableLimiter.next = until }
+}
 
 type tvboxJableProvider struct{ host Host }
 func (p *tvboxJableProvider) Descriptor() SourceDescriptor {
@@ -33,8 +74,12 @@ func tvboxJableURL(path string) (string,error){
 }
 func (p *tvboxJableProvider) page(ctx context.Context,path string)(*nethtml.Node,string,error){
  address,err:=tvboxJableURL(path);if err!=nil{return nil,"",err}
+ if err:=tvboxJableWait(ctx);err!=nil{return nil,"",err}
  doc,_,err:=FetchHostPage(ctx,p.host,address,tvboxJableBase+"/",UserAgent)
- if err!=nil{return nil,"",err}
+ if err!=nil{
+  if strings.Contains(err.Error(),"429"){tvboxJableRecord429();return nil,"",fmt.Errorf("Jable HTTP 429：網站限制請求頻率，已暫停請求 %s",tvboxJable429Cooldown)}
+  return nil,"",err
+ }
  for _,n:=range tvboxJableChildren(doc,"title",""){
   t:=strings.ToLower(ProviderHTMLText(n))
   if strings.Contains(t,"just a moment")||strings.Contains(t,"attention required")||strings.Contains(t,"verify you are human"){
