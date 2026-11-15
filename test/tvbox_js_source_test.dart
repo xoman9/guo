@@ -55,6 +55,11 @@ void main() {
             case 'playerContent':
               return jsonEncode({
                 'url': 'https://media.example/master.m3u8',
+                'headers': {
+                  'Referer': 'https://embed.example/player',
+                  'Origin': 'https://embed.example',
+                  'User-Agent': 'Test WebView',
+                },
               });
           }
           throw StateError('unexpected operation: $method');
@@ -114,5 +119,8 @@ void main() {
     }, 1);
     final media = await TVBoxJavaScriptSource.resolve(drama, episode);
     expect(media.url, 'https://media.example/master.m3u8');
+    expect(media.headers['Referer'], 'https://embed.example/player');
+    expect(media.headers['Origin'], 'https://embed.example');
+    expect(media.headers['User-Agent'], 'Test WebView');
   });
 }
