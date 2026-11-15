@@ -183,7 +183,40 @@ internal class TVBoxJSBridge(private val activity: Activity) {
         }
         view.addJavascriptInterface(api, "GmSpiderInject")
         var injected = false
+        // Netflav detail only reads the embedded Next.js JSON; waiting for
+        // images and external player resources delays opening the detail view.
+        fun injectSpiderOnce() {
+            if (active !== view || pending == null || injected) return
+            injected = true
+            val boot = """
+                window.unsafeWindow = window;
+                window.GM_info = {script:{name:${JSONObject.quote(scriptName)}}};
+                window.GM_toastLong = function(){};
+            """.trimIndent()
+            view.evaluateJavascript(boot) {
+                if (active === view) {
+                    view.evaluateJavascript(jquery) {
+                        if (active === view) view.evaluateJavascript(script, null)
+                    }
+                }
+            }
+        }
+        fun pollNetflavDetail(attempt: Int) {
+            if (active !== view || pending == null || injected || attempt > 48) return
+            view.evaluateJavascript(
+                "(function(){return !!document.querySelector('#__NEXT_DATA__') && document.querySelector('#__NEXT_DATA__').textContent.length>10})()"
+            ) { ready ->
+                if (active !== view || pending == null || injected) return@evaluateJavascript
+                if (ready == "true") injectSpiderOnce()
+                else handler.postDelayed({ pollNetflavDetail(attempt + 1) }, 200)
+            }
+        }
         view.webViewClient = object : WebViewClient() {
+            override fun onPageCommitVisible(v: WebView?, url: String?) {
+                if (active === view && source == "tvbox-netflav" && method == "detailContent") {
+                    pollNetflavDetail(0)
+                }
+            }
             override fun shouldInterceptRequest(v: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 if (method == "playerContent" && request != null) {
                     val uri: Uri = request.url
@@ -249,6 +282,11 @@ internal class TVBoxJSBridge(private val activity: Activity) {
             }
             override fun onPageFinished(v: WebView?, url: String?) {
                 if (active !== view || injected) return
+                if (source == "tvbox-netflav" && method == "detailContent") {
+                    // Fallback if onPageCommitVisible or early polling did not fire.
+                    injectSpiderOnce()
+                    return
+                }
                 injected = true
                 if (source == "tvbox-netflav" && method == "playerContent") {
                     netflavPlaybackStage = "page_loaded_waiting_for_source"
