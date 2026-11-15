@@ -251,7 +251,8 @@ class _DetailPageState extends State<DetailPage> {
       AppScope.of(context).repository.supportsDownloads &&
       widget.store.canDownload;
 
-  bool get _ready => !_details!.loading && _details!.episodes.isNotEmpty;
+  bool get _ready => _details!.episodes.isNotEmpty &&
+      (!_details!.loading || _details!.drama.source == 'tvbox-netflav');
 
   Future<void> _refresh() async {
     final details = _details!;
@@ -357,6 +358,9 @@ class _DetailPageState extends State<DetailPage> {
 
   void _preopen() {
     final details = _details!;
+    // Netflav uses a single JS WebView bridge. Speculative preplay can
+    // occupy it for 30 seconds and block the user-triggered playback.
+    if (details.drama.source == 'tvbox-netflav') return;
     if (_handle != null ||
         _watching ||
         !mounted ||
