@@ -97,7 +97,7 @@ void main() {
       title: 'Catalog title',
     );
     final detail = await TVBoxJavaScriptSource.detail(drama);
-    expect(detail.drama.title, 'Verified title');
+    expect(detail.drama.title, 'Catalog title');
     expect(detail.episodes, hasLength(1));
     final media = await TVBoxJavaScriptSource.resolve(
       detail.drama,
