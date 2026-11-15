@@ -14,19 +14,6 @@ class DramaDetails extends ChangeNotifier {
     : _drama = repository.catalogUpdates.current(drama),
       _epoch = store.profileEpoch {
     store.addListener(_notify);
-    if (_drama.source == 'tvbox-netflav' && _drama.sourceId.isNotEmpty) {
-      // Netflav has a valid first source before its slow detail WebView loads.
-      // Expose Play immediately; detail() will replace this with actual sources.
-      _episodes = [
-        Episode({
-          'id': '${_drama.id}:1',
-          'source': _drama.source,
-          'title': '播放源1',
-          'currentEpisode': 1,
-          'jsSourceIndex': 1,
-        }, 1),
-      ];
-    }
     load();
   }
   final AppRepository repository;
