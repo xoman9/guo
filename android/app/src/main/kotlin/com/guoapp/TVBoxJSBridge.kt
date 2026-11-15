@@ -125,6 +125,7 @@ internal class TVBoxJSBridge(private val activity: Activity) {
         active = view
         view.settings.javaScriptEnabled = true
         view.settings.domStorageEnabled = true
+        if (method == "playerContent") view.settings.mediaPlaybackRequiresUserGesture = false
         view.settings.javaScriptCanOpenWindowsAutomatically = false
         view.settings.allowFileAccess = false
         view.settings.allowContentAccess = false
