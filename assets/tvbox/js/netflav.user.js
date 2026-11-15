@@ -226,30 +226,54 @@ if (typeof unsafeWindow.gmSpiderRunning === "undefined") {
                     };
                 },
                 playerContent: function (flag, id, vipFlags) {
-                    // Netflav's source buttons are mounted asynchronously by
-                    // React. A one-shot querySelector can run before the
-                    // player has rendered, resulting in endless loading.
+                    // A Netflav detail can already mount the embedded player
+                    // before the source switcher appears. Do not make a source
+                    // button a prerequisite for observing real media requests.
                     const source = Number.parseInt(window.location.hash.slice(1), 10);
                     const index = Number.isInteger(source) && source > 0 ? source : 1;
                     return new Promise(function (resolve) {
-                        let attempts = 0;
+                        const started = Date.now();
+                        const selectors = [
+                            ".videoiframe_source_container .videoiframe_source_tag",
+                            ".videoiframe_source_tag",
+                            "[class*='videoiframe_source'] button",
+                            "[class*='source_container'] button"
+                        ];
                         function selectSource() {
-                            const buttons = document.querySelectorAll(
-                                ".videoiframe_source_container .videoiframe_source_tag"
+                            const candidates = [];
+                            for (const selector of selectors) {
+                                const nodes = Array.from(document.querySelectorAll(selector));
+                                if (nodes.length > candidates.length) {
+                                    candidates.splice(0, candidates.length, ...nodes);
+                                }
+                            }
+                            if (candidates[index - 1]) {
+                                candidates[index - 1].click();
+                                resolve({type: "match", stage: "source_clicked"});
+                                return;
+                            }
+                            // A single source or auto-selected source may have
+                            // no switcher at all. Native WebView watches actual
+                            // HLS/MP4 requests separately.
+                            const iframe = document.querySelector(
+                                ".videoiframe iframe, .videoiframe_container iframe, iframe[src^='https://']"
                             );
-                            const button = buttons[index - 1];
-                            if (button) {
-                                button.click();
-                                // TVBox GMSpider's match mode observes the
-                                // real player media request, not this page URL.
-                                resolve({type: "match"});
+                            const video = document.querySelector("video[src], video source[src]");
+                            if ((iframe || video) && index === 1) {
+                                resolve({type: "match", stage: "existing_embed"});
                                 return;
                             }
-                            if (++attempts >= 40) {
-                                resolve({error: "Netflav 播放源載入逾時或不存在"});
+                            if (Date.now() - started >= 12000) {
+                                resolve({
+                                    error: "Netflav 找不到播放源：requested=" + index +
+                                        ", buttons=" + candidates.length +
+                                        ", iframe=" + Boolean(document.querySelector("iframe")) +
+                                        ", video=" + Boolean(document.querySelector("video")) +
+                                        ", page=" + location.pathname
+                                });
                                 return;
                             }
-                            setTimeout(selectSource, 250);
+                            setTimeout(selectSource, 300);
                         }
                         selectSource();
                     });
