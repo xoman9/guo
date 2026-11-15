@@ -194,6 +194,12 @@ class TVBoxJavaScriptSource {
         }, chapters.length + 1));
       }
     }
+    // The present Netflav site often returns an empty srcs list: it is
+    // functioning as a metadata/promotional catalog. Do not manufacture a
+    // playable first episode when the site returned no playable sources.
+    if (chapters.isEmpty && drama.source == 'tvbox-netflav') {
+      return DramaDetail(updated, chapters);
+    }
     if (chapters.isEmpty) {
       chapters.add(Episode({
         'id': '${drama.id}:1',
