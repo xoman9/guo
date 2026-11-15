@@ -83,7 +83,7 @@ console.log(JSON.stringify(GM_info));
             result.total = result.pagecount * result.limit;
             $(".gap-5 .thumbnail").each(function (i) {
                 result.list.push({
-                    vod_id: ($(this).find(".text-secondary").attr("alt") || ($(this).find(".text-secondary").attr("href") || "").split("?")[0].replace(/\\/$/, "").split("/").pop()),
+                    vod_id: ($(this).find(".text-secondary").attr("alt") || ($(this).find(".text-secondary").attr("href") || "").split("?")[0].replace(/\/$/, "").split("/").pop()),
                     vod_name: $(this).find(".text-secondary").text().trim(),
                     vod_pic: $(this).find("img").data("src"),
                     vod_year: $(this).find(".right-1").text().trim(),
@@ -149,7 +149,7 @@ console.log(JSON.stringify(GM_info));
                 };
                 $(".gap-5:eq(5) .thumbnail").each(function () {
                     result.list.push({
-                        vod_id: ($(this).find(".text-secondary").attr("alt") || ($(this).find(".text-secondary").attr("href") || "").split("?")[0].replace(/\\/$/, "").split("/").pop()),
+                        vod_id: ($(this).find(".text-secondary").attr("alt") || ($(this).find(".text-secondary").attr("href") || "").split("?")[0].replace(/\/$/, "").split("/").pop()),
                         vod_name: $(this).find(".text-secondary").text().trim(),
                         vod_pic: $(this).find("img").data("src"),
                         vod_year: $(this).find(".absolute").text().trim()
