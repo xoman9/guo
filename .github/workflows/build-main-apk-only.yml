@@ -42,7 +42,7 @@ permissions:
 
 concurrency:
   group: guo-main-self-contained-110
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
