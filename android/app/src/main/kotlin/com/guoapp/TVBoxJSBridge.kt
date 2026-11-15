@@ -6,6 +6,7 @@ import android.os.Looper
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.net.Uri
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceError
 import android.webkit.WebResourceResponse
@@ -90,8 +91,13 @@ internal class TVBoxJSBridge(private val activity: Activity) {
             fun SetSpiderResult(payload: String) {
                 handler.post {
                     if (active === view && pending != null) {
-                        if (payload.isBlank()) finish(error = "$scriptName JS 未回傳資料")
-                        else finish(value = payload)
+                        if (payload.isBlank()) {
+                            finish(error = "$scriptName JS 未回傳資料")
+                        } else if (method != "playerContent" || !payload.contains("\"type\":\"match\"")) {
+                            finish(value = payload)
+                        }
+                        // TVBox {type:match} means observe a REAL media request.
+                        // It is not a playable URL and must not be returned as one.
                     }
                 }
             }
@@ -99,6 +105,23 @@ internal class TVBoxJSBridge(private val activity: Activity) {
         view.addJavascriptInterface(api, "GmSpiderInject")
         var injected = false
         view.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(v: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                if (method == "playerContent" && request != null) {
+                    val uri: Uri = request.url
+                    val path = uri.path.orEmpty().lowercase()
+                    val media = path.endsWith("/master.m3u8") ||
+                        path.endsWith("/playlist.m3u8") || path.endsWith("/v.mp4")
+                    if (media && uri.scheme == "https" && !uri.host.isNullOrEmpty()) {
+                        val address = uri.toString()
+                        handler.post {
+                            if (active === view && pending != null) {
+                                finish(value = JSONObject().put("url", address).toString())
+                            }
+                        }
+                    }
+                }
+                return null
+            }
             override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
                 val uri = request?.url ?: return true
                 val name = uri.host.orEmpty()
@@ -153,6 +176,11 @@ internal class TVBoxJSBridge(private val activity: Activity) {
 
     private fun route(source: String, method: String, args: List<Any?>): String {
         fun param(i: Int) = (args.getOrNull(i)?.toString() ?: "")
+        fun mediaId(): String {
+            val first = args.getOrNull(0)
+            return if (first is List<*>) first.firstOrNull()?.toString().orEmpty()
+                   else param(0)
+        }
         fun number(i: Int) = (param(i).toIntOrNull() ?: 1).coerceIn(1, 10000)
         fun encode(input: String) = java.net.URLEncoder.encode(input, "UTF-8")
         fun slug(input: String): String {
@@ -167,7 +195,7 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                     require(tid.matches(Regex("[a-zA-Z0-9_/-]{1,120}")) && !tid.contains("..")) { "不合法的分類" }
                     "https://missav.ws/cn/$tid?page=${number(1)}"
                 }
-                "detailContent", "playerContent" -> "https://missav.ws/cn/${slug(param(0))}"
+                "detailContent", "playerContent" -> "https://missav.ws/cn/${slug(mediaId())}"
                 "searchContent" -> "https://missav.ws/cn/search/${encode(param(0))}?page=${number(2)}"
                 else -> error("Unsupported")
             }
@@ -180,7 +208,7 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                 val separator = if (category.contains("?")) "&" else "?"
                 "https://netflav.com/$category${separator}page=${number(1)}"
             }
-            "detailContent", "playerContent" -> "https://netflav.com/video?id=${encode(slug(param(0)))}/"
+            "detailContent", "playerContent" -> "https://netflav.com/video?id=${encode(slug(mediaId()))}/"
             "searchContent" -> "https://netflav.com/search?keyword=${encode(param(0))}&page=${number(2)}&type=title"
             else -> error("Unsupported")
         }
