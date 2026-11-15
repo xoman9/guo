@@ -184,9 +184,13 @@ class TVBoxJavaScriptSource {
   }
 
   static Future<PlaybackPlan> resolve(Drama drama, Episode episode) async {
+    final referer = drama.source == 'missav'
+        ? 'https://missav.ws/cn/${Uri.encodeComponent(drama.sourceId)}'
+        : 'https://netflav.com/video?id=${Uri.encodeQueryComponent(drama.sourceId)}';
+    final headers = <String, String>{'Referer': referer};
     final direct = episode.raw['jsMediaURL']?.toString() ?? '';
     if (direct.startsWith('https://') || direct.startsWith('http://')) {
-      return PlaybackPlan(url: direct);
+      return PlaybackPlan(url: direct, headers: headers);
     }
     // The csp_GM player can request an iframe and return {type:match}.
     // The platform adapter must observe a real HTTPS media request, never
@@ -200,6 +204,6 @@ class TVBoxJavaScriptSource {
     if (!url.startsWith('https://') && !url.startsWith('http://')) {
       throw StateError('JS 播放器尚未取得可播放的媒體網址');
     }
-    return PlaybackPlan(url: url);
+    return PlaybackPlan(url: url, headers: headers);
   }
 }
