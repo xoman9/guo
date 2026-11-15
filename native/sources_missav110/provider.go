@@ -61,9 +61,9 @@ func unpackMissPacker(body string) string {
 }
 
 var descriptor = core.SourceDescriptor{
- ID:sourceID,Name:"MissAV",DefaultOff:true,BaseURL:baseURL,
+ ID:sourceID,Name:"MissAV(JS)",DefaultOff:true,BaseURL:baseURL,
  NoHostRotation:true,BrowserFingerprint:true,
- Description:"參考提供的 WebHome HTML：missav.ws 的分類、影片和播放頁路由",
+ Description:"Android 版優先使用 cluntop/tvbox fun.json 的 missav.user.js；Go/WebHome 僅保留原生相容層",
  ValidCategory:validCategory,
 }
 // WebHome records the stream UUID in each thumbnail preview element.
