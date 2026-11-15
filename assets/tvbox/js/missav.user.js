@@ -229,9 +229,21 @@ console.log(JSON.stringify(GM_info));
                 });
 
                 console.log($('a.items-center:contains("显示更多")'));
+                const movieId = String(ids[0] || "").trim();
+                // The old spider used only the ID as the display title.
+                // A broken/short ID could produce a literal "[" in the
+                // player header. Prefer page metadata when it is available.
+                const pageTitle = (
+                    $('head meta[property="og:title"]').attr("content") ||
+                    $('head meta[name="description"]').attr("content") ||
+                    $("h1").first().text() ||
+                    ""
+                ).trim();
+                const movieTitle = pageTitle.length > 1 ? pageTitle :
+                    (movieId.length > 1 ? movieId.toUpperCase() : "MissAV");
                 const vod = {
-                    vod_id: ids[0],
-                    vod_name: ids[0].toUpperCase(),
+                    vod_id: movieId,
+                    vod_name: movieTitle,
                     vod_pic: $("head link[as=image]").attr("href"),
                     vod_year: $("#space-y-2 time").text(),
                     vod_remarks: formatDetail(detail, "类型"),
