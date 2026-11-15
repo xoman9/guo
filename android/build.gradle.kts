@@ -26,6 +26,9 @@ subprojects {
     tasks.withType<JavaCompile>().configureEach {
         sourceCompatibility = JavaVersion.VERSION_17.toString()
         targetCompatibility = JavaVersion.VERSION_17.toString()
+        // Legacy Android plugins may still pass -source/-target 8 internally.
+        // Suppress only obsolete-options warnings; retain all other diagnostics.
+        options.compilerArgs.add("-Xlint:-options")
     }
 }
 
