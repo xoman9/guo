@@ -266,7 +266,43 @@ console.log(JSON.stringify(GM_info));
         }
         console.log(result);
         if (typeof GmSpiderInject !== 'undefined') {
-            GmSpiderInject.SetSpiderResult(JSON.stringify(result));
+            // The official TVBox MissAV spider returns its HLS URL through
+            // detailContent, not playerContent. On Android WebView the page's
+            // player may initialize AFTER DOM ready; wait for that actual URL
+            // instead of immediately returning an unplayable empty value.
+            if (GMSpiderArgs.fName === "detailContent" && result && result.list && result.list[0]) {
+                const vod = result.list[0];
+                const publish = () => GmSpiderInject.SetSpiderResult(JSON.stringify(result));
+                let attempts = 0;
+                const checkHls = () => {
+                    let candidate = "";
+                    try {
+                        if (typeof hls !== "undefined" && hls && typeof hls.url === "string") {
+                            candidate = hls.url;
+                        }
+                    } catch (e) {}
+                    try {
+                        const parsed = new URL(candidate, window.location.href);
+                        if (parsed.protocol === "https:" &&
+                            /\\.(?:m3u8|mp4)$/i.test(parsed.pathname)) {
+                            vod.vod_play_url = "多视轨$" + parsed.href;
+                            publish();
+                            return;
+                        }
+                    } catch (e) {}
+                    if (++attempts < 30) {
+                        setTimeout(checkHls, 500);
+                    } else {
+                        // Keep details accessible: Android uses the actual
+                        // first-party playback page as its fallback resolver.
+                        publish();
+                    }
+                };
+                if (vod.vod_play_url) publish();
+                else checkHls();
+            } else {
+                GmSpiderInject.SetSpiderResult(JSON.stringify(result));
+            }
         }
     });
 })();
