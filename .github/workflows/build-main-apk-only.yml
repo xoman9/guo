@@ -42,8 +42,9 @@ permissions:
   contents: read
 
 concurrency:
+  # Build the newest main revision; superseded runs should not block APKs.
   group: guo-main-self-contained-110
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
