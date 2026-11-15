@@ -315,12 +315,25 @@ if (typeof unsafeWindow.gmSpiderRunning === "undefined") {
                                     try { return new URL(frame.src).host; }
                                     catch (_) { return "unknown"; }
                                 }))].slice(0, 5);
+                                let sourceInfo = "unavailable";
+                                try {
+                                    const state = JSON.parse(document.querySelector("#__NEXT_DATA__").textContent);
+                                    const sources = state?.props?.initialState?.video?.data?.srcs;
+                                    sourceInfo = Array.isArray(sources)
+                                        ? "count=" + sources.length + ", selectedType=" +
+                                          typeof sources[index - 1] + ", keys=" +
+                                          (sources[index - 1] && typeof sources[index - 1] === "object"
+                                              ? Object.keys(sources[index - 1]).slice(0, 8).join("|")
+                                              : "none")
+                                        : "missing";
+                                } catch (_) {}
                                 resolve({
                                     error: "Netflav 播放源未就緒：requested=" + index +
                                         ", buttons=" + candidates.length +
                                         ", frames=" + frames.length +
                                         ", frameHosts=" + hosts.join(",") +
-                                        ", html5Video=" + Boolean(video)
+                                        ", html5Video=" + Boolean(video) +
+                                        ", pageSources=" + sourceInfo
                                 });
                                 return;
                             }
