@@ -794,10 +794,30 @@ class NativeRepository extends AppRepository {
     if (build['flavor'] != appFlavor) {
       throw AppFailure('应用与原生核心的站源版本不一致，请使用完整安装包重新安装');
     }
-    SourceSite.install([
+    final nativeSources = [
       for (final row in build['sources'] as List? ?? const [])
         SourceSite.fromJson(Map<String, dynamic>.from(row as Map)),
-    ]);
+    ];
+    // The two Android TVBox spiders run via MethodChannel/WebView and do not
+    // need a Go provider to be visible. Keep them discoverable even when the
+    // installed native core omits an optional provider from its registry.
+    if (Platform.isAndroid && appFlavor == 'zhenguojian') {
+      if (!nativeSources.any((site) => site.id == 'tvbox-netflav')) {
+        nativeSources.add(const SourceSite(
+          'tvbox-netflav', 'Netflav',
+          'TVBox JavaScript / Android WebView',
+          defaultOff: true,
+        ));
+      }
+      if (!nativeSources.any((site) => site.id == 'missav')) {
+        nativeSources.add(const SourceSite(
+          'missav', 'MissAV(JS)',
+          'TVBox JavaScript / Android WebView',
+          defaultOff: true,
+        ));
+      }
+    }
+    SourceSite.install(nativeSources);
     if (!background) await BackgroundDownloads.prepare();
     if (!background) {
       SystemProxyMonitor.start((value) async {
