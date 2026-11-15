@@ -21,6 +21,7 @@ import 'resource_settings.dart';
 import 'diary_service.dart';
 import 'app_update.dart';
 import 'sorani_account.dart';
+import 'tvbox_js_source.dart';
 
 typedef _NativeRequest = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef _DartRequest = Pointer<Utf8> Function(Pointer<Utf8>);
@@ -810,6 +811,10 @@ class NativeRepository extends AppRepository {
     String source, {
     bool force = false,
   }) async {
+    if (TVBoxJavaScriptSource.supports(source)) {
+      _authorize(source);
+      return TVBoxJavaScriptSource.categories(source);
+    }
     final result = await _read('categories-$source', {
       'action': 'categories',
       'source': source,
@@ -828,8 +833,14 @@ class NativeRepository extends AppRepository {
     String query = '',
     String category = '',
     bool force = false,
-  }) async => CatalogPage.fromJson(
-    await _read(query.isEmpty ? 'catalog-$source' : 'catalog-$source-search', {
+  }) async {
+    if (TVBoxJavaScriptSource.supports(source)) {
+      _authorize(source);
+      return TVBoxJavaScriptSource.catalog(
+        source, page: page, query: query, category: category);
+    }
+    return CatalogPage.fromJson(
+      await _read(query.isEmpty ? 'catalog-$source' : 'catalog-$source-search', {
       'action': 'catalog',
       'source': source,
       'page': page,
@@ -837,9 +848,15 @@ class NativeRepository extends AppRepository {
       'category': category,
       'force': force,
     }),
-  );
+    );
+  }
   @override
-  Future<CatalogPage> cached(String source, {String category = ''}) async =>
+  Future<CatalogPage> cached(String source, {String category = ''}) async { 
+    if (TVBoxJavaScriptSource.supports(source)) {
+      _authorize(source);
+      return CatalogPage(const []);
+    }
+    return 
       CatalogPage.fromJson(
         await _call({
           'action': 'cached',
@@ -847,6 +864,7 @@ class NativeRepository extends AppRepository {
           'category': category,
         }),
       );
+  }
   @override
   bool coverCached(Drama drama) =>
       _coverPaths.containsKey('${drama.id}\u0000${drama.cover}');
@@ -887,9 +905,15 @@ class NativeRepository extends AppRepository {
   }
 
   @override
-  Future<DramaDetail> detail(Drama drama) async => DramaDetail.fromJson(
-    await _call({'action': 'detail', 'drama': drama.toJson()}),
-  );
+  Future<DramaDetail> detail(Drama drama) async {
+    if (TVBoxJavaScriptSource.supports(drama.source)) {
+      _authorize(drama.source);
+      return TVBoxJavaScriptSource.detail(drama);
+    }
+    return DramaDetail.fromJson(
+      await _call({'action': 'detail', 'drama': drama.toJson()}),
+    );
+  }
 
   @override
   Future<List<DramaSeason>> seasons(Drama drama) async {
@@ -905,7 +929,12 @@ class NativeRepository extends AppRepository {
     Drama drama,
     Episode episode, {
     int quality = 0,
-  }) async => PlaybackPlan.fromJson(
+  }) async {
+    if (TVBoxJavaScriptSource.supports(drama.source)) {
+      _authorize(drama.source);
+      return TVBoxJavaScriptSource.resolve(drama, episode);
+    }
+    return PlaybackPlan.fromJson(
     await _call({
       'action': 'resolve',
       'drama': drama.toJson(),
@@ -914,7 +943,8 @@ class NativeRepository extends AppRepository {
       'quality': quality,
       'sequence': ++_playbackSequence,
     }),
-  );
+    );
+  }
   @override
   Future<PlaybackPlan> fallback(PlaybackPlan current) async =>
       PlaybackPlan.fromJson(
@@ -1094,17 +1124,23 @@ class NativeRepository extends AppRepository {
     Drama drama,
     Episode episode, {
     int quality = 0,
-  }) async => PlaybackPlan.fromJson(
-    await _call({
-      'action': 'resolve',
-      'drama': drama.toJson(),
-      'chapter': episode.raw,
-      'index': episode.number,
-      'quality': quality,
-      'force': true,
-      'sequence': ++_playbackSequence,
-    }),
-  );
+  }) async {
+    if (TVBoxJavaScriptSource.supports(drama.source)) {
+      _authorize(drama.source);
+      return TVBoxJavaScriptSource.resolve(drama, episode);
+    }
+    return PlaybackPlan.fromJson(
+      await _call({
+        'action': 'resolve',
+        'drama': drama.toJson(),
+        'chapter': episode.raw,
+        'index': episode.number,
+        'quality': quality,
+        'force': true,
+        'sequence': ++_playbackSequence,
+      }),
+    );
+  }
 
   @override
   Future<void> release(String session) async {
