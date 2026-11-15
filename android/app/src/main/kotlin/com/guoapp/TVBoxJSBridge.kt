@@ -161,6 +161,8 @@ internal class TVBoxJSBridge(private val activity: Activity) {
             view, source == "tvbox-netflav" && method == "playerContent")
         var netflavPlaybackStage = "waiting_for_page"
         var netflavEmbedHttpError: Int? = null
+        val observedNetflavHosts = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+        var netflavPlayerFrameSummary = "not_checked"
         val api = object {
             @JavascriptInterface
             fun GetSpiderArgs(): String = requestArgs.toString()
@@ -173,7 +175,8 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                         } else if (method != "playerContent" || !payload.contains("\"type\":\"match\"")) {
                             finish(value = payload)
                         } else if (source == "tvbox-netflav") {
-                            netflavPlaybackStage = "source_clicked_waiting_for_media"
+                            netflavPlaybackStage = if (payload.contains("existing_embed"))
+                                "existing_embed_waiting_for_media" else "source_clicked_waiting_for_media"
                         }
                         // TVBox {type:match} means observe a REAL media request.
                         // It is not a playable URL and must not be returned as one.
@@ -221,11 +224,14 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                 if (method == "playerContent" && request != null) {
                     val uri: Uri = request.url
                     val path = uri.path.orEmpty().lowercase()
+                    if (source == "tvbox-netflav" && !uri.host.isNullOrEmpty()) {
+                        observedNetflavHosts.add(uri.host.orEmpty())
+                    }
                     // The old code matched only three filenames. In reality
                     // Netflav's embedded players may use arbitrary HLS/MP4
                     // basenames with query parameters.
                     val media = if (source == "tvbox-netflav") {
-                        path.endsWith(".m3u8") || path.endsWith(".mp4")
+                        path.endsWith(".m3u8") || path.endsWith(".mp4") || path.endsWith(".mpd")
                     } else {
                         path.endsWith("/master.m3u8") ||
                             path.endsWith("/playlist.m3u8") || path.endsWith("/v.mp4")
@@ -330,7 +336,30 @@ internal class TVBoxJSBridge(private val activity: Activity) {
         val timer = Runnable {
             if (source == "tvbox-netflav" && method == "playerContent") {
                 val rejected = netflavEmbedHttpError?.let { "; embed HTTP $it" }.orEmpty()
-                finish(error = "Netflav 播放診斷：$netflavPlaybackStage$rejected；30 秒內未取得 HLS/MP4 網址")
+                val hosts = synchronized(observedNetflavHosts) {
+                    observedNetflavHosts.take(8).joinToString(",")
+                }
+                val stage = netflavPlaybackStage
+                // Inspect only page-level frame metadata. The iframe DOM is
+                // cross-origin, so trying to read its document would fail.
+                view.evaluateJavascript("""
+                    (function(){
+                        const frames=Array.from(document.querySelectorAll('iframe'));
+                        return JSON.stringify({count:frames.length,
+                            hosts:frames.map(f=>{try{return new URL(f.src).host}catch(_){return 'unknown'}}).slice(0,6)});
+                    })()
+                """.trimIndent()) { raw ->
+                    if (active !== view || pending == null) return@evaluateJavascript
+                    netflavPlayerFrameSummary = raw.take(400)
+                    finish(error = "Netflav 播放診斷：$stage$rejected；30 秒未見 HLS/MP4/DASH；frames=$netflavPlayerFrameSummary；requestHosts=$hosts")
+                }
+                // If the JavaScript evaluation never completes, fail rather
+                // than leaving the screen in a perpetual loading state.
+                handler.postDelayed({
+                    if (active === view && pending != null) {
+                        finish(error = "Netflav 播放診斷：$stage$rejected；未取得媒體；requestHosts=$hosts")
+                    }
+                }, 1500)
             } else {
                 finish(error = "$scriptName JS 執行逾時；可能需要網站驗證或網頁已改版")
             }
