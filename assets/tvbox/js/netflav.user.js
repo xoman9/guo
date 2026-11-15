@@ -237,9 +237,37 @@ if (typeof unsafeWindow.gmSpiderRunning === "undefined") {
                             ".videoiframe_source_container .videoiframe_source_tag",
                             ".videoiframe_source_tag",
                             "[class*='videoiframe_source'] button",
-                            "[class*='source_container'] button"
+                            "[class*='source_container'] button",
+                            "[class*='source'] [role='tab']",
+                            "[class*='source'] [role='button']"
                         ];
+                        // Read only a real media URL supplied by the page.
+                        // Player/advertisement iframe URLs are not media URLs.
+                        function explicitMediaUrl() {
+                            try {
+                                const state = JSON.parse(document.querySelector("#__NEXT_DATA__").textContent);
+                                const sources = state?.props?.initialState?.video?.data?.srcs;
+                                const source = Array.isArray(sources) ? sources[index - 1] : null;
+                                const candidates = typeof source === "string" ? [source] :
+                                    source && typeof source === "object" ?
+                                    [source.url, source.src, source.file, source.playUrl] : [];
+                                for (const candidate of candidates) {
+                                    if (typeof candidate !== "string") continue;
+                                    const url = new URL(candidate, location.href);
+                                    if (url.protocol === "https:" &&
+                                        /\\.(m3u8|mp4|mpd)$/i.test(url.pathname)) {
+                                        return url.href;
+                                    }
+                                }
+                            } catch (_) {}
+                            return null;
+                        }
                         function selectSource() {
+                            const direct = explicitMediaUrl();
+                            if (direct) {
+                                resolve({url: direct});
+                                return;
+                            }
                             const candidates = [];
                             for (const selector of selectors) {
                                 const nodes = Array.from(document.querySelectorAll(selector));
