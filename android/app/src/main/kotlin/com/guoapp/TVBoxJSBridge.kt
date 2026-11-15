@@ -1,6 +1,8 @@
 package com.guoapp
 
 import android.app.Activity
+import android.view.Gravity
+import android.widget.FrameLayout
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
@@ -19,6 +21,7 @@ import org.json.JSONObject
 internal class TVBoxJSBridge(private val activity: Activity) {
     private val handler = Handler(Looper.getMainLooper())
     private var active: WebView? = null
+    private var netflavContainer: FrameLayout? = null
     private var pending: MethodChannel.Result? = null
     private var timedOut: Runnable? = null
 
@@ -32,6 +35,8 @@ internal class TVBoxJSBridge(private val activity: Activity) {
         if (view != null) {
             view.stopLoading()
             view.removeJavascriptInterface("GmSpiderInject")
+            netflavContainer?.removeView(view)
+            netflavContainer = null
             view.destroy()
         }
         if (error == null) completion.success(value)
@@ -123,6 +128,17 @@ internal class TVBoxJSBridge(private val activity: Activity) {
         args.forEach { requestArgs.put(it ?: JSONObject.NULL) }
         val view = WebView(activity)
         active = view
+        if (source == "tvbox-netflav" && method == "playerContent") {
+            // Keep Netflav's React player in a real attached WebView so iframe
+            // loading and playback requests are not suspended offscreen.
+            val root = activity.findViewById<FrameLayout>(android.R.id.content)
+            if (root != null) {
+                netflavContainer = root
+                view.alpha = 0.01f
+                view.isClickable = false
+                root.addView(view, FrameLayout.LayoutParams(2, 2, Gravity.TOP or Gravity.START))
+            }
+        }
         view.settings.javaScriptEnabled = true
         view.settings.domStorageEnabled = true
         if (method == "playerContent") view.settings.mediaPlaybackRequiresUserGesture = false
@@ -156,13 +172,29 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                 if (method == "playerContent" && request != null) {
                     val uri: Uri = request.url
                     val path = uri.path.orEmpty().lowercase()
-                    val media = path.endsWith("/master.m3u8") ||
-                        path.endsWith("/playlist.m3u8") || path.endsWith("/v.mp4")
+                    // The old code matched only three filenames. In reality
+                    // Netflav's embedded players may use arbitrary HLS/MP4
+                    // basenames with query parameters.
+                    val media = if (source == "tvbox-netflav") {
+                        path.endsWith(".m3u8") || path.endsWith(".mp4")
+                    } else {
+                        path.endsWith("/master.m3u8") ||
+                            path.endsWith("/playlist.m3u8") || path.endsWith("/v.mp4")
+                    }
                     if (media && uri.scheme == "https" && !uri.host.isNullOrEmpty()) {
                         val address = uri.toString()
+                        val headers = JSONObject()
+                        if (source == "tvbox-netflav") {
+                            for (name in listOf("Referer", "Origin", "User-Agent")) {
+                                val value = request.requestHeaders.entries
+                                    .firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
+                                if (!value.isNullOrBlank()) headers.put(name, value)
+                            }
+                        }
                         handler.post {
                             if (active === view && pending != null) {
-                                finish(value = JSONObject().put("url", address).toString())
+                                finish(value = JSONObject().put("url", address)
+                                    .put("headers", headers).toString())
                             }
                         }
                     }
