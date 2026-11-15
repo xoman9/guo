@@ -49,3 +49,6 @@ flutter:
   config:
     enable-swift-package-manager: false
   uses-material-design: true
+  assets:
+    - assets/tvbox/js/missav.user.js
+    - assets/tvbox/js/netflav.user.js
