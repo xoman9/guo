@@ -737,7 +737,13 @@ class PlaybackSession extends ChangeNotifier {
             _localFailure = error is AppFailure && error.code == 'local_media';
             _loginRequired =
                 error is AppFailure && error.code == 'source_login';
-            _error = error is AppFailure ? error.message : '无法播放这一集，请重试或换一集。';
+            // Preserve actionable diagnostics for the Netflav JS/WebView bridge.
+            // _diagnostic redacts URLs before displaying the failure.
+            _error = error is AppFailure
+                ? error.message
+                : detail.drama.source == 'tvbox-netflav'
+                    ? 'Netflav 播放解析失敗：${_diagnostic(error)}'
+                    : '无法播放这一集，请重试或换一集。';
             _notify();
           }
         }
