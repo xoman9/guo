@@ -267,24 +267,32 @@ if (typeof unsafeWindow.gmSpiderRunning === "undefined") {
                                 resolve({type: "match", stage: "source_clicked"});
                                 return;
                             }
-                            // A single source or auto-selected source may have
-                            // no switcher at all. Native WebView watches actual
-                            // HLS/MP4 requests separately.
-                            const iframe = document.querySelector(
-                                ".videoiframe iframe, .videoiframe_container iframe, [class*='videoiframe'] iframe"
-                            );
+                            // An iframe alone is NOT a playable source:
+                            // ad frames can occupy the same containers and
+                            // previously caused false "existing_embed" matches.
                             const video = document.querySelector("video[src], video source[src]");
-                            if ((iframe || video) && index === 1) {
-                                resolve({type: "match", stage: "existing_embed"});
+                            const videoUrl = video && (video.currentSrc || video.src || video.getAttribute("src"));
+                            if (videoUrl && index === 1) {
+                                const element = video.closest("video") || video;
+                                if (typeof element.play === "function") {
+                                    const play = element.play();
+                                    if (play && typeof play.catch === "function") play.catch(() => {});
+                                }
+                                resolve({type: "match", stage: "html5_video"});
                                 return;
                             }
                             if (Date.now() - started >= 12000) {
+                                const frames = Array.from(document.querySelectorAll("iframe"));
+                                const hosts = [...new Set(frames.map(frame => {
+                                    try { return new URL(frame.src).host; }
+                                    catch (_) { return "unknown"; }
+                                }))].slice(0, 5);
                                 resolve({
-                                    error: "Netflav 找不到播放源：requested=" + index +
+                                    error: "Netflav 播放源未就緒：requested=" + index +
                                         ", buttons=" + candidates.length +
-                                        ", iframe=" + Boolean(document.querySelector("iframe")) +
-                                        ", video=" + Boolean(document.querySelector("video")) +
-                                        ", page=" + location.pathname
+                                        ", frames=" + frames.length +
+                                        ", frameHosts=" + hosts.join(",") +
+                                        ", html5Video=" + Boolean(video)
                                 });
                                 return;
                             }
