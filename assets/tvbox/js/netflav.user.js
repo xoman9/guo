@@ -226,11 +226,33 @@ if (typeof unsafeWindow.gmSpiderRunning === "undefined") {
                     };
                 },
                 playerContent: function (flag, id, vipFlags) {
-                    let link = window.location.hash.split("#").at(1);
-                    document.querySelector(`.videoiframe_source_container .videoiframe_source_tag:nth-child(${link})`).dispatchEvent(new Event("click"));
-                    return {
-                        type: "match"
-                    };
+                    // Netflav's source buttons are mounted asynchronously by
+                    // React. A one-shot querySelector can run before the
+                    // player has rendered, resulting in endless loading.
+                    const source = Number.parseInt(window.location.hash.slice(1), 10);
+                    const index = Number.isInteger(source) && source > 0 ? source : 1;
+                    return new Promise(function (resolve) {
+                        let attempts = 0;
+                        function selectSource() {
+                            const buttons = document.querySelectorAll(
+                                ".videoiframe_source_container .videoiframe_source_tag"
+                            );
+                            const button = buttons[index - 1];
+                            if (button) {
+                                button.click();
+                                // TVBox GMSpider's match mode observes the
+                                // real player media request, not this page URL.
+                                resolve({type: "match"});
+                                return;
+                            }
+                            if (++attempts >= 40) {
+                                resolve({error: "Netflav 播放源載入逾時或不存在"});
+                                return;
+                            }
+                            setTimeout(selectSource, 250);
+                        }
+                        selectSource();
+                    });
                 },
                 searchContent: function (key, quick, pg) {
                     const result = {
