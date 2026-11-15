@@ -233,6 +233,7 @@ if (typeof unsafeWindow.gmSpiderRunning === "undefined") {
                     const index = Number.isInteger(source) && source > 0 ? source : 1;
                     return new Promise(function (resolve) {
                         const started = Date.now();
+                        let noSourceSince = 0;
                         const selectors = [
                             ".videoiframe_source_container .videoiframe_source_tag",
                             ".videoiframe_source_tag",
@@ -267,6 +268,24 @@ if (typeof unsafeWindow.gmSpiderRunning === "undefined") {
                             if (direct) {
                                 resolve({url: direct});
                                 return;
+                            }
+                            // The Next.js payload sometimes contains no
+                            // playback sources at all. Differentiate this from
+                            // a missing source button, without treating ad
+                            // iframes as a playable video.
+                            let noSources = false;
+                            let videoPresent = false;
+                            try {
+                                const state = JSON.parse(document.querySelector("#__NEXT_DATA__").textContent);
+                                const data = state?.props?.initialState?.video?.data;
+                                videoPresent = !!data?.videoId;
+                                noSources = videoPresent && Array.isArray(data.srcs) &&
+                                    data.srcs.length === 0;
+                            } catch (_) {}
+                            if (noSources) {
+                                if (!noSourceSince) noSourceSince = Date.now();
+                            } else {
+                                noSourceSince = 0;
                             }
                             const candidates = [];
                             for (const selector of selectors) {
@@ -307,6 +326,14 @@ if (typeof unsafeWindow.gmSpiderRunning === "undefined") {
                                     if (play && typeof play.catch === "function") play.catch(() => {});
                                 }
                                 resolve({type: "match", stage: "html5_video"});
+                                return;
+                            }
+                            if (noSourceSince && Date.now() - noSourceSince >= 2500 &&
+                                candidates.length === 0 && !videoUrl) {
+                                resolve({
+                                    error: "Netflav 影片資料已載入，但網站未提供播放源 (srcs=0)。" +
+                                        " 請確認此影片在原站是否能播放；APP 不會把廣告 iframe 當成影片。"
+                                });
                                 return;
                             }
                             if (Date.now() - started >= 12000) {
