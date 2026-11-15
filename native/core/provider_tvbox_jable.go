@@ -48,6 +48,13 @@ func tvboxJableWait(ctx context.Context) error {
   case <-timer.C:
   }
  }
+ // Another concurrent request may have received 429 while this one waited.
+ // Never send already-queued requests during the site's cooldown window.
+ tvboxJableLimiter.Lock()
+ blocked := time.Now().Before(tvboxJableLimiter.cooldown)
+ remaining := time.Until(tvboxJableLimiter.cooldown).Round(time.Second)
+ tvboxJableLimiter.Unlock()
+ if blocked { return fmt.Errorf("Jable HTTP 429：請求過於頻繁，請於 %s 後再試", remaining) }
  return ctx.Err()
 }
 func tvboxJableRecord429() {
