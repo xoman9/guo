@@ -9,6 +9,7 @@ on:
       - 'lib/ui/player/playback_page.dart'
       - 'lib/ui/player/danmaku_overlay.dart'
       - 'test/danmaku_emoji_test.dart'
+      - 'test/tvbox_js_source_test.dart'
       - 'lib/ui/widgets/status_view.dart'
       - 'lib/ui/widgets/source_bar.dart'
       - 'lib/ui/widgets/choice_panel.dart'
@@ -159,6 +160,7 @@ jobs:
           set -euo pipefail
           flutter pub get --enforce-lockfile
           flutter test test/danmaku_emoji_test.dart
+          flutter test test/tvbox_js_source_test.dart
           dart format --output=none lib/ui/terms_page.dart lib/ui/player/danmaku_overlay.dart lib/ui/player/playback_page.dart test/danmaku_emoji_test.dart
 
       - name: Package 110 Flutter coexist APKs with newly built 13-provider core
