@@ -28,6 +28,7 @@ on:
       - 'scripts/build_native.py'
       - 'native/core/app_storage.go'
       - 'lib/tvbox_js_source.dart'
+      - 'lib/playback_session.dart'
       - 'lib/core_bridge.dart'
       - 'lib/app_device.dart'
       - 'android/app/src/main/AndroidManifest.xml'
