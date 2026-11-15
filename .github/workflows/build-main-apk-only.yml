@@ -20,6 +20,8 @@ on:
       - 'lib/ui/shell/app_shell.dart'
       - 'lib/ui/settings/storage_view.dart'
       - 'lib/ui/settings/settings_sections.dart'
+      - 'assets/tvbox/js/**'
+      - 'pubspec.yaml'
       - 'native/**'
       - '.github/workflows/build-main-apk-only.yml'
       - 'scripts/build_native.py'
