@@ -194,8 +194,20 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                     // The original MissAV user script implements detailContent
                     // but not playerContent: observe the actual webpage player.
                     inspectMissavPlayer(view)
+                    // Start the page's existing HTML5 player when possible so
+                    // an actual media request becomes observable. Respect
+                    // the site response; do not synthesize any playlist.
+                    view.evaluateJavascript("""
+                        (function() {
+                          const video = document.querySelector('video');
+                          if (video && typeof video.play === 'function') {
+                            video.play().catch(function(){});
+                          }
+                        })();
+                    """.trimIndent(), null)
                     handler.postDelayed({ inspectMissavPlayer(view) }, 1200)
                     handler.postDelayed({ inspectMissavPlayer(view) }, 3500)
+                    handler.postDelayed({ inspectMissavPlayer(view) }, 9000)
                     return
                 }
                 val boot = """
