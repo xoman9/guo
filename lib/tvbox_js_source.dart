@@ -204,6 +204,18 @@ class TVBoxJavaScriptSource {
     if (!url.startsWith('https://') && !url.startsWith('http://')) {
       throw StateError('JS 播放器尚未取得可播放的媒體網址');
     }
+    // Preserve media request headers observed by the Android WebView;
+    // cross-origin iframe players can require their own Referer/Origin.
+    final observed = result['headers'];
+    if (observed is Map) {
+      for (final entry in observed.entries) {
+        final name = entry.key.toString();
+        if (name == 'Referer' || name == 'Origin' || name == 'User-Agent') {
+          final value = entry.value.toString();
+          if (value.isNotEmpty) headers[name] = value;
+        }
+      }
+    }
     return PlaybackPlan(url: url, headers: headers);
   }
 }
