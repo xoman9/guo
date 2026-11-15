@@ -136,7 +136,16 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                 netflavContainer = root
                 view.alpha = 0.01f
                 view.isClickable = false
-                root.addView(view, FrameLayout.LayoutParams(2, 2, Gravity.TOP or Gravity.START))
+                // A 2x2 WebView can prevent iframe/video layout and playback
+                // startup. Give the player a real viewport while leaving it
+                // nearly transparent and non-interactive.
+                view.isFocusable = false
+                view.importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                root.addView(view, FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    Gravity.TOP or Gravity.START
+                ))
             }
         }
         view.settings.javaScriptEnabled = true
@@ -146,7 +155,10 @@ internal class TVBoxJSBridge(private val activity: Activity) {
         view.settings.allowFileAccess = false
         view.settings.allowContentAccess = false
         view.settings.setSupportMultipleWindows(false)
-        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(view, false)
+        // Embedded Netflav players may need their own session cookie.
+        // Enable this only during its playback, not for catalog searches.
+        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(
+            view, source == "tvbox-netflav" && method == "playerContent")
         val api = object {
             @JavascriptInterface
             fun GetSpiderArgs(): String = requestArgs.toString()
@@ -158,6 +170,8 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                             finish(error = "$scriptName JS 未回傳資料")
                         } else if (method != "playerContent" || !payload.contains("\"type\":\"match\"")) {
                             finish(value = payload)
+                        } else if (source == "tvbox-netflav") {
+                            netflavPlaybackStage = "source_clicked_waiting_for_media"
                         }
                         // TVBox {type:match} means observe a REAL media request.
                         // It is not a playable URL and must not be returned as one.
@@ -167,6 +181,8 @@ internal class TVBoxJSBridge(private val activity: Activity) {
         }
         view.addJavascriptInterface(api, "GmSpiderInject")
         var injected = false
+        var netflavPlaybackStage = "waiting_for_page"
+        var netflavEmbedHttpError: Int? = null
         view.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(v: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 if (method == "playerContent" && request != null) {
@@ -215,6 +231,11 @@ internal class TVBoxJSBridge(private val activity: Activity) {
             }
             override fun onReceivedHttpError(v: WebView?, request: WebResourceRequest?,
                 response: WebResourceResponse?) {
+                if (source == "tvbox-netflav" && method == "playerContent" &&
+                    request?.isForMainFrame == false &&
+                    (response?.statusCode == 403 || response?.statusCode == 429)) {
+                    netflavEmbedHttpError = response?.statusCode
+                }
                 if (request?.isForMainFrame == true &&
                     (response?.statusCode == 403 || response?.statusCode == 429)) {
                     handler.post { finish(error = "$scriptName HTTP ${response?.statusCode}：網站拒絕請求，請稍後再試或自行完成網站驗證") }
@@ -229,6 +250,9 @@ internal class TVBoxJSBridge(private val activity: Activity) {
             override fun onPageFinished(v: WebView?, url: String?) {
                 if (active !== view || injected) return
                 injected = true
+                if (source == "tvbox-netflav" && method == "playerContent") {
+                    netflavPlaybackStage = "page_loaded_waiting_for_source"
+                }
                 if (source == "missav" && method == "playerContent") {
                     // The original MissAV user script implements detailContent
                     // but not playerContent: observe the actual webpage player.
@@ -265,7 +289,14 @@ internal class TVBoxJSBridge(private val activity: Activity) {
                 }
             }
         }
-        val timer = Runnable { finish(error = "$scriptName JS 執行逾時；可能需要網站驗證或網頁已改版") }
+        val timer = Runnable {
+            if (source == "tvbox-netflav" && method == "playerContent") {
+                val rejected = netflavEmbedHttpError?.let { "; embed HTTP $it" }.orEmpty()
+                finish(error = "Netflav 播放診斷：$netflavPlaybackStage$rejected；30 秒內未取得 HLS/MP4 網址")
+            } else {
+                finish(error = "$scriptName JS 執行逾時；可能需要網站驗證或網頁已改版")
+            }
+        }
         timedOut = timer
         handler.postDelayed(timer, 30000)
         view.loadUrl(url)
