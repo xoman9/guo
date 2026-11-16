@@ -125,18 +125,60 @@ func huangguoAIPageMediaURL(pageURL, body string) string {
 	return ""
 }
 
+// Recognize documented-style media URL aliases from the first-party API.
+// Only known fields are examined; arbitrary nested URLs and ad links are not
+// accepted. A syntactically valid URL is not proof that playback will succeed.
+func huangguoAIPlayMediaURL(base string, data map[string]any) string {
+	if data == nil {
+		return ""
+	}
+	for _, key := range []string{"video_url", "videoUrl", "play_url", "playUrl", "hls_url", "hlsUrl", "url", "src"} {
+		raw, _ := data[key].(string)
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		// Reject explicit insecure or unsupported schemes before normalization.
+		parsedRaw, err := url.Parse(raw)
+		if err != nil || parsedRaw.User != nil || parsedRaw.Scheme == "http" ||
+			(parsedRaw.Scheme != "" && parsedRaw.Scheme != "https") {
+			continue
+		}
+		address := core.NormalizeProviderMediaURL(base, raw)
+		parsed, err := url.Parse(address)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+			continue
+		}
+		path := strings.ToLower(parsed.Path)
+		if strings.HasSuffix(path, ".m3u8") || strings.HasSuffix(path, ".mp4") {
+			return address
+		}
+	}
+	// Some revisions wrap the playback result inside data or video.
+	for _, key := range []string{"data", "video", "play"} {
+		if nested, ok := data[key].(map[string]any); ok {
+			for _, mediaKey := range []string{"video_url", "videoUrl", "play_url", "playUrl", "hls_url", "hlsUrl", "url", "src"} {
+				raw, _ := nested[mediaKey].(string)
+				if raw != "" {
+					if candidate := huangguoAIPlayMediaURL(base, map[string]any{mediaKey: raw}); candidate != "" {
+						return candidate
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
 func (p *huangguoAIProvider) fetchHuangguoAIPlayURL(ctx context.Context, sourceID string, episode int) (string, error) {
 	if !rankingSourceID.MatchString(sourceID) || episode < 1 {
 		return "", errors.New("黄果集数无效")
 	}
-	var play struct {
-		VideoURL string `json:"video_url"`
-	}
+	var play map[string]any
 	path := fmt.Sprintf("/api/videos/%s/play?ep=%d&page_texts=0", url.PathEscape(sourceID), episode)
 	apiErr := p.huangguoAIAPI(ctx, path, &play)
 	if apiErr == nil {
-		address := core.NormalizeProviderMediaURL(p.site()+"/", play.VideoURL)
-		if core.IsProviderHTTPMediaURL(address) {
+		if address := huangguoAIPlayMediaURL(p.site()+"/", play); address != "" {
 			return address, nil
 		}
 	}
