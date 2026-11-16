@@ -5,6 +5,8 @@ on:
     branches: [feat/official-js-modules-20261116]
     paths:
       - '.github/workflows/build-eight-js-apk.yml'
+      - 'lib/source_catalog.dart'
+      - 'test/source_catalog_test.dart'
   workflow_dispatch:
 
 permissions:
