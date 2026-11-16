@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/url"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -304,6 +305,19 @@ func moduleError(ctx context.Context, err error) error {
 		if message := thrown.Get("message"); message != nil && !goja.IsUndefined(message) {
 			if login := thrown.Get("loginRequired"); login != nil && login.ToBoolean() {
 				return SourceLoginError(message.String())
+			}
+			// Preserve a short JavaScript source location for type errors.
+			// Without this, Android only displays an unhelpful BigInt message.
+			if strings.Contains(message.String(), "Cannot mix BigInt") {
+				lines := strings.Split(exception.String(), "\n")
+				if len(lines) > 4 {
+					lines = lines[:4]
+				}
+				trace := strings.Join(lines, "\n")
+				if len(trace) > 500 {
+					trace = trace[:500]
+				}
+				return errors.New(trace)
 			}
 			return errors.New(message.String())
 		}
