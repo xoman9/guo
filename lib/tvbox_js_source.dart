@@ -13,7 +13,7 @@ class TVBoxJavaScriptSource {
   static const _channel = MethodChannel('duanju/tvbox_js');
 
   static bool supports(String source) =>
-      Platform.isAndroid && (source == 'missav' || source == 'tvbox-netflav');
+      Platform.isAndroid && source == 'missav';
 
   // A single hidden Android WebView handles one request at a time.
   // Serialize adjacent category/search requests instead of reporting busy.
