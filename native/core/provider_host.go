@@ -23,6 +23,7 @@ type TextRequest struct {
 	Cookie    string
 	NoCache   bool
 	Body      []byte
+	Mirrors   []string
 }
 
 type TextResponse struct {
@@ -88,11 +89,18 @@ func (d *Downloader) FetchText(ctx context.Context, request TextRequest) (TextRe
 	if request.NoCache {
 		ctx = context.WithValue(ctx, providerTextNoCacheKey{}, true)
 	}
-	body, err := d.fetchProviderRequest(ctx, request.URL, request.Referer, request.Body)
+	address := request.URL
+	body, err := d.fetchProviderRequest(ctx, address, request.Referer, request.Body)
+	for _, mirror := range request.Mirrors {
+		if err == nil || ctx.Err() != nil {
+			break
+		}
+		address = mirror
+		body, err = d.fetchProviderRequest(ctx, address, mirror, request.Body)
+	}
 	if err != nil {
 		return TextResponse{}, err
 	}
-	address := request.URL
 	if actual, found := responses.values.Load(request.URL); found {
 		address = actual.(string)
 	}

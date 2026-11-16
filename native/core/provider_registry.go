@@ -229,6 +229,12 @@ func (d *Downloader) provider(source string) (Provider, bool) {
 	providerRegistry.RLock()
 	factory, ok := providerRegistry.factories[source]
 	providerRegistry.RUnlock()
+	// Only the eight explicitly pinned upstream modules override their legacy
+	// Go provider. Preserve original registry IDs and all other Go stations.
+	if module := officialModules[source]; module != nil {
+		factory = module.provider
+		ok = true
+	}
 	if !ok {
 		return nil, false
 	}

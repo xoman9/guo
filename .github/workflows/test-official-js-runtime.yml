@@ -1,0 +1,25 @@
+name: Test official JS provider integration (no APK)
+on:
+  push:
+    branches: [feat/official-js-modules-20261116]
+    paths:
+      - 'native/core/**'
+      - 'native/go.mod'
+      - 'native/go.sum'
+      - '.github/workflows/test-official-js-runtime.yml'
+  workflow_dispatch:
+jobs:
+  goja-compile-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.1'
+          cache: false
+      - name: Test Go core (no APK)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd native
+          go test -count=1 ./core
