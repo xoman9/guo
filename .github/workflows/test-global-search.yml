@@ -1,0 +1,24 @@
+name: Test all-source search (no APK)
+on:
+  push:
+    branches: [feat/official-js-modules-20261116]
+    paths:
+      - 'lib/global_search.dart'
+      - 'lib/ui/search/search_page.dart'
+      - 'test/global_search_test.dart'
+      - '.github/workflows/test-global-search.yml'
+  workflow_dispatch:
+jobs:
+  flutter-search-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: false
+      - run: flutter pub get
+      - name: Validate global search and existing UI searches
+        run: |
+          dart format --output=none --set-exit-if-changed lib/global_search.dart lib/ui/search/search_page.dart test/global_search_test.dart
+          flutter test test/global_search_test.dart test/source_catalog_test.dart test/explore_feed_test.dart
