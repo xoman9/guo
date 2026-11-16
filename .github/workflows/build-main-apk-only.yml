@@ -1,41 +1,7 @@
 name: Build main self-contained 110 coexist APKs
+# APK packaging must be requested explicitly after relevant regression tests
+# have been added and reviewed. Regular pushes only update source code.
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/build-main-apk-only.yml'
-      - 'lib/ui/terms_page.dart'
-      - 'lib/ui/detail/detail_page.dart'
-      - 'lib/ui/player/playback_page.dart'
-      - 'lib/ui/player/danmaku_overlay.dart'
-      - 'test/danmaku_emoji_test.dart'
-      - 'test/tvbox_js_source_test.dart'
-      - 'lib/ui/widgets/status_view.dart'
-      - 'lib/ui/widgets/source_bar.dart'
-      - 'lib/ui/widgets/choice_panel.dart'
-      - 'lib/ui/widgets/page_header.dart'
-      - 'lib/models.dart'
-      - 'lib/local_store.dart'
-      - 'lib/ui/explore/source_actions.dart'
-      - 'lib/ui/settings/sources_view.dart'
-      - 'lib/ui/shell/app_shell.dart'
-      - 'lib/ui/settings/storage_view.dart'
-      - 'lib/ui/settings/settings_sections.dart'
-      - 'assets/tvbox/js/**'
-      - 'pubspec.yaml'
-      - 'native/**'
-      - '.github/workflows/build-main-apk-only.yml'
-      - 'scripts/build_native.py'
-      - 'native/core/app_storage.go'
-      - 'lib/tvbox_js_source.dart'
-      - 'lib/playback_session.dart'
-      - 'lib/core_bridge.dart'
-      - 'lib/app_device.dart'
-      - 'android/app/src/main/AndroidManifest.xml'
-      - 'android/app/src/main/kotlin/com/guoapp/TVBoxJSBridge.kt'
-      - 'android/app/src/main/kotlin/com/guoapp/MainActivity.kt'
-      - 'android/build.gradle.kts'
-      - 'android/app/build.gradle.kts'
   workflow_dispatch:
 
 permissions:
