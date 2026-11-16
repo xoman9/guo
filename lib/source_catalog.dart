@@ -15,6 +15,24 @@ String categoryName(String name) {
   };
 }
 
+// The eight official JS sources should start with “全部”, not a synthetic or
+// remotely supplied recommendation category. Keep other sources unchanged.
+const _jsSourcesWithoutRecommendedCategory = <String>{
+  'heitao',
+  'huangju',
+  'jinguoduanju',
+  'dsd',
+  'beabox',
+  'yeguo',
+  'huangguo-video',
+  'huangguoai',
+};
+
+bool _isRecommendedCategory(String name) {
+  final normalized = name.trim().replaceAll(RegExp(r'\\s+'), '');
+  return normalized == '推荐' || normalized == '推薦';
+}
+
 class SourceCatalog {
   SourceCatalog(this.repository, this.source);
   final AppRepository repository;
@@ -26,7 +44,8 @@ class SourceCatalog {
   static const recommendGenre = 'find_drama';
   static const topicPrefix = 'tag:';
 
-  bool get recommends => source.recommends;
+  bool get recommends =>
+      source.recommends && !_jsSourcesWithoutRecommendedCategory.contains(source.id);
 
   List<RankingBoard> get boards => _boards;
 
@@ -34,7 +53,10 @@ class SourceCatalog {
     final names = <String>{};
     final remote = [
       for (final category in _remote)
-        if (category.id.isNotEmpty && names.add(categoryName(category.name)))
+        if (category.id.isNotEmpty &&
+            !(_jsSourcesWithoutRecommendedCategory.contains(source.id) &&
+                _isRecommendedCategory(category.name)) &&
+            names.add(categoryName(category.name)))
           CatalogCategory(category.id, categoryName(category.name)),
     ];
     final topics = remote.any(
@@ -44,7 +66,9 @@ class SourceCatalog {
         ? const <String>[]
         : ({
             for (final drama in _library.values) categoryName(drama.category),
-          }.where(names.add).toList()..sort());
+          }.where((name) =>
+            !(_jsSourcesWithoutRecommendedCategory.contains(source.id) &&
+                _isRecommendedCategory(name)) && names.add(name)).toList()..sort());
     return [
       CatalogCategory.all,
       ...remote,
