@@ -1,0 +1,23 @@
+name: Verify eight JS category tabs (no APK)
+on:
+  push:
+    branches: [feat/official-js-modules-20261116]
+    paths:
+      - 'lib/source_catalog.dart'
+      - 'lib/explore_feed.dart'
+      - 'test/source_catalog_test.dart'
+      - '.github/workflows/verify-eight-js-categories.yml'
+  workflow_dispatch:
+jobs:
+  flutter-categories:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: false
+      - name: Fetch dependencies
+        run: flutter pub get
+      - name: Check Flutter category tab and feed tests
+        run: flutter test test/source_catalog_test.dart test/explore_feed_test.dart
