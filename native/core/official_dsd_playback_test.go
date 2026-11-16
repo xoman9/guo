@@ -4,9 +4,9 @@ import (
   "context"
   "fmt"
   "strings"
+  "strconv"
   "testing"
-  "github.com/dop251/goja"
-)
+  )
 
 type dsdOfflineHost struct{Host}
 func (*dsdOfflineHost) PreferredSite(string) string { return "https://www.dsd.com.se" }
@@ -40,5 +40,32 @@ func TestDSDHostUTF8LengthInterop(t *testing.T) {
  o:=v.ToObject(inst.vm)
  if k:=o.Get("kind").String();k!="number" {t.Errorf("typed array length kind=%s, expected number",k)}
  if n:=o.Get("total").ToInteger();n!=4 {t.Errorf("unexpected UTF8 length+1=%d",n)}
- _=goja.Undefined()
+}
+
+type dsdSignedHost struct{ dsdOfflineHost }
+func (*dsdSignedHost) FetchText(_ context.Context, r TextRequest)(TextResponse,error){
+ if strings.Contains(r.URL,"/addons/vplayer/") {
+   signed := "var vPath = '/signed/episode1.m3u8';"
+   const marker = "(ﾟДﾟ) ['_'] ( (ﾟДﾟ) ['_']"
+   const separator = "(ﾟДﾟ)[ﾟεﾟ]+"
+   const tail = "+ (ﾟДﾟ)[ﾟoﾟ]"
+   var encoded strings.Builder
+   encoded.WriteString(marker)
+   for _, ch := range signed {
+     encoded.WriteString(separator)
+     encoded.WriteString(strconv.FormatInt(int64(ch),8))
+   }
+   encoded.WriteString(tail)
+   return TextResponse{URL:r.URL,Body:"<script>"+encoded.String()+"</script>"},nil
+ }
+ return (&dsdOfflineHost{}).FetchText(context.Background(),r)
+}
+func TestDSDJSDecodeSignedAAEncodingOffline(t *testing.T) {
+ p:=officialModules["dsd"].provider(&dsdSignedHost{})
+ task:=Task{DramaID:"dsd:123",Chapter:Chapter{ID:"dsd:123:1-1",Source:"dsd",Title:"正片"},Index:1}
+ media,err:=p.ResolveMedia(context.Background(),task)
+ if err!=nil{t.Fatalf("DSD signed AA playback failed: %v",err)}
+ if media.URL!="https://www.dsd.com.se/signed/episode1.m3u8" {
+    t.Fatalf("incorrect signed DSD URL: %q",media.URL)
+ }
 }
