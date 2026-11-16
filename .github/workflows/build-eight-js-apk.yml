@@ -1,5 +1,5 @@
-name: Test eight JS modules coexist APKs
-# Automatically build on relevant main changes. Tests must pass before APK packaging.
+name: Test nine official JS modules coexist APKs
+# Build the official Hongguo v1.0.2 plus the eight existing JS modules after tests.
 on:
   push:
     branches: [feat/official-js-modules-20261116]
@@ -7,6 +7,8 @@ on:
       - '.github/workflows/build-eight-js-apk.yml'
       - 'lib/source_catalog.dart'
       - 'test/source_catalog_test.dart'
+      - 'native/core/bundled/hongguo/**'
+      - 'native/core/official_hongguo_playback_test.go'
   workflow_dispatch:
 
 permissions:
@@ -14,7 +16,7 @@ permissions:
 
 concurrency:
   # Build the newest main revision; superseded runs should not block APKs.
-  group: guo-eight-js-modules
+  group: guo-nine-official-js-modules
   cancel-in-progress: true
 
 jobs:
@@ -51,7 +53,10 @@ jobs:
           grep -Fq 'sourceLujj31' native/core/custom_registry_sources.go
           grep -Fq 'sourceLiuguo' native/core/custom_registry_sources.go
           grep -Fq 'sourceXiaoguo' native/core/custom_registry_sources.go
-          echo 'Feature branch build: eight bundled v1.0.1 JS modules plus original non-migrated providers.' >> "$GITHUB_STEP_SUMMARY"
+          grep -Fq '"hongguo"' native/core/official_js_modules.go
+          grep -Fq '"version": "1.0.2"' native/core/bundled/hongguo/manifest.json
+          python3 scripts/verify_js_modules.py
+          echo 'Feature branch build: Hongguo official JS v1.0.2 plus eight JS v1.0.1 modules; preserve other providers.' >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/setup-java@v4
         with:
@@ -82,6 +87,7 @@ jobs:
           flutter pub get --enforce-lockfile
           flutter test test/danmaku_emoji_test.dart
           flutter test test/tvbox_js_source_test.dart
+          flutter test test/source_catalog_test.dart test/explore_feed_test.dart
           # Source / playback changes require the existing regression tests to pass.
           dart format --output=none lib/ui/terms_page.dart lib/ui/player/danmaku_overlay.dart lib/ui/player/playback_page.dart test/danmaku_emoji_test.dart
 
