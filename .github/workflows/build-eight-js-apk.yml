@@ -1,19 +1,6 @@
 name: Test eight JS modules coexist APKs
 # Automatically build on relevant main changes. Tests must pass before APK packaging.
 on:
-  push:
-    branches: [feat/official-js-modules-20261116]
-    paths:
-      - '.github/workflows/build-eight-js-apk.yml'
-      - 'lib/**'
-      - 'test/**'
-      - 'assets/tvbox/js/**'
-      - 'pubspec.yaml'
-      - 'pubspec.lock'
-      - 'native/**'
-      - 'scripts/build_native.py'
-      - 'scripts/package_release.py'
-      - 'android/**'
   workflow_dispatch:
 
 permissions:
