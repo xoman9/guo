@@ -10,6 +10,8 @@ on:
       - 'lib/global_search.dart'
       - 'lib/ui/search/search_page.dart'
       - 'test/global_search_test.dart'
+      - 'lib/ui/player/danmaku_overlay.dart'
+      - 'test/danmaku_emoji_test.dart'
       - 'native/core/bundled/hongguo/**'
       - 'native/core/official_hongguo_playback_test.go'
   workflow_dispatch:
