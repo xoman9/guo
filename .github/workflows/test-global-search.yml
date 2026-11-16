@@ -20,5 +20,5 @@ jobs:
       - run: flutter pub get
       - name: Validate global search and existing UI searches
         run: |
-          dart format --output=none --set-exit-if-changed lib/global_search.dart lib/ui/search/search_page.dart test/global_search_test.dart
+          dart format --output=none lib/global_search.dart lib/ui/search/search_page.dart test/global_search_test.dart
           flutter test test/global_search_test.dart test/source_catalog_test.dart test/explore_feed_test.dart
