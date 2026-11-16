@@ -30,3 +30,15 @@ func TestOfficialJSModulesLoadWithoutNetwork(t *testing.T) {
         })
     }
 }
+
+func TestEightSourceIDsUseJavaScriptProvider(t *testing.T) {
+    d := &Downloader{}
+    for _, id := range []string{"heitao","huangju","jinguoduanju","dsd","beabox","yeguo","huangguo-video","huangguoai"} {
+        provider, found := d.provider(id)
+        if !found { t.Errorf("%s missing from runtime provider dispatch", id); continue }
+        js, ok := provider.(*jsProvider)
+        if !ok || js.module.manifest.ID != id {
+            t.Errorf("%s still uses native Go instead of bundled JavaScript", id)
+        }
+    }
+}
