@@ -99,7 +99,17 @@ func huangguoAIPageMediaURL(pageURL, body string) string {
 	if len(match) < 2 {
 		return ""
 	}
-	address := core.NormalizeProviderMediaURL(pageURL, html.UnescapeString(match[1]))
+	// Validate the scheme in the page's original attribute BEFORE media
+	// normalization. URL normalization may upgrade http:// to https://,
+	// which would incorrectly accept explicitly insecure sources.
+	raw := strings.TrimSpace(html.UnescapeString(match[1]))
+	original, err := url.Parse(raw)
+	if err != nil || original.Scheme == "http" ||
+		(original.Scheme != "" && original.Scheme != "https") ||
+		original.User != nil {
+		return ""
+	}
+	address := core.NormalizeProviderMediaURL(pageURL, raw)
 	if !core.IsProviderHTTPMediaURL(address) {
 		return ""
 	}
