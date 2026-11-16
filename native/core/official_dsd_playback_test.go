@@ -5,6 +5,7 @@ import (
   "fmt"
   "strings"
   "strconv"
+  "github.com/dop251/goja"
   "testing"
   )
 
@@ -67,5 +68,15 @@ func TestDSDJSDecodeSignedAAEncodingOffline(t *testing.T) {
  if err!=nil{t.Fatalf("DSD signed AA playback failed: %v",err)}
  if media.URL!="https://www.dsd.com.se/signed/episode1.m3u8" {
     t.Fatalf("incorrect signed DSD URL: %q",media.URL)
+ }
+}
+
+func TestDSDBigIntErrorReportsJSFrame(t *testing.T) {
+ vm:=goja.New()
+ _,err:=vm.RunString("function dsdPlayback() { throw new TypeError('Cannot mix BigInt and other types, use explicit conversions'); } dsdPlayback();")
+ if err==nil {t.Fatal("expected JS error")}
+ reported:=moduleError(context.Background(),err).Error()
+ if !strings.Contains(reported,"Cannot mix BigInt") || !strings.Contains(reported,"dsdPlayback") {
+   t.Fatalf("error lacks actionable JS stack location: %s",reported)
  }
 }
