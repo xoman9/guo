@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../core_bridge.dart';
 import '../../drama_feed.dart';
+import '../../global_search.dart';
 import '../../local_store.dart';
 import '../../models.dart';
 import '../../source_catalog.dart';
@@ -46,6 +47,8 @@ class _SearchPageState extends State<SearchPage> {
   int _suggestion = 0;
   final _shownSuggestions = <Object>{};
   bool _ready = false;
+  bool _global = true;
+  String _sourceFilter = '';
 
   @override
   void didChangeDependencies() {
@@ -83,11 +86,14 @@ class _SearchPageState extends State<SearchPage> {
     unawaited(widget.store.rememberSearch(query).catchError((Object _) {}));
     _results?.dispose();
     final results = _results = DramaFeed(
-      load: (page, _) => _catalog.search(query, page: page),
+      load: (page, _) => _global
+          ? searchAcrossSources(_repository, widget.store.sources, query)
+          : _catalog.search(query, page: page),
     )..addListener(() => setState(() {}));
     unawaited(results.reload());
     setState(() {
       _submitted = query;
+      _sourceFilter = '';
       _suggestions = const [];
     });
   }
@@ -96,7 +102,7 @@ class _SearchPageState extends State<SearchPage> {
     _debounce?.cancel();
     final query = text.trim();
     final generation = ++_suggestion;
-    if (!widget.source.searchSuggestions || query.isEmpty) {
+    if (_global || !widget.source.searchSuggestions || query.isEmpty) {
       setState(() => _suggestions = const []);
       return;
     }
@@ -118,14 +124,14 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     final field = SearchField(
-      hint: '在 ${widget.source.name} 中搜索',
+      hint: _global ? '搜尋所有已開啟頻道' : '在 ${widget.source.name} 中搜索',
       controller: _controller,
       focusNode: _focus,
       autofocus: widget.query.isEmpty,
       onChanged: _changed,
       onSubmitted: _submit,
       letterKeyboard: widget.store.televisionKeyboard,
-      matches: widget.source.searchSuggestions ? _repository.suggestions : null,
+      matches: !_global && widget.source.searchSuggestions ? _repository.suggestions : null,
     );
     if (AppScope.of(context).television) {
       return Scaffold(
@@ -140,6 +146,7 @@ class _SearchPageState extends State<SearchPage> {
               ),
               child: field,
             ),
+            _modeSelector(),
             Expanded(child: FadeSwitcher(child: _body(context))),
           ],
         ),
@@ -153,9 +160,43 @@ class _SearchPageState extends State<SearchPage> {
       body: SafeArea(
         top: false,
         bottom: false,
-        child: FadeSwitcher(child: _body(context)),
+        child: Column(children: [
+          _modeSelector(),
+          Expanded(child: FadeSwitcher(child: _body(context))),
+        ]),
       ),
     );
+  }
+
+  Widget _modeSelector() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    child: Row(children: [
+      ChoiceChip(
+        label: const Text('全頻道搜尋'),
+        selected: _global,
+        onSelected: (_) => _changeMode(true),
+      ),
+      const SizedBox(width: 8),
+      ChoiceChip(
+        label: Text(widget.source.name),
+        selected: !_global,
+        onSelected: (_) => _changeMode(false),
+      ),
+    ]),
+  );
+
+  void _changeMode(bool global) {
+    if (_global == global) return;
+    _results?.dispose();
+    _results = null;
+    _suggestion++;
+    _debounce?.cancel();
+    setState(() {
+      _global = global;
+      _suggestions = const [];
+      _sourceFilter = '';
+    });
+    if (_submitted.isNotEmpty) _submit(_submitted);
   }
 
   Widget _body(BuildContext context) {
@@ -221,8 +262,29 @@ class _SearchPageState extends State<SearchPage> {
         : AppScope.formFactorOf(context) == FormFactor.phone
         ? 16.0
         : 24.0;
-    return LayoutBuilder(
-      key: ValueKey(('results', _submitted)),
+    final channels = _global
+        ? <String, int>{
+            for (final source in widget.store.sources)
+              if (results.items.any((item) => item.source == source.id))
+                source.id: results.items.where((item) => item.source == source.id).length,
+          }
+        : const <String, int>{};
+    final visibleItems = _sourceFilter.isEmpty
+        ? results.items
+        : results.items.where((item) => item.source == _sourceFilter).toList();
+    return Column(children: [
+      if (_global && channels.isNotEmpty)
+        SizedBox(height: 48, child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          scrollDirection: Axis.horizontal,
+          children: [
+            _sourceChip('', '全部 (${results.items.length})'),
+            for (final entry in channels.entries)
+              _sourceChip(entry.key, '${SourceSite.byId(entry.key).name} (${entry.value})'),
+          ],
+        )),
+      Expanded(child: LayoutBuilder(
+      key: ValueKey(('results', _submitted, _global, _sourceFilter)),
       builder: (context, constraints) => AutoLoadMore(
         feed: results,
         child: CustomScrollView(
@@ -236,7 +298,7 @@ class _SearchPageState extends State<SearchPage> {
               ),
               sliver: DramaSliverGrid(
                 width: constraints.maxWidth - inset * 2,
-                items: results.items,
+                items: visibleItems,
                 autofocus: television,
                 heroScope: 'drama',
                 onOpen: _open,
@@ -255,8 +317,18 @@ class _SearchPageState extends State<SearchPage> {
           ],
         ),
       ),
-    );
+      ),
+    ]);
   }
+
+  Widget _sourceChip(String id, String label) => Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: ChoiceChip(
+      label: Text(label),
+      selected: _sourceFilter == id,
+      onSelected: (_) => setState(() => _sourceFilter = id),
+    ),
+  );
 
   Widget _recent(BuildContext context) => ListenableBuilder(
     listenable: widget.store,
@@ -270,7 +342,7 @@ class _SearchPageState extends State<SearchPage> {
     if (recent.isEmpty) {
       return StatusView(
         key: const ValueKey('empty'),
-        title: '在 ${widget.source.name} 中搜索',
+        title: _global ? '搜尋所有已開啟頻道' : '在 ${widget.source.name} 中搜索',
         message: '输入剧名或关键词',
         icon: Icons.search_rounded,
       );
