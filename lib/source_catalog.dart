@@ -29,7 +29,7 @@ const _jsSourcesWithoutRecommendedCategory = <String>{
 };
 
 bool _isRecommendedCategory(String name) {
-  final normalized = name.trim().replaceAll(RegExp(r'\\s+'), '');
+  final normalized = name.trim().replaceAll(RegExp(r'\s+'), '');
   return normalized == '推荐' || normalized == '推薦';
 }
 
