@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -86,6 +88,37 @@ func huangguoAIChapter(base, sourceID string, episode int, title string) core.Ch
 		Title: core.FirstNonEmpty(title, fmt.Sprintf("第%d集", episode)), PageURL: pageURL, CurrentEpisode: core.RawEpisode(episode)}
 }
 
+// The older reference APK also contains a playback-page route and separate
+// chapter discovery. The legacy 109 implementation recognizes a data-hls
+// attribute on a first-party video page. Use it only as a fallback when the
+// API returns no playable URL; never manufacture a playlist address.
+var huangguoAIPageHLS = regexp.MustCompile(`(?is)\\bdata-hls\\s*=\\s*["']([^"']+)["']`)
+
+func huangguoAIPageMediaURL(pageURL, body string) string {
+	match := huangguoAIPageHLS.FindStringSubmatch(body)
+	if len(match) < 2 {
+		return ""
+	}
+	address := core.NormalizeProviderMediaURL(pageURL, html.UnescapeString(match[1]))
+	if !core.IsProviderHTTPMediaURL(address) {
+		return ""
+	}
+	parsed, err := url.Parse(address)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimPrefix(strings.ToLower(parsed.Path[strings.LastIndex(parsed.Path, "/")+1:]), ".")) {
+	case "m3u8", "mp4", "mpd":
+		return address
+	}
+	if strings.HasSuffix(strings.ToLower(parsed.Path), ".m3u8") ||
+		strings.HasSuffix(strings.ToLower(parsed.Path), ".mp4") ||
+		strings.HasSuffix(strings.ToLower(parsed.Path), ".mpd") {
+		return address
+	}
+	return ""
+}
+
 func (p *huangguoAIProvider) fetchHuangguoAIPlayURL(ctx context.Context, sourceID string, episode int) (string, error) {
 	if !rankingSourceID.MatchString(sourceID) || episode < 1 {
 		return "", errors.New("黄果集数无效")
@@ -94,10 +127,31 @@ func (p *huangguoAIProvider) fetchHuangguoAIPlayURL(ctx context.Context, sourceI
 		VideoURL string `json:"video_url"`
 	}
 	path := fmt.Sprintf("/api/videos/%s/play?ep=%d&page_texts=0", url.PathEscape(sourceID), episode)
-	if err := p.huangguoAIAPI(ctx, path, &play); err != nil {
-		return "", err
+	apiErr := p.huangguoAIAPI(ctx, path, &play)
+	if apiErr == nil {
+		address := core.NormalizeProviderMediaURL(p.site()+"/", play.VideoURL)
+		if core.IsProviderHTTPMediaURL(address) {
+			return address, nil
+		}
 	}
-	return core.NormalizeProviderMediaURL(p.site()+"/", play.VideoURL), nil
+	// Reuse the site's real video page referenced by the chapter; only take
+	// an explicit HLS/MP4/DASH URL already declared in its HTML.
+	pageURL := p.site() + "/video/" + url.PathEscape(sourceID) + "/"
+	if episode > 1 {
+		pageURL += "ep-" + strconv.Itoa(episode) + "/"
+	}
+	page, pageErr := p.host.FetchText(ctx, core.TextRequest{
+		URL: pageURL, Referer: p.site()+"/", NoCache: true,
+	})
+	if pageErr == nil {
+		if address := huangguoAIPageMediaURL(pageURL, page.Body); address != "" {
+			return address, nil
+		}
+	}
+	if apiErr != nil {
+		return "", fmt.Errorf("黄果AI API 未取得播放源，网页备援无效：%w", apiErr)
+	}
+	return "", errors.New("黄果AI API 未返回有效播放地址，网页也未提供直接媒体地址")
 }
 
 func (p *huangguoAIProvider) searchHuangguoAI(ctx context.Context, page int, query string) ([]core.Drama, bool, error) {
