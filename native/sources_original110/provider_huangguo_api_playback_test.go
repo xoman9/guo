@@ -22,3 +22,28 @@ func TestHuangguoAIPlaybackPageMediaURL(t *testing.T) {
         })
     }
 }
+
+func TestHuangguoAIPlayMediaURLAliases(t *testing.T) {
+    const base = "https://huangguoai.com/"
+    cases := []struct {
+        name string
+        data map[string]any
+        want string
+    }{
+        {"original", map[string]any{"video_url": "https://cdn.example/one.m3u8"}, "https://cdn.example/one.m3u8"},
+        {"camelCase", map[string]any{"videoUrl": "https://cdn.example/two.mp4"}, "https://cdn.example/two.mp4"},
+        {"nested", map[string]any{"data": map[string]any{"play_url": "https://cdn.example/three.m3u8"}}, "https://cdn.example/three.m3u8"},
+        {"relative", map[string]any{"url": "/videos/four.mp4"}, "https://huangguoai.com/videos/four.mp4"},
+        {"adHtml", map[string]any{"url": "https://ads.example/watch"}, ""},
+        {"http", map[string]any{"video_url": "http://cdn.example/five.m3u8"}, ""},
+        {"script", map[string]any{"url": "javascript:alert(1)"}, ""},
+        {"none", map[string]any{}, ""},
+    }
+    for _, tc := range cases {
+        t.Run(tc.name, func(t *testing.T) {
+            if got := huangguoAIPlayMediaURL(base, tc.data); got != tc.want {
+                t.Fatalf("got %q; want %q", got, tc.want)
+            }
+        })
+    }
+}
