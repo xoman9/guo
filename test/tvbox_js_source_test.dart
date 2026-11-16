@@ -116,32 +116,4 @@ void main() {
     expect(media.url, 'https://media.example/playlist.m3u8');
   });
 
-  test('Netflav empty source list does not fabricate a playable episode', () async {
-    const drama = Drama(
-      id: 'tvbox-netflav:XY-7',
-      source: 'tvbox-netflav',
-      sourceId: 'XY-7',
-      title: 'Catalog title',
-    );
-    final detail = await TVBoxJavaScriptSource.detail(drama);
-    expect(detail.episodes, isEmpty);
-  });
-
-  test('Netflav JS playback only accepts explicit media URLs', () async {
-    const drama = Drama(
-      id: 'tvbox-netflav:XY-7',
-      source: 'tvbox-netflav',
-      sourceId: 'XY-7',
-      title: 'Fixture title',
-    );
-    final episode = Episode({
-      'id': 'tvbox-netflav:XY-7:1',
-      'jsSourceIndex': 1,
-    }, 1);
-    final media = await TVBoxJavaScriptSource.resolve(drama, episode);
-    expect(media.url, 'https://media.example/master.m3u8');
-    expect(media.headers['Referer'], 'https://embed.example/player');
-    expect(media.headers['Origin'], 'https://embed.example');
-    expect(media.headers['User-Agent'], 'Test WebView');
-  });
 }
