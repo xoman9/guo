@@ -170,6 +170,13 @@ func huangguoAIPlayMediaURL(base string, data map[string]any) string {
 	return ""
 }
 
+func huangguoAIDetailFirstEpisodeMediaURL(base string, episode int, detail map[string]any) string {
+	if episode != 1 {
+		return ""
+	}
+	return huangguoAIPlayMediaURL(base, detail)
+}
+
 func (p *huangguoAIProvider) fetchHuangguoAIPlayURL(ctx context.Context, sourceID string, episode int) (string, error) {
 	if !rankingSourceID.MatchString(sourceID) || episode < 1 {
 		return "", errors.New("黄果集数无效")
@@ -189,7 +196,7 @@ func (p *huangguoAIProvider) fetchHuangguoAIPlayURL(ctx context.Context, sourceI
 		var detail map[string]any
 		detailErr := p.huangguoAIAPI(ctx, "/api/videos/"+url.PathEscape(sourceID), &detail)
 		if detailErr == nil {
-			if address := huangguoAIPlayMediaURL(p.site()+"/", detail); address != "" {
+			if address := huangguoAIDetailFirstEpisodeMediaURL(p.site()+"/", episode, detail); address != "" {
 				return address, nil
 			}
 		}
