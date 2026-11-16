@@ -10,14 +10,14 @@ import (
 type officialOfflineHost struct{ Host }
 
 func TestOfficialJSModulesLoadWithoutNetwork(t *testing.T) {
-    ids := []string{"heitao","huangju","jinguoduanju","dsd","beabox","yeguo","huangguo-video","huangguoai"}
+    ids := []string{"heitao","huangju","jinguoduanju","dsd","beabox","yeguo","huangguo-video","huangguoai","hongguo"}
     if len(officialModules) != len(ids) {
         t.Fatalf("got %d pinned modules, want %d",len(officialModules),len(ids))
     }
     for _, id := range ids {
         t.Run(id,func(t *testing.T) {
             module:=officialModules[id]
-            if module==nil || module.manifest.ID!=id || module.manifest.Version!="1.0.1" {
+            if module==nil || module.manifest.ID!=id || module.manifest.Version!=map[bool]string{true:"1.0.2",false:"1.0.1"}[id=="hongguo"] {
                 t.Fatalf("missing or unpinned JS module: %s",id)
             }
             provider:=module.provider(&officialOfflineHost{}).(*jsProvider)
@@ -31,7 +31,7 @@ func TestOfficialJSModulesLoadWithoutNetwork(t *testing.T) {
     }
 }
 
-func TestEightSourceIDsUseJavaScriptProvider(t *testing.T) {
+func TestOfficialSourceIDsUseJavaScriptProvider(t *testing.T) {
     d := &Downloader{}
     for _, id := range []string{"heitao","huangju","jinguoduanju","dsd","beabox","yeguo","huangguo-video","huangguoai"} {
         provider, found := d.provider(id)
