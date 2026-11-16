@@ -1,7 +1,19 @@
 name: Build main self-contained 110 coexist APKs
-# APK packaging must be requested explicitly after relevant regression tests
-# have been added and reviewed. Regular pushes only update source code.
+# Automatically build on relevant main changes. Tests must pass before APK packaging.
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-main-apk-only.yml'
+      - 'lib/**'
+      - 'test/**'
+      - 'assets/tvbox/js/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'native/**'
+      - 'scripts/build_native.py'
+      - 'scripts/package_release.py'
+      - 'android/**'
   workflow_dispatch:
 
 permissions:
@@ -70,6 +82,16 @@ jobs:
             sdkmanager --sdk_root="$ANDROID_HOME" "ndk;$version"
           fi
 
+      - name: Verify Flutter regressions before native and APK builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get --enforce-lockfile
+          flutter test test/danmaku_emoji_test.dart
+          flutter test test/tvbox_js_source_test.dart
+          # Source / playback changes require the existing regression tests to pass.
+          dart format --output=none lib/ui/terms_page.dart lib/ui/player/danmaku_overlay.dart lib/ui/player/playback_page.dart test/danmaku_emoji_test.dart
+
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24.1'
@@ -121,15 +143,6 @@ jobs:
           keytool -list -v -keystore "$RUNNER_TEMP/guo-110-permanent.jks" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" > "$RUNNER_TEMP/guo-110-cert.txt"
           actual=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/guo-110-cert.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
           [ "$actual" = "$EXPECTED_CERT_SHA256" ] || { echo "::error::Permanent certificate fingerprint mismatch"; exit 1; }
-
-      - name: Verify Flutter authorization checkbox and danmaku emojis
-        shell: bash
-        run: |
-          set -euo pipefail
-          flutter pub get --enforce-lockfile
-          flutter test test/danmaku_emoji_test.dart
-          flutter test test/tvbox_js_source_test.dart
-          dart format --output=none lib/ui/terms_page.dart lib/ui/player/danmaku_overlay.dart lib/ui/player/playback_page.dart test/danmaku_emoji_test.dart
 
       - name: Package 110 Flutter coexist APKs with newly built 13-provider core
         shell: bash
