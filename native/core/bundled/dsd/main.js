@@ -42,7 +42,9 @@ function present(value) {
 }
 
 function byteLength(text) {
-  return host.utf8Encode(text).length;
+  // Keep byte counts as JS Numbers: Goja host values can expose an integer
+  // as BigInt, and the AADecode counter uses normal numeric arithmetic.
+  return Number(host.utf8Encode(text).length);
 }
 
 function firstNonEmpty(...values) {
