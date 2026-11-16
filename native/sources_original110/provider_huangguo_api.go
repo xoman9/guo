@@ -92,7 +92,7 @@ func huangguoAIChapter(base, sourceID string, episode int, title string) core.Ch
 // chapter discovery. The legacy 109 implementation recognizes a data-hls
 // attribute on a first-party video page. Use it only as a fallback when the
 // API returns no playable URL; never manufacture a playlist address.
-var huangguoAIPageHLS = regexp.MustCompile(`(?is)\\bdata-hls\\s*=\\s*["']([^"']+)["']`)
+var huangguoAIPageHLS = regexp.MustCompile(`(?is)\bdata-hls\s*=\s*["']([^"']+)["']`)
 
 func huangguoAIPageMediaURL(pageURL, body string) string {
 	match := huangguoAIPageHLS.FindStringSubmatch(body)
