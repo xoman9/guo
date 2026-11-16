@@ -23,3 +23,15 @@ jobs:
           set -euo pipefail
           cd native
           go test -count=1 ./core
+      - name: Check original 110 provider integration (no APK)
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0, 'scripts')
+          from app_build import link_sources
+          from pathlib import Path
+          link_sources([Path('native/sources_original110'), Path('native/sources_missav110')])
+          PY
+          cd native
+          go test -tags=zhenguojian -count=1 ./core ./bridge duanjuapp/native/sources_original110 guoapp/missav-recovery
