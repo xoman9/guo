@@ -47,3 +47,18 @@ func TestHuangguoAIPlayMediaURLAliases(t *testing.T) {
         })
     }
 }
+
+func TestHuangguoAIDetailFallbackOnlyEpisodeOne(t *testing.T) {
+    const base = "https://huangguoai.com/"
+    detail := map[string]any{"video_url": "https://yd-lphu-hls.hzjvlo.cn/sample/index.m3u8?auth_key=example"}
+    want := "https://yd-lphu-hls.hzjvlo.cn/sample/index.m3u8?auth_key=example"
+    if got := huangguoAIDetailFirstEpisodeMediaURL(base, 1, detail); got != want {
+        t.Fatalf("first episode SSR URL = %q; want %q", got, want)
+    }
+    if got := huangguoAIDetailFirstEpisodeMediaURL(base, 2, detail); got != "" {
+        t.Fatalf("episode two incorrectly reused first episode URL: %q", got)
+    }
+    if got := huangguoAIDetailFirstEpisodeMediaURL(base, 1, map[string]any{"video_url": "https://ads.example.com/watch"}); got != "" {
+        t.Fatalf("invalid URL was accepted: %q", got)
+    }
+}
