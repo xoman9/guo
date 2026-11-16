@@ -107,10 +107,6 @@ func huangguoAIPageMediaURL(pageURL, body string) string {
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
 		return ""
 	}
-	switch strings.ToLower(strings.TrimPrefix(strings.ToLower(parsed.Path[strings.LastIndex(parsed.Path, "/")+1:]), ".")) {
-	case "m3u8", "mp4", "mpd":
-		return address
-	}
 	if strings.HasSuffix(strings.ToLower(parsed.Path), ".m3u8") ||
 		strings.HasSuffix(strings.ToLower(parsed.Path), ".mp4") ||
 		strings.HasSuffix(strings.ToLower(parsed.Path), ".mpd") {
