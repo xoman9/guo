@@ -1,0 +1,19 @@
+name: Verify staged upstream JS modules (no APK)
+on:
+  push:
+    branches: [feat/official-js-modules-20261116]
+    paths:
+      - 'native/js_modules/**'
+      - 'scripts/verify_js_modules.py'
+      - '.github/workflows/verify-js-modules.yml'
+  workflow_dispatch:
+jobs:
+  source-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify pinned module hashes, manifests and JavaScript syntax
+        run: python3 scripts/verify_js_modules.py
