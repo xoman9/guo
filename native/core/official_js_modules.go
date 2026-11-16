@@ -12,7 +12,7 @@ var officialModuleFiles embed.FS
 
 var officialModules = func() map[string]*jsModule {
   result := map[string]*jsModule{}
-  for _, id := range []string{"heitao","huangju","jinguoduanju","dsd","beabox","yeguo","huangguo-video","huangguoai"} {
+  for _, id := range []string{"heitao","huangju","jinguoduanju","dsd","beabox","yeguo","huangguo-video","huangguoai","hongguo"} {
     root := path.Join("bundled", id)
     manifest, err := fs.ReadFile(officialModuleFiles,path.Join(root,"manifest.json"))
     if err != nil { panic(err) }
