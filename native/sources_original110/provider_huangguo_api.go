@@ -182,6 +182,18 @@ func (p *huangguoAIProvider) fetchHuangguoAIPlayURL(ctx context.Context, sourceI
 			return address, nil
 		}
 	}
+	// Public Huangguo API documentation specifies that GET /api/videos/{id}
+	// may include an SSR-preloaded video_url for episode one. Use this only
+	// for episode one: using it for later episodes would play the wrong part.
+	if episode == 1 {
+		var detail map[string]any
+		detailErr := p.huangguoAIAPI(ctx, "/api/videos/"+url.PathEscape(sourceID), &detail)
+		if detailErr == nil {
+			if address := huangguoAIPlayMediaURL(p.site()+"/", detail); address != "" {
+				return address, nil
+			}
+		}
+	}
 	// Reuse the site's real video page referenced by the chapter; only take
 	// an explicit HLS/MP4/DASH URL already declared in its HTML.
 	pageURL := p.site() + "/video/" + url.PathEscape(sourceID) + "/"
