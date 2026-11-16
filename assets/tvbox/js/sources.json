@@ -1,60 +1,7 @@
 {
   "source": "https://raw.githubusercontent.com/cluntop/tvbox/refs/heads/main/fun.json",
-  "note": "TVBox csp_GM depends on gm.jar, injected GmSpiderInject and WebView; these entries are source manifests, not runnable interfaces in the current Flutter/Go player.",
+  "note": "TVBox csp_GM requires Android WebView and bundled scripts. MissAV remains enabled.",
   "sites": [
-    {
-      "key": "netflav",
-      "name": "netflav[js]",
-      "jar": "./jar/gm.jar",
-      "type": 3,
-      "quickSearch": 1,
-      "searchable": 1,
-      "changeable": 0,
-      "filterable": 1,
-      "timeout": 60,
-      "style": {
-        "type": "rect",
-        "ratio": 1.48
-      },
-      "api": "csp_GM",
-      "ext": {
-        "userScript": "./js/netflav.user.js",
-        "debug": false,
-        "webViewSettings": {
-          "blockNetworkImage": true,
-          "blockList": [
-            "*.png",
-            "*.css",
-            "*.woff2",
-            "https://*.googletagmanager.com/*",
-            "https://*.imkirh.com/*",
-            "https://*.xlvirdr.com/*"
-          ]
-        },
-        "playUrlMatch": [
-          "https://*/*/master.m3u8*",
-          "https://*/*/v.mp4",
-          "https://*/*/playlist.m3u8*"
-        ],
-        "spider": {
-          "homeContent": {
-            "loadUrl": "https://netflav.com/trending"
-          },
-          "categoryContent": {
-            "loadUrl": "https://netflav.com/${tid}&page=${pg:-1}${range:-}"
-          },
-          "detailContent": {
-            "loadUrl": "https://netflav.com/video?id=${id}/"
-          },
-          "playerContent": {
-            "loadUrl": "https://netflav.com/video?id=${vod_id}#${src}"
-          },
-          "searchContent": {
-            "loadUrl": "https://netflav.com/search?keyword=${key}&page=${pg:-1}&type=title"
-          }
-        }
-      }
-    },
     {
       "key": "MissAV",
       "name": "MissAV[js]",
