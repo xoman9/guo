@@ -803,21 +803,13 @@ class NativeRepository extends AppRepository {
       for (final row in build['sources'] as List? ?? const [])
         SourceSite.fromJson(Map<String, dynamic>.from(row as Map)),
     ];
-    // The two Android TVBox spiders run via MethodChannel/WebView and do not
-    // need a Go provider to be visible. Keep them discoverable even when the
-    // installed native core omits an optional provider from its registry.
+    // MissAV JavaScript is available through the Android WebView bridge.
     if (Platform.isAndroid && appFlavor == 'zhenguojian') {
       // Native-only availability flags must not hide a Dart/Android JS source.
+      // Exclude obsolete Netflav entries from older native registries.
       nativeSources.removeWhere((site) =>
-          (site.id == 'tvbox-netflav' || site.id == 'missav') &&
-          !site.available);
-      if (!nativeSources.any((site) => site.id == 'tvbox-netflav')) {
-        nativeSources.add(const SourceSite(
-          'tvbox-netflav', 'Netflav',
-          'TVBox JavaScript / Android WebView',
-          defaultOff: true,
-        ));
-      }
+          site.id == 'tvbox-netflav' ||
+          (site.id == 'missav' && !site.available));
       if (!nativeSources.any((site) => site.id == 'missav')) {
         nativeSources.add(const SourceSite(
           'missav', 'MissAV(JS)',
