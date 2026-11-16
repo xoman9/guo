@@ -6,6 +6,7 @@ on:
       - 'native/core/**'
       - 'native/go.mod'
       - 'native/go.sum'
+      - 'scripts/app_build.py'
       - '.github/workflows/test-official-js-runtime.yml'
   workflow_dispatch:
 jobs:
