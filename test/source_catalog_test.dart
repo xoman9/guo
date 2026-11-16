@@ -92,4 +92,60 @@ void main() {
     expect(hongguo.hasMore, isTrue);
     expect(repository.catalogRequests, ['huangdou||剧名|1', 'hongguo||剧名|2']);
   });
+
+  test('eight JS sources hide only recommendation categories', () async {
+    const jsSources = [
+      'heitao',
+      'huangju',
+      'jinguoduanju',
+      'dsd',
+      'beabox',
+      'yeguo',
+      'huangguo-video',
+      'huangguoai',
+    ];
+    for (final source in jsSources) {
+      final repository = FakeRepository()
+        ..categoryList = const [
+          CatalogCategory('home', '推荐'),
+          CatalogCategory('traditional', '推 薦'),
+          CatalogCategory('drama', '短剧'),
+          CatalogCategory('hot', '热门'),
+        ]
+        ..cachedPages['$source|'] = CatalogPage([
+          drama('1', source: source, category: '推薦'),
+          drama('2', source: source, category: '都市'),
+        ]);
+      final catalog = SourceCatalog(
+        repository,
+        SourceSite(source, source, 'JS', recommends: true),
+      );
+      await catalog.loadCategories();
+      expect(catalog.recommends, isFalse, reason: source);
+      expect(
+        [for (final category in catalog.categories) category.name],
+        ['全部', '短剧', '热门', '都市'],
+        reason: source,
+      );
+    }
+  });
+
+  test('other sources retain recommendation categories', () async {
+    final repository = FakeRepository()
+      ..categoryList = const [
+        CatalogCategory('home', '推荐'),
+        CatalogCategory('drama', '短剧'),
+      ];
+    final catalog = SourceCatalog(
+      repository,
+      const SourceSite('hongguo', '红果', 'Original', recommends: true),
+    );
+    await catalog.loadCategories();
+    expect(catalog.recommends, isTrue);
+    expect(
+      [for (final category in catalog.categories) category.name],
+      ['全部', '推荐', '短剧'],
+    );
+  });
+
 }
