@@ -7,6 +7,9 @@ on:
       - '.github/workflows/build-eight-js-apk.yml'
       - 'lib/source_catalog.dart'
       - 'test/source_catalog_test.dart'
+      - 'lib/global_search.dart'
+      - 'lib/ui/search/search_page.dart'
+      - 'test/global_search_test.dart'
       - 'native/core/bundled/hongguo/**'
       - 'native/core/official_hongguo_playback_test.go'
   workflow_dispatch:
@@ -87,7 +90,7 @@ jobs:
           flutter pub get --enforce-lockfile
           flutter test test/danmaku_emoji_test.dart
           flutter test test/tvbox_js_source_test.dart
-          flutter test test/source_catalog_test.dart test/explore_feed_test.dart
+          flutter test test/source_catalog_test.dart test/explore_feed_test.dart test/global_search_test.dart
           # Source / playback changes require the existing regression tests to pass.
           dart format --output=none lib/ui/terms_page.dart lib/ui/player/danmaku_overlay.dart lib/ui/player/playback_page.dart test/danmaku_emoji_test.dart
 
@@ -95,7 +98,7 @@ jobs:
         with:
           go-version: '1.26.0'
           cache: false
-      - name: Run native provider tests and build both experimental ABIs
+      - name: Run native provider tests and build ARM64 experimental core only
         shell: bash
         env:
           GOPROXY: https://proxy.golang.org,direct
@@ -112,10 +115,10 @@ jobs:
           (cd native && go test -tags=zhenguojian -count=1 ./core ./bridge duanjuapp/native/sources_original110 guoapp/missav-recovery) 2>&1 | tee "$RUNNER_TEMP/guo-110-provider-tests.log"
           python3 scripts/build_native.py --platform android --all-sources \
             --sources native/sources_original110 --sources native/sources_missav110 \
-            --abi arm64-v8a --abi armeabi-v7a 2>&1 | tee "$RUNNER_TEMP/guo-110-native-build.log"
+            --abi arm64-v8a 2>&1 | tee "$RUNNER_TEMP/guo-110-native-build.log"
           python3 - <<'PY'
           import pathlib, hashlib
-          for abi in ('arm64-v8a','armeabi-v7a'):
+          for abi in ('arm64-v8a',):
               path=pathlib.Path('android/app/src/main/jniLibs')/abi/'libduanju_core.so'
               if not path.is_file() or path.stat().st_size < 1_000_000:
                   raise SystemExit('New native Go library missing: '+str(path))
@@ -143,7 +146,7 @@ jobs:
           actual=$(sed -n 's/.*SHA256: //p' "$RUNNER_TEMP/guo-110-cert.txt" | head -n1 | tr -d ': ' | tr '[:upper:]' '[:lower:]')
           [ "$actual" = "$EXPECTED_CERT_SHA256" ] || { echo "::error::Permanent certificate fingerprint mismatch"; exit 1; }
 
-      - name: Package 110 Flutter coexist APKs with newly built 13-provider core
+      - name: Package ARM64 Flutter coexist APK with nine JS providers
         shell: bash
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -152,15 +155,15 @@ jobs:
         run: |
           set -euo pipefail
           flutter build apk --release --split-per-abi --no-pub \
-            --target-platform android-arm64,android-arm \
+            --target-platform android-arm64 \
             --dart-define=APP_FLAVOR=zhenguojian \
             --dart-define=ZHENGUOJIAN_DISPLAY_NAME=小果影視-共存版 \
             --dart-define=ZHENGUOJIAN_LATIN_NAME=XiaoGuo \
             2>&1 | tee "$RUNNER_TEMP/guo-110-build.log"
           python3 scripts/package_release.py --platform android --all-sources \
-            --abi arm64-v8a --abi armeabi-v7a
+            --abi arm64-v8a
 
-      - name: Verify permanently signed experimental APKs contain rebuilt Go cores
+      - name: Verify permanently signed ARM64 APK contains rebuilt Go core
         shell: bash
         run: |
           set -euo pipefail
@@ -168,7 +171,7 @@ jobs:
           aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n1)
           test -n "$signer" && test -n "$aapt"
           mkdir -p verified
-          for abi in arm64-v8a armeabi-v7a; do
+          for abi in arm64-v8a; do
             apk="dist/android/zhenguojian-1.0.10+110-$abi.apk"
             test -s "$apk" || { echo "::error::Missing $abi APK"; exit 1; }
             "$signer" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/guo-110-apk-cert.txt"
@@ -214,10 +217,10 @@ jobs:
           (cd verified && sha256sum *.apk > SHA256SUMS.txt)
           echo "One Go core includes original 15 from public history, 13 custom providers, and a separately reconstructed experimental MissAV. Exact original 110 MissAV playback parity not verified. Permanent certificate verified." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload both APKs to Actions artifacts only
+      - name: Upload ARM64-only APK to Actions artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: guo-main-110-self-contained-ARM64-v7a
+          name: guo-nine-js-search-ARM64-only
           path: verified/*
           retention-days: 14
           if-no-files-found: error
