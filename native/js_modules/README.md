@@ -1,11 +1,12 @@
 # Upstream JS modules (staging)
 
-This directory snapshots eight official guoapp-modules v1.0.1 modules, from https://github.com/guoapp-modules/index. Their manifests and main.js are unmodified. The upstream 'hongguo' source remains Go-native; no official hongguo JS module exists in this index.
+This directory snapshots eight v1.0.1 modules plus Hongguo v1.0.2, from https://github.com/guoapp-modules/index. Their manifests and main.js are unmodified. Hongguo is now provided by guoapp-modules/hongguo v1.0.2 and replaces its former Go provider at dispatch.
 
-These files are staging assets only; until a compatible Goja host and provider registration are integrated, they are not active. Do not remove original providers or ship an APK claiming JS playback support until module crypto/session tests pass.
+These files provide the source snapshots; the active bundles are embedded at native/core/bundled. The runtime must pass Go and Android integration tests before APK distribution.
 
 | Module | Repository | Release | manifest SHA256 | JS SHA256 |
 |---|---|---|---|---|
+| hongguo | guoapp-modules/hongguo | v1.0.2 | c91b038ac4f1e013111b26294143b7c66568f930b74bc7b218cf22ba738e6ab4 | 8b05f083fbf0d941b4fec2faec60874c9a7989851f6f63fcfa47432a15547324 |
 | heitao | guoapp-modules/heitao | v1.0.1 | a5ea87f19137fdb4d770d249faae97dcda48b4c320ade9b59658b69f680897af | 5f59ad4e21da7d272ee1efd76fd21e18b9f640524006325a35f5d437147b75a1 |
 | huangju | guoapp-modules/huangju | v1.0.1 | 6a0b6e6a0876be2585a3f165d16b38209794029fa799482e283d7650117c36bf | 33dd8316c42f3e0fb34b189c50a6414e983a4b7b4cbe05bbbc8f24d20d6bff5b |
 | jinguoduanju | guoapp-modules/jinguoduanju | v1.0.1 | 328426a570addcdd803962eee4edc9e4595ce9459807a2da8a50bfc04d675666 | fd8076de2f7ea6d0738ef30a2f4005e0786bb248c14285fccc8c5d68f3198371 |
