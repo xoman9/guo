@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed if staged official JS modules differ from locked upstream v1.0.1."""
+"""Fail closed if staged official JS modules differ from locked upstream releases."""
 from pathlib import Path
 import hashlib
 import json
@@ -35,6 +35,10 @@ EXPECTED = {
     "manifest.json": "a08630adbd41b4856b251aa1f5588bbe5d8087147c823c75a70f176d5f8ab2d4",
     "main.js": "317cc53266d1493b510e6d37cfd255a88e552224a469e0b96d41a8bfa21dc62e"
   },
+  "hongguo": {
+    "manifest.json": "c91b038ac4f1e013111b26294143b7c66568f930b74bc7b218cf22ba738e6ab4",
+    "main.js": "8b05f083fbf0d941b4fec2faec60874c9a7989851f6f63fcfa47432a15547324"
+  },
   "huangguoai": {
     "manifest.json": "7439d054b4672d1dc268bacfc886650e5142531905ff0fadc363e07af67efb61",
     "main.js": "5b9e86ac42295b94b2abe1c8ee6a09cb2d86e01e45e44809f34ecb8b1cb7c5d0"
@@ -47,7 +51,7 @@ for module_id, files in EXPECTED.items():
         assert actual == digest, f"{path}: sha256 mismatch {actual}"
     manifest = json.loads((ROOT / module_id / "manifest.json").read_text())
     assert manifest["id"] == module_id, f"{module_id}: mismatched module id"
-    assert manifest["version"] == "1.0.1" and manifest["runtime"] == "js"
+    assert manifest["version"] == ("1.0.2" if module_id == "hongguo" else "1.0.1") and manifest["runtime"] == "js"
     assert manifest.get("api") == 1
     assert "hosts" in manifest and manifest["hosts"], f"{module_id}: no host allowlist"
     js = ROOT / module_id / "main.js"
@@ -55,4 +59,4 @@ for module_id, files in EXPECTED.items():
     source = js.read_text()
     assert "resolveMedia(task)" in source, f"{module_id}: no playback handler"
     print(f"{module_id}: upstream sha256, manifest, syntax, resolveMedia OK")
-print("All eight upstream JS modules verified. Runtime integration NOT verified.")
+print("All nine upstream JS modules verified. Runtime integration checked by Go tests.")
