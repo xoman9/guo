@@ -5,6 +5,7 @@ import (
   "fmt"
   "strings"
   "testing"
+  "github.com/dop251/goja"
 )
 
 type dsdOfflineHost struct{Host}
@@ -26,4 +27,18 @@ func TestDSDJSOfflineResolveMediaWithoutBigIntTypeError(t *testing.T) {
   result,err:=p.ResolveMedia(context.Background(),task)
   if err!=nil {t.Fatalf("dsd JS playback: %T: %v",err,err)}
   if result.URL!="https://cdn.example.com/ok.mp4?token=123" {t.Fatalf("wrong media URL: %q",result.URL)}
+}
+
+func TestDSDHostUTF8LengthInterop(t *testing.T) {
+ p:=officialModules["dsd"].provider(&dsdOfflineHost{}).(*jsProvider)
+ inst,err:=p.newInstance()
+ if err!=nil {t.Fatal(err)}
+ h:=p.hostObject(inst)
+ if err:=inst.vm.Set("__dsdhost",h);err!=nil {t.Fatal(err)}
+ v,err:=inst.vm.RunString("({kind: typeof __dsdhost.utf8Encode('中').length, total: __dsdhost.utf8Encode('中').length + 1})")
+ if err!=nil {t.Fatalf("JS UTF8 length produces unexpected BigInt: %v",err)}
+ o:=v.ToObject(inst.vm)
+ if k:=o.Get("kind").String();k!="number" {t.Errorf("typed array length kind=%s, expected number",k)}
+ if n:=o.Get("total").ToInteger();n!=4 {t.Errorf("unexpected UTF8 length+1=%d",n)}
+ _=goja.Undefined()
 }
