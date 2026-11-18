@@ -10,6 +10,9 @@ on:
       - 'lib/global_search.dart'
       - 'lib/ui/search/search_page.dart'
       - 'test/global_search_test.dart'
+      - 'lib/ui/player/swipe_controls.dart'
+      - 'lib/ui/player/portrait_player_page.dart'
+      - 'test/portrait_swipe_controls_test.dart'
       - 'lib/ui/player/danmaku_overlay.dart'
       - 'test/danmaku_emoji_test.dart'
       - 'native/core/bundled/hongguo/**'
@@ -92,7 +95,7 @@ jobs:
           flutter pub get --enforce-lockfile
           flutter test test/danmaku_emoji_test.dart
           flutter test test/tvbox_js_source_test.dart
-          flutter test test/source_catalog_test.dart test/explore_feed_test.dart test/global_search_test.dart
+          flutter test test/source_catalog_test.dart test/explore_feed_test.dart test/global_search_test.dart test/portrait_swipe_controls_test.dart
           # Source / playback changes require the existing regression tests to pass.
           dart format --output=none lib/ui/terms_page.dart lib/ui/player/danmaku_overlay.dart lib/ui/player/playback_page.dart test/danmaku_emoji_test.dart
 
