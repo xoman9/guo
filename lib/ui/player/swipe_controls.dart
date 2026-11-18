@@ -14,6 +14,17 @@ const _episodeSwipeDistance = 60.0;
 
 enum _Level { brightness, volume }
 
+/// In portrait playback, reserve the outer 30% on each side for system levels
+/// and keep the middle for the existing vertical episode-navigation gesture.
+enum PortraitSwipeZone { brightness, episodes, volume }
+
+PortraitSwipeZone portraitSwipeZone(double x, double width) {
+  if (width <= 0) return PortraitSwipeZone.episodes;
+  if (x < width * .3) return PortraitSwipeZone.brightness;
+  if (x > width * .7) return PortraitSwipeZone.volume;
+  return PortraitSwipeZone.episodes;
+}
+
 class SwipeControls extends StatefulWidget {
   const SwipeControls({
     super.key,
@@ -21,12 +32,16 @@ class SwipeControls extends StatefulWidget {
     this.enabled = true,
     this.levels = false,
     this.episodes = false,
+    this.portraitZones = false,
+    this.onEpisodeSwipe,
     required this.child,
   });
   final PlaybackSession session;
   final bool enabled;
   final bool levels;
   final bool episodes;
+  final bool portraitZones;
+  final ValueChanged<int>? onEpisodeSwipe;
   final Widget child;
 
   @override
@@ -40,6 +55,7 @@ class _SwipeControlsState extends State<SwipeControls> {
   double? _value;
   double _pending = 0;
   double? _episodeOffset;
+  bool _portraitLevelActive = false;
 
   PlaybackSession get _session => widget.session;
 
@@ -143,11 +159,55 @@ class _SwipeControlsState extends State<SwipeControls> {
   void _episodeEnd(DragEndDetails _) {
     final step = _episodeStep;
     _episodeCancel();
-    if (step != 0) unawaited(_session.play(_session.index + step));
+    if (step != 0) {
+      if (widget.onEpisodeSwipe case final callback?) {
+        callback(step);
+      } else {
+        unawaited(_session.play(_session.index + step));
+      }
+    }
   }
 
   void _episodeCancel() {
     if (_episodeOffset != null) setState(() => _episodeOffset = null);
+  }
+
+  void _portraitStart(DragStartDetails details) {
+    final zone = portraitSwipeZone(
+      details.localPosition.dx, context.size?.width ?? 0,
+    );
+    _portraitLevelActive = widget.levels && zone != PortraitSwipeZone.episodes;
+    if (_portraitLevelActive) {
+      unawaited(_levelStart(details));
+    } else {
+      _episodeStart(details);
+    }
+  }
+
+  void _portraitUpdate(DragUpdateDetails details) {
+    if (_portraitLevelActive) {
+      _levelUpdate(details);
+    } else {
+      _episodeUpdate(details);
+    }
+  }
+
+  void _portraitEnd(DragEndDetails details) {
+    if (_portraitLevelActive) {
+      _levelEnd();
+    } else {
+      _episodeEnd(details);
+    }
+    _portraitLevelActive = false;
+  }
+
+  void _portraitCancel() {
+    if (_portraitLevelActive) {
+      _levelEnd();
+    } else {
+      _episodeCancel();
+    }
+    _portraitLevelActive = false;
   }
 
   String? _episodeLabel() => switch (_episodeStep) {
@@ -163,7 +223,7 @@ class _SwipeControlsState extends State<SwipeControls> {
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS);
     final levels = seek && widget.levels;
-    final episodes = seek && !levels && widget.episodes;
+    final episodes = seek && (widget.portraitZones || !levels && widget.episodes);
     final episodeLabel = _episodeLabel();
     final level = _level;
     final value = _value;
@@ -175,22 +235,30 @@ class _SwipeControlsState extends State<SwipeControls> {
           onHorizontalDragUpdate: seek ? _seekUpdate : null,
           onHorizontalDragEnd: seek ? _seekEnd : null,
           onHorizontalDragCancel: seek ? _seekCancel : null,
-          onVerticalDragStart: levels
+          onVerticalDragStart: widget.portraitZones && seek
+              ? _portraitStart
+              : levels
               ? (details) => unawaited(_levelStart(details))
               : episodes
               ? _episodeStart
               : null,
-          onVerticalDragUpdate: levels
+          onVerticalDragUpdate: widget.portraitZones && seek
+              ? _portraitUpdate
+              : levels
               ? _levelUpdate
               : episodes
               ? _episodeUpdate
               : null,
-          onVerticalDragEnd: levels
+          onVerticalDragEnd: widget.portraitZones && seek
+              ? _portraitEnd
+              : levels
               ? (_) => _levelEnd()
               : episodes
               ? _episodeEnd
               : null,
-          onVerticalDragCancel: levels
+          onVerticalDragCancel: widget.portraitZones && seek
+              ? _portraitCancel
+              : levels
               ? _levelEnd
               : episodes
               ? _episodeCancel
