@@ -1,0 +1,24 @@
+name: Verify portrait playback gestures
+on:
+  push:
+    branches: [feat/official-js-modules-20261116]
+    paths:
+      - 'lib/ui/player/swipe_controls.dart'
+      - 'lib/ui/player/portrait_player_page.dart'
+      - 'test/portrait_swipe_controls_test.dart'
+      - '.github/workflows/test-portrait-gestures.yml'
+  workflow_dispatch:
+jobs:
+  gesture-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: false
+      - run: flutter pub get --enforce-lockfile
+      - name: Check portrait/landscape gesture routing and existing playback tests
+        run: |
+          dart format --output=none lib/ui/player/swipe_controls.dart lib/ui/player/portrait_player_page.dart test/portrait_swipe_controls_test.dart
+          flutter test test/portrait_swipe_controls_test.dart test/danmaku_emoji_test.dart
