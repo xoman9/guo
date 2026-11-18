@@ -248,6 +248,20 @@ class _PortraitPlayerPageState extends State<PortraitPlayerPage>
     return false;
   }
 
+  void _swipeEpisode(int direction) {
+    final target = _session.index + direction;
+    if (target < 0) return _say('已经是第一集');
+    if (target >= _session.detail.episodes.length) {
+      return _say('已经是最后一集');
+    }
+    if (!_pages.hasClients || _scrolling) return;
+    unawaited(_pages.animateToPage(
+      target,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    ));
+  }
+
   void _wheel(PointerSignalEvent event) {
     if (event is! PointerScrollEvent || event.scrollDelta.dy == 0) return;
     GestureBinding.instance.pointerSignalResolver.register(event, (_) {
@@ -445,7 +459,8 @@ class _PortraitPlayerPageState extends State<PortraitPlayerPage>
                   child: PageView.builder(
                     controller: _pages,
                     scrollDirection: Axis.vertical,
-                    physics: _pinching
+                    physics: _pinching ||
+                            _session.store.playbackPreferences.swipeLevels
                         ? const NeverScrollableScrollPhysics()
                         : const _PagePhysics(),
                     itemCount: _session.detail.episodes.length,
@@ -525,6 +540,9 @@ class _PortraitPlayerPageState extends State<PortraitPlayerPage>
               key: const ValueKey('gestures'),
               session: session,
               enabled: !_pinching,
+              levels: session.store.playbackPreferences.swipeLevels,
+              portraitZones: session.store.playbackPreferences.swipeLevels,
+              onEpisodeSwipe: _swipeEpisode,
               child: LayoutBuilder(
                 builder: (context, constraints) => GestureDetector(
                   behavior: HitTestBehavior.opaque,
