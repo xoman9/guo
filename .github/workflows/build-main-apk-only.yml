@@ -50,6 +50,13 @@ jobs:
           test -f native/sources_custom/flavor_zhenguojian.go
           test -f native/sources_original110/provider_hongguo_provider.go
           test -f native/sources_original110/provider_hongguo_native_media.go
+          # Fail closed if any compiled Hongguo source regresses to the retired player API.
+          grep -Fq '"/reading/bookapi/video_tab/multi_video_model/v1/"' native/sources_original110/provider_hongguo_native_media.go
+          grep -Fq '"/novel/player/multi_video_model/player/v1"' native/sources_original110/provider_hongguo_native_media.go
+          ! grep -Fq '"/novel/player/video_model/v1/"' native/sources_original110/provider_hongguo_native_media.go
+          grep -Fq 'isVideoTab := path == "/reading/bookapi/video_tab/multi_video_model/v1/"' native/sources_original110/provider_hongguo_app.go
+          cmp native/sources/provider_hongguo_native_media.go native/sources_original110/provider_hongguo_native_media.go
+          cmp native/sources/provider_hongguo_app.go native/sources_original110/provider_hongguo_app.go
           test -f native/sources_original110/flavor_zhenguojian.go
           test -f native/sources_original110/go.mod
           test -f native/sources_missav110/provider.go
@@ -109,6 +116,9 @@ jobs:
           from app_build import link_sources
           from pathlib import Path
           link_sources([Path('native/sources_original110'), Path('native/sources_missav110')])
+          linked = Path('native/bridge/sources_gen.go').read_text()
+          assert '_ "duanjuapp/native/sources_original110"' in linked, 'New Hongguo provider module not linked'
+          assert 'sources_legacy109' not in linked and '_ "duanjuapp/native/sources"' not in linked, 'Old Hongguo provider linked'
           PY
           (cd native && go test -tags=zhenguojian -count=1 ./core ./bridge duanjuapp/native/sources_original110 guoapp/missav-recovery) 2>&1 | tee "$RUNNER_TEMP/guo-110-provider-tests.log"
           python3 scripts/build_native.py --platform android --all-sources \
