@@ -142,10 +142,14 @@ func (p *hongguoProvider) hongguoAppRequest(ctx context.Context, method, path st
 	client := p.client
 	comment, _ := ctx.Value(hongguoCommentKey{}).(bool)
 	helper, _ := ctx.Value(hongguoHelperDeviceKey{}).(bool)
-	signed := !comment && path != hongguoBookmallTabPath
+	// guoplus Hongguo TV uses a registered device but no full player
+	// signature on the video_tab GET endpoint.
+	isVideoTab := path == "/reading/bookapi/video_tab/multi_video_model/v1/"
+	signed := !comment && path != hongguoBookmallTabPath && !isVideoTab
+	requiresDevice := signed || isVideoTab
 	lane := ""
 	var registerErr error
-	if signed {
+	if requiresDevice {
 		registerErr = p.ensureHongguoDevice(ctx, helper, "")
 	}
 	client.mu.Lock()
@@ -153,7 +157,7 @@ func (p *hongguoProvider) hongguoAppRequest(ctx context.Context, method, path st
 	deviceID, installID, _ := client.deviceLocked(helper)
 	client.mu.Unlock()
 	if helper {
-		if deviceID == "" || !signed {
+		if deviceID == "" || !requiresDevice {
 			return nil, errors.New("红果辅助设备不可用")
 		}
 		lane = "hongguo-helper"
@@ -253,7 +257,7 @@ func (p *hongguoProvider) hongguoAppRequest(ctx context.Context, method, path st
 		}
 		if len(content) == 0 {
 			lastErr = errors.New("红果 App 接口未返回有效数据")
-			if signed && rotations < hongguoDeviceRotations {
+			if requiresDevice && rotations < hongguoDeviceRotations {
 				if registerErr = p.ensureHongguoDevice(ctx, helper, deviceID); registerErr == nil {
 					rotations++
 					deviceID, installID, _ = client.device(helper)
