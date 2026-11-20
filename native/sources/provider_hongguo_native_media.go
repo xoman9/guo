@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,36 +19,68 @@ func (p *hongguoProvider) resolveHongguoAppMedia(ctx context.Context, videoID st
 	if !hongguoNumericID.MatchString(videoID) {
 		return core.ProviderMedia{}, errors.New("红果视频 ID 无效")
 	}
+	// Prefer the current video-tab API. The older video_model/v1 route can
+	// return HTTP 200 with an empty payload even for valid episodes.
+	tabQuery := url.Values{
+		"video_id": {videoID}, "video_id_type": {"0"},
+		"device_level": {"1"}, "need_all_video_definition": {"1"},
+		"need_mp4_align": {"0"}, "use_os_player": {"0"},
+		"video_platform": {"1024"}, "source": {"0"}, "from_video_id": {""},
+	}
+	tabResult, tabErr := p.hongguoAppRequest(ctx, http.MethodGet, "/reading/bookapi/video_tab/multi_video_model/v1/", tabQuery, nil)
+	if tabErr == nil {
+		data := nestedMap(tabResult, "data", "video_model_data", videoID)
+		if len(data) == 0 {
+			tabErr = errors.New("红果 video_tab 未返回所请求分集")
+		} else {
+			media, err := selectHongguoAppMedia(hongguoDecodeVideoModel(data))
+			if err == nil { return media, nil }
+			tabErr = err
+		}
+	}
+	if err := ctx.Err(); err != nil { return core.ProviderMedia{}, err }
+	// Updated player interface, not the retired video_model/v1 endpoint.
 	payload := map[string]any{
-		"video_id": videoID, "content_type": 1,
-		"biz_param": map[string]any{"need_all_video_definition": true, "video_platform": 3},
+		"biz_param": map[string]any{
+			"detail_page_version": 0, "device_level": 1,
+			"disable_digg_stat": false, "disable_video_relate_book": false,
+			"need_all_video_definition": true, "need_mp4_align": false,
+			"use_os_player": false, "use_server_dns": false, "video_platform": 1024,
+		},
+		"mixed_video_id_map": map[string]any{"1004": []string{videoID}},
+		"dr_scene": "player",
 	}
-	result, err := p.hongguoAppRequest(ctx, http.MethodPost, "/novel/player/video_model/v1/", nil, payload)
-	if err != nil {
-		return core.ProviderMedia{}, err
+	playerResult, playerErr := p.hongguoAppRequest(ctx, http.MethodPost, "/novel/player/multi_video_model/player/v1", nil, payload)
+	if playerErr == nil {
+		entries := nestedMap(playerResult, "data")
+		if group, ok := entries["1004"].(map[string]any); ok { entries = group }
+		data, _ := entries[videoID].(map[string]any)
+		if len(data) == 0 {
+			playerErr = errors.New("红果播放器接口未返回所请求分集")
+		} else {
+			media, err := selectHongguoAppMedia(hongguoDecodeVideoModel(data))
+			if err == nil { return media, nil }
+			playerErr = err
+		}
 	}
-	data := nestedMap(result, "data")
+	return core.ProviderMedia{}, fmt.Errorf("video_tab: %v；播放器接口: %v", tabErr, playerErr)
+}
+
+func hongguoDecodeVideoModel(data map[string]any) map[string]any {
 	model, _ := data["video_model"].(map[string]any)
 	if encoded, ok := data["video_model"].(string); ok && encoded != "" {
 		if decoded, err := decodeHongguoBase64(encoded); err == nil && len(decoded) > 0 {
 			encoded = string(decoded)
 		}
+		var parsed map[string]any
 		decoder := json.NewDecoder(strings.NewReader(encoded))
 		decoder.UseNumber()
-		if err := decoder.Decode(&model); err != nil {
-			return core.ProviderMedia{}, errors.New("红果 App 播放信息格式异常")
-		}
+		if decoder.Decode(&parsed) == nil { model = parsed }
 	}
-	if len(model) == 0 {
-		if rows := anyList(data["video_list"]); len(rows) > 0 {
-			model = map[string]any{
-				"video_list":     data["video_list"],
-				"video_duration": data["video_duration"],
-				"duration":       data["duration"],
-			}
-		}
+	if len(model) == 0 && len(anyList(data["video_list"])) > 0 {
+		model = map[string]any{"video_list": data["video_list"], "video_duration": data["video_duration"], "duration": data["duration"]}
 	}
-	return selectHongguoAppMedia(model)
+	return model
 }
 
 func selectHongguoAppMedia(model map[string]any) (core.ProviderMedia, error) {
